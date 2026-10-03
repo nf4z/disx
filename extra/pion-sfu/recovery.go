@@ -164,13 +164,8 @@ func (pt *PublishedTrack) ingest(pkt *rtp.Packet) {
 	}
 
 	subKey := pt.publisher.id + "_" + pt.kind
-	sfu.mu.RLock()
-	defer sfu.mu.RUnlock()
-	for _, other := range sfu.peers {
-		other.mu.Lock()
-		isSubscribed := other.subscriptions[subKey]
-		other.mu.Unlock()
-		if isSubscribed && pt.forwardsTo(other) {
+	for _, other := range sfu.Subscribers(subKey) {
+		if pt.forwardsTo(other) {
 			_ = other.master(pt.kind).WriteRTP(pkt, pt.extensions)
 		}
 	}
@@ -274,10 +269,16 @@ func (sub *Peer) ensureSinks(pt *PublishedTrack) {
 		}
 		if err = receiver.Receive(webrtc.RTPReceiveParameters{Encodings: []webrtc.RTPDecodingParameters{{RTPCodingParameters: webrtc.RTPCodingParameters{SSRC: webrtc.SSRC(ssrc)}}}}); err != nil {
 			log.Printf("rtcp sink for %d on %s: %v", ssrc, sub.id, err)
+			_ = receiver.Stop()
 			continue
 		}
 		sink := &rtcpSink{receiver: receiver, track: pt}
 		sub.mu.Lock()
+		if _, exists := sub.sinks[ssrc]; exists {
+			sub.mu.Unlock()
+			_ = receiver.Stop()
+			continue
+		}
 		sub.sinks[ssrc] = sink
 		sub.mu.Unlock()
 		go sub.readSink(sink, ssrc)

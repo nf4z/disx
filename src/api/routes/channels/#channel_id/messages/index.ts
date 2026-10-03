@@ -38,7 +38,17 @@ import { Request, Response, Router } from "express";
 import { HTTPError } from "lambert-server/HTTPError";
 import multer from "multer";
 import { FindManyOptions, FindOperator, In, LessThan, MoreThan, MoreThanOrEqual } from "typeorm";
-import { AcknowledgeDeleteSchema, isTextChannel, MessageCreateSchema, PartialUser, PollAnswerCount, PublicMessage, ReadStateType } from "@spacebar/schemas";
+import {
+    AcknowledgeDeleteSchema,
+    isTextChannel,
+    MessageCreateSchema,
+    PartialUser,
+    PollAnswerCount,
+    PublicMessage,
+    PublicUser,
+    PublicUserProjection,
+    ReadStateType,
+} from "@spacebar/schemas";
 
 const router: Router = Router({ mergeParams: true });
 
@@ -86,8 +96,8 @@ router.get(
         const around = req.query.around ? `${req.query.around}` : undefined;
         const before = req.query.before ? `${req.query.before}` : undefined;
         const after = req.query.after ? `${req.query.after}` : undefined;
-        const limit = Number(req.query.limit) || 50;
-        if (limit < 1 || limit > 100) throw new HTTPError("limit must be between 1 and 100", 422);
+        const limit = Number(req.query.limit ?? 50);
+        if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new HTTPError("limit must be between 1 and 100", 422);
 
         const permissions = await getPermission(req.user_id, channel.guild_id, channel, { user: req.user?.id === req.user_id ? req.user : undefined });
         permissions.hasThrow("VIEW_CHANNEL");
@@ -231,21 +241,30 @@ router.get(
         });
         //console.log(ret);
 
-        type MessageWithInteraction = PublicMessage & {
-            interaction_metadata?: { user?: User; user_id: string };
-            interaction?: { user?: User };
-        };
-        await Promise.all(
-            (ret as MessageWithInteraction[])
-                .filter((x) => x.interaction_metadata && !x.interaction_metadata.user)
-                .map(async (x) => {
-                    x.interaction_metadata!.user = x.interaction!.user = await User.findOneOrFail({ where: { id: x.interaction_metadata!.user_id } });
-                }),
-        );
+        await fillInteractionUsers(ret);
 
         return res.json(ret);
     },
 );
+
+/** Resolve each interaction author once per page and expose public fields only. */
+export async function fillInteractionUsers(messages: PublicMessage[]) {
+    type WithInteraction = PublicMessage & {
+        interaction_metadata?: { user?: PublicUser; user_id: string };
+        interaction?: { user?: PublicUser };
+    };
+    const pending = (messages as WithInteraction[]).filter((message) => message.interaction_metadata?.user_id && !message.interaction_metadata.user);
+    const ids = [...new Set(pending.map((message) => message.interaction_metadata!.user_id))];
+    if (!ids.length) return;
+    const users = await User.find({ where: { id: In(ids) }, select: Object.fromEntries(PublicUserProjection.map((key) => [key, true])) });
+    const publicUsers = new Map(users.map((user) => [user.id, user.toPublicUser()]));
+    for (const message of pending) {
+        const user = publicUsers.get(message.interaction_metadata!.user_id);
+        if (!user) continue; // Deleted users must not fail an entire history page.
+        message.interaction_metadata!.user = user;
+        if (message.interaction) message.interaction.user = user;
+    }
+}
 
 // TODO: config max upload size
 export const messageUpload = multer({

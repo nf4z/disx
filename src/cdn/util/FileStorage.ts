@@ -18,7 +18,8 @@
 
 import fs from "node:fs";
 import fsp from "node:fs/promises";
-import { join, dirname } from "node:path";
+import { join, dirname, resolve, relative, isAbsolute } from "node:path";
+import { randomUUID } from "node:crypto";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { Storage } from "./Storage";
@@ -26,15 +27,20 @@ import ExifTransformer from "exif-be-gone";
 
 export class FileStorage implements Storage {
     getFsPath(path: string): string {
-        // STORAGE_LOCATION has a default value in start.ts
-        const root = process.env.STORAGE_LOCATION || "../";
-        const filename = join(root, path);
-
-        if (path.indexOf("\0") !== -1 || !filename.startsWith(root)) throw new Error("invalid path");
+        const root = resolve(process.env.STORAGE_LOCATION || "../");
+        const filename = resolve(root, path);
+        const child = relative(root, filename);
+        if (path.includes("\0") || child === ".." || child.startsWith("../") || isAbsolute(child)) throw new Error("invalid path");
         return filename;
     }
-    isFile(path: string): Promise<boolean> {
-        return Promise.resolve(fs.statSync(this.getFsPath(path)).isFile());
+
+    async isFile(path: string): Promise<boolean> {
+        try {
+            return (await fsp.stat(this.getFsPath(path))).isFile();
+        } catch (error) {
+            if (["ENOENT", "ENOTDIR"].includes((error as NodeJS.ErrnoException).code ?? "")) return false;
+            throw error;
+        }
     }
 
     async get(path: string): Promise<Buffer | null> {
@@ -45,10 +51,10 @@ export class FileStorage implements Storage {
             if ((error as NodeJS.ErrnoException).code !== "EISDIR") return null;
             try {
                 console.warn("[CDN] Warning: falling back to first file in dir for path", path);
-                const files = fs.readdirSync(path);
+                const files = await fsp.readdir(path);
                 if (!files.length) return null;
                 return await fsp.readFile(join(path, files[0]));
-            } catch (error) {
+            } catch {
                 return null;
             }
         }
@@ -57,35 +63,46 @@ export class FileStorage implements Storage {
     async clone(path: string, newPath: string) {
         path = this.getFsPath(path);
         newPath = this.getFsPath(newPath);
-
-        if (!fs.existsSync(dirname(newPath))) fs.mkdirSync(dirname(newPath), { recursive: true });
-
-        // use reflink if possible, in order to not duplicate files at the block layer...
-        fs.copyFileSync(path, newPath, fs.constants.COPYFILE_FICLONE);
+        await fsp.mkdir(dirname(newPath), { recursive: true });
+        await fsp.copyFile(path, newPath, fs.constants.COPYFILE_FICLONE);
     }
 
     async set(path: string, value: Buffer) {
         path = this.getFsPath(path);
-        if (!fs.existsSync(dirname(path))) fs.mkdirSync(dirname(path), { recursive: true });
-
-        await pipeline(Readable.from(value), new ExifTransformer(), fs.createWriteStream(path));
+        await fsp.mkdir(dirname(path), { recursive: true });
+        const temporary = `${path}.${randomUUID()}.tmp`;
+        try {
+            await pipeline(Readable.from(value), new ExifTransformer(), fs.createWriteStream(temporary, { flags: "wx" }));
+            await fsp.rename(temporary, path);
+        } finally {
+            await fsp.unlink(temporary).catch((error: NodeJS.ErrnoException) => {
+                if (error.code !== "ENOENT") throw error;
+            });
+        }
     }
 
     async delete(path: string) {
-        //TODO we should delete the parent directory if empty
-        fs.unlinkSync(this.getFsPath(path));
+        try {
+            await fsp.unlink(this.getFsPath(path));
+        } catch (error) {
+            if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+        }
     }
 
     async exists(path: string) {
-        return fs.existsSync(this.getFsPath(path));
+        try {
+            await fsp.access(this.getFsPath(path));
+            return true;
+        } catch (error) {
+            if (["ENOENT", "ENOTDIR"].includes((error as NodeJS.ErrnoException).code ?? "")) return false;
+            throw error;
+        }
     }
 
     async move(path: string, newPath: string) {
         path = this.getFsPath(path);
         newPath = this.getFsPath(newPath);
-
-        if (!fs.existsSync(dirname(newPath))) fs.mkdirSync(dirname(newPath), { recursive: true });
-
-        fs.renameSync(path, newPath);
+        await fsp.mkdir(dirname(newPath), { recursive: true });
+        await fsp.rename(path, newPath);
     }
 }

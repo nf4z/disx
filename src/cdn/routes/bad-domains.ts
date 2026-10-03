@@ -16,6 +16,7 @@
 	along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+import { Config } from "@spacebar/util";
 import { Request, Response, Router } from "express";
 import { setCacheControlNotFound } from "../util";
 
@@ -34,8 +35,8 @@ router.get("/:file", async (req: Request, res: Response) => {
     const known = FILES[file];
     if (!known) return setCacheControlNotFound(req, res);
     let entry = cache.get(file);
-    if (!entry || entry.expires < Date.now()) {
-        const upstream = await fetch(`https://cdn.discordapp.com/bad-domains/${file}`, { signal: AbortSignal.timeout(10000) }).catch(() => undefined);
+    if (Config.get().externalRequests.discordBadDomains && (!entry || entry.expires < Date.now())) {
+        const upstream = await fetch(`https://cdn.discordapp.com/bad-domains/${file}`, { signal: AbortSignal.timeout(10000), redirect: "error" }).catch(() => undefined);
         if (upstream?.ok) cache.set(file, (entry = { body: Buffer.from(await upstream.arrayBuffer()), expires: Date.now() + TTL }));
     }
     res.set("Content-Type", known.type);

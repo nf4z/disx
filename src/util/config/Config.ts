@@ -26,6 +26,7 @@ import {
     EmbedConfiguration,
     EndpointConfiguration,
     ExternalTokensConfiguration,
+    ExternalRequestConfiguration,
     GeneralConfiguration,
     GifConfiguration,
     GuildConfiguration,
@@ -59,6 +60,7 @@ export class ConfigValue {
     rabbitmq: RabbitMQConfiguration = new RabbitMQConfiguration();
     templates: TemplateConfiguration = new TemplateConfiguration();
     defaults: DefaultsConfiguration = new DefaultsConfiguration();
+    externalRequests: ExternalRequestConfiguration = new ExternalRequestConfiguration();
     external: ExternalTokensConfiguration = new ExternalTokensConfiguration();
     email: EmailConfiguration = new EmailConfiguration();
     passwordReset: PasswordResetConfiguration = new PasswordResetConfiguration();

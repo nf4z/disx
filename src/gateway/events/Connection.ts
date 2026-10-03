@@ -39,6 +39,11 @@ import { Gauge } from "prom-client";
 
 export const openConnections: WebSocket[] = [];
 
+const shutdownConnections = new Map<WebSocket, () => Promise<void>>();
+ProcessLifecycle.eventEmitter.on("stopping", async () => {
+    for (const shutdown of Array.from(shutdownConnections.values())) await shutdown();
+});
+
 const openConnectionCount = Monitoring.attachMetric(
     "spacebar_gateway_open_connection_count",
     new Gauge({
@@ -52,6 +57,7 @@ export async function Connection(this: WS.Server, socket: WebSocket, request: In
     openConnections.push(socket);
     openConnectionCount.set(openConnections.length);
     socket.on("close", () => {
+        shutdownConnections.delete(socket);
         const index = openConnections.indexOf(socket);
         if (index !== -1) openConnections.splice(index, 1);
         openConnectionCount.set(openConnections.length);
@@ -68,7 +74,7 @@ export async function Connection(this: WS.Server, socket: WebSocket, request: In
         for (const listener of closeListeners) {
             socket.off("close", listener);
             // noinspection JSVoidFunctionReturnValueUsed - awaiting results
-            const res = listener.call(socket, 1000, 0) as void | Promise<void>;
+            const res = listener.call(socket, 1000, Buffer.alloc(0)) as void | Promise<void>;
             if (res) await res;
         }
 
@@ -76,7 +82,7 @@ export async function Connection(this: WS.Server, socket: WebSocket, request: In
     };
 
     if (ProcessLifecycle.state == "stopping" || ProcessLifecycle.state == "stopped") return await onShutdown();
-    ProcessLifecycle.eventEmitter.on("stopping", onShutdown);
+    shutdownConnections.set(socket, onShutdown);
 
     const forwardedFor = Config.get().security.forwardedFor;
     const ipAddress = forwardedFor ? (request.headers[forwardedFor.toLowerCase()] as string) : request.socket.remoteAddress;
@@ -105,8 +111,7 @@ export async function Connection(this: WS.Server, socket: WebSocket, request: In
     socket.session_id = "TEMP_" + genSessionId(); //Set the session of the WebSocket object
 
     try {
-        // @ts-ignore
-        socket.on("close", Close);
+        socket.on("close", (code, reason) => Close.call(socket, code, reason).catch((error) => console.error("[Gateway] Connection cleanup failed", error)));
         // @ts-ignore
         socket.on("message", Message);
 
@@ -136,8 +141,8 @@ export async function Connection(this: WS.Server, socket: WebSocket, request: In
             return socket.close(CLOSECODES.Decode_error);
         }
 
-        socket.version = Number(searchParams.get("version")) || 8;
-        if (socket.version != 8) {
+        socket.version = Number(searchParams.get("v") ?? searchParams.get("version") ?? "8");
+        if (![8, 9, 10].includes(socket.version)) {
             console.error(`[Gateway/${socket.ipAddress}] Invalid API version: ${socket.version}`);
             return socket.close(CLOSECODES.Invalid_API_version);
         }

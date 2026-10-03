@@ -28,3 +28,28 @@ func (r *Sfu) GetPeer(id string) *Peer {
 	defer r.mu.RUnlock()
 	return r.peers[id]
 }
+
+// PeerSnapshot releases the registry lock before any peer or network work.
+func (r *Sfu) PeerSnapshot() []*Peer {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	peers := make([]*Peer, 0, len(r.peers))
+	for _, p := range r.peers {
+		peers = append(peers, p)
+	}
+	return peers
+}
+
+func (r *Sfu) Subscribers(key string) []*Peer {
+	peers := r.PeerSnapshot()
+	targets := peers[:0]
+	for _, p := range peers {
+		p.mu.Lock()
+		subscribed := p.subscriptions[key]
+		p.mu.Unlock()
+		if subscribed {
+			targets = append(targets, p)
+		}
+	}
+	return targets
+}

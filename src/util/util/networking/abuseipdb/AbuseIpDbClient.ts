@@ -35,40 +35,47 @@ export class AbuseIpDbClient {
     } | null = null;
 
     static async checkIpAddress(ip: string): Promise<AbuseIpDbCheckResponse | null> {
-        const { ipdataApiKey } = Config.get().security;
-        if (!ipdataApiKey) return null;
+        if (!Config.get().externalRequests.thirdParty) return null;
+        const { abuseIpDbApiKey } = Config.get().security;
+        if (!abuseIpDbApiKey) return null;
         if ((this.ipCheckCache.get(ip)?.expires ?? 0) > Date.now()) return this.ipCheckCache.get(ip)!.data;
 
-        console.log(`[AbuseIPDB] Checking IP address ${ip}...`);
-        const resp = (await (await fetch(`https://api.abuseipdb.com/api/v2/check?ipAddress=${ip}`)).json()) as Promise<AbuseIpDbCheckResponse>;
+        const response = await fetch(`https://api.abuseipdb.com/api/v2/check?ipAddress=${encodeURIComponent(ip)}`, {
+            headers: { Key: abuseIpDbApiKey, Accept: "application/json" },
+            signal: AbortSignal.timeout(10_000),
+        });
+        if (!response.ok) return null;
+        const resp = (await response.json()) as AbuseIpDbCheckResponse;
         this.ipCheckCache.set(ip, {
-            data: await resp,
+            data: resp,
             expires: new DateBuilder().addHours(12).buildTimestamp(),
         });
-        return await resp;
+        return resp;
     }
 
     static async getBlacklist(): Promise<AbuseIpDbBlacklistResponse | null> {
+        if (!Config.get().externalRequests.thirdParty) return null;
         const { abuseIpDbApiKey, abuseipdbBlacklistRatelimit } = Config.get().security;
         if (!abuseIpDbApiKey) return null;
         if ((this.blacklistCache?.expires ?? 0) > Date.now()) return this.blacklistCache!.data;
 
         console.log("[AbuseIPDB] Fetching blacklist...");
-        const resp = (await (
-            await fetch(`https://api.abuseipdb.com/api/v2/blacklist`, {
-                headers: {
-                    Key: abuseIpDbApiKey,
-                    Accept: "application/json",
-                },
-            })
-        ).json()) as Promise<AbuseIpDbBlacklistResponse>;
+        const response = await fetch(`https://api.abuseipdb.com/api/v2/blacklist`, {
+            headers: {
+                Key: abuseIpDbApiKey,
+                Accept: "application/json",
+            },
+            signal: AbortSignal.timeout(10_000),
+        });
+        if (!response.ok) return null;
+        const resp = (await response.json()) as AbuseIpDbBlacklistResponse;
 
         this.blacklistCache = {
-            data: await resp,
+            data: resp,
             expires: new DateBuilder().addHours(Math.ceil(24 / abuseipdbBlacklistRatelimit)).buildTimestamp(),
         };
 
-        return await resp;
+        return resp;
     }
 
     static async isIpBlacklisted(ip: string): Promise<boolean> {

@@ -331,12 +331,15 @@ export default function TestClient(app: Application) {
     app.get("/assets/:file", async (req, res) => {
         const file = req.params.file;
         if (!/^[\w.-]+$/.test(file) || file.endsWith(".map")) return res.sendStatus(404);
-        const upstream = await fetch(`${UPSTREAM}/assets/${file}`).catch(() => null);
+        if (!Config.get().externalRequests.discordClientAssets) return res.sendStatus(404);
+        const upstream = await fetch(`${UPSTREAM}/assets/${file}`, { signal: AbortSignal.timeout(15000), redirect: "error" }).catch(() => null);
         if (!upstream?.ok) return res.sendStatus(upstream?.status ?? 502);
         const contentType = upstream.headers.get("content-type");
         if (contentType) res.type(contentType);
         fs.promises.appendFile(missLog, `${file}\n`).catch(() => {});
-        res.send(Buffer.from(await upstream.arrayBuffer()));
+        const body = Buffer.from(await upstream.arrayBuffer());
+        await fs.promises.writeFile(path.join(CACHE_PATH, file), body).catch(() => {});
+        res.send(body);
     });
 
     const sourceStamp = () =>

@@ -16,6 +16,7 @@
 	along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+import { Config } from "@spacebar/util";
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { IGifProvider } from "./IGifProvider";
@@ -23,6 +24,8 @@ import type { IGifProvider } from "./IGifProvider";
 export class GifProviderManager {
     private static _providers: Map<string, IGifProvider> = new Map<string, IGifProvider>();
     public static async init() {
+        this._providers.clear();
+        if (!Config.get().externalRequests.thirdParty) return;
         console.log("[GifProviderManager] Initialising providers...");
         const providerImports = await Promise.all(
             (await fs.readdir(path.join(__dirname, "providers"))) /**/
@@ -30,12 +33,11 @@ export class GifProviderManager {
                 .map((f) => import(path.join(__dirname, "providers", f))),
         );
 
-        console.log("Import tasks:", providerImports);
         for (const providerImport of providerImports) {
             const provider = new providerImport.default.default() as IGifProvider;
             console.log(`[GifProviderManager] Got provider with id ${provider.id}, calling init...`);
             await provider.init();
-            console.log(`[GifProviderManager] Initialized '${provider.id}':`, provider, " - Available:", provider.available);
+            console.log(`[GifProviderManager] Initialized '${provider.id}' - Available:`, provider.available);
             if (provider.available) this._providers.set(provider.id, provider);
             console.log(`[GifProviderManager] Initialized`, this._providers.size, "/", providerImports.length, "GIF providers...");
         }
@@ -44,6 +46,7 @@ export class GifProviderManager {
     }
 
     public static getProvider(id: string): IGifProvider {
+        if (!Config.get().externalRequests.thirdParty) throw new Error("External GIF providers are disabled by instance policy");
         if (id == "tenor") id = "klipy";
         if (this._providers.has(id)) return this._providers.get(id)!;
 
@@ -51,11 +54,13 @@ export class GifProviderManager {
     }
 
     public static findProvider(id?: string): IGifProvider | undefined {
+        if (!Config.get().externalRequests.thirdParty) return undefined;
         if (!id || id == "tenor") id = "klipy";
         return this._providers.get(id) ?? this._providers.values().next().value;
     }
 
     public static getProviders() {
+        if (!Config.get().externalRequests.thirdParty) return {};
         const providers: { [key: string]: { available: boolean } } = {};
         for (const [id, provider] of this._providers) {
             providers[id] = {

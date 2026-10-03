@@ -58,7 +58,13 @@ const account = async (name) => {
     if (known) {
         const login = await call("POST", "/auth/login", null, { login: known.email, password: known.password });
         if (login.body?.token)
-            return { name, email: known.email, password: known.password, token: login.body.token, id: login.body.user_id ?? (await call("GET", "/users/@me", login.body.token)).body.id };
+            return {
+                name,
+                email: known.email,
+                password: known.password,
+                token: login.body.token,
+                id: login.body.user_id ?? (await call("GET", "/users/@me", login.body.token)).body.id,
+            };
     }
     const email = `e2ee-${name}-${suffix}@fosscord.test`;
     const password = randomBytes(12).toString("hex");
@@ -137,7 +143,10 @@ const open = async (context, user, { login = false, extraInit } = {}) => {
     for (let i = 0; i < 40 && !page.url().endsWith(dm.id); i++) {
         if (await unlock.count()) {
             askedToUnlock = true;
-            await unlock.locator("button", { hasText: "Not now" }).click({ timeout: 2000 }).catch(() => {});
+            await unlock
+                .locator("button", { hasText: "Not now" })
+                .click({ timeout: 2000 })
+                .catch(() => {});
         } else await link.click({ timeout: 2000 }).catch(() => {});
         await page.waitForTimeout(250);
     }
@@ -454,7 +463,7 @@ try {
             log("the server only stores ciphertext");
 
             const own = a.page.locator('[id^="chat-messages-"]', { has: a.page.locator('[id^="message-content-"]', { hasText: filesEdited }) }).last();
-            await own.locator("img").first().hover({ force: true });
+            await own.locator(`img[src*="/e2ee/attachments/${dm.id}/"]`).first().hover({ force: true });
             await own.locator('[aria-label="Remove Message Attachment"]').first().click({ force: true });
             await a.page.getByRole("button", { name: "Remove Attachment" }).click();
             await waitFor("the image to disappear for friend", async () => !(await editedMessage.locator(`img[src*="/e2ee/attachments/"]`).count()), 10000);

@@ -22,7 +22,7 @@ import { route } from "@spacebar/api/middlewares";
 import { StoreItem, StorePack } from "@spacebar/database";
 import { Collectibles } from "@spacebar/util";
 import { AdminStorePackUpdateSchema } from "@spacebar/schemas";
-import { deleteAllStoreArt, deleteStoreArt, serializeStorePack, uploadStoreArt } from "@spacebar/api/util";
+import { deleteStorePackArt, deleteStoreArt, serializeStorePack, uploadStoreArt } from "@spacebar/api/util";
 
 const router = Router({ mergeParams: true });
 
@@ -65,7 +65,7 @@ router.delete(
     async (req: Request, res: Response) => {
         const pack = await findPack(req);
         const items = await StoreItem.find({ where: { pack_id: pack.id } });
-        await Promise.all([...items.map(deleteAllStoreArt), deleteStoreArt(`${pack.id}/banner`), deleteStoreArt(`${pack.id}/logo`)]);
+        await deleteStorePackArt(pack, items);
         await StorePack.delete({ id: pack.id });
         Collectibles.reload();
         res.sendStatus(204);

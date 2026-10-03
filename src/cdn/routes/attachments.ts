@@ -16,7 +16,8 @@
 	along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-import { Request, Response, Router } from "express";
+import { Request, Response, Router, raw, NextFunction } from "express";
+import multerConfig from "multer";
 import { fileTypeFromBuffer } from "file-type";
 import imageSize from "image-size";
 import { HTTPError } from "lambert-server/HTTPError";
@@ -86,7 +87,7 @@ router.get("/:channel_id/:attachment_id/:filename", setCacheControl, async (req:
 
     let hasValidAuth = false;
     if (req.headers.signature) {
-        hasValidAuth = req.headers.signature !== Config.get().security.requestSignature;
+        hasValidAuth = req.headers.signature === Config.get().security.requestSignature;
         if (!hasValidAuth) console.warn("[CDN/Attachments] Client sent invalid signature header");
     } else if (!Config.get().security.cdnSignUrls) {
         hasValidAuth = true;
@@ -150,10 +151,24 @@ router.delete("/:channel_id/:attachment_id/:filename", async (req: Request, res:
     return res.send({ success: true });
 });
 
-// "cloud attachments"
-router.put("/:channel_id/:batch_id/:attachment_id/:filename", multer.single("file"), async (req: Request, res: Response) => {
+function parseCloudUpload(req: Request, res: Response, next: NextFunction) {
+    const limit = Config.get().cdn.maxAttachmentSize;
+    const parser = req.is("multipart/form-data")
+        ? multerConfig({ storage: multerConfig.memoryStorage(), limits: { fileSize: limit, files: 1, fields: 10 } }).single("file")
+        : raw({ type: () => true, limit, inflate: false });
+    parser(req, res, (error) => {
+        if (error instanceof multerConfig.MulterError && error.code === "LIMIT_FILE_SIZE") return next(new HTTPError("File too large", 413));
+        return next(error);
+    });
+}
+
+router.put("/:channel_id/:batch_id/:attachment_id/:filename", parseCloudUpload, async (req: Request, res: Response) => {
     const { channel_id, batch_id, attachment_id, filename } = req.params as { [key: string]: string };
-    const att = await CloudAttachment.findOneOrFail({
+    const buffer = req.file?.buffer ?? req.body;
+    if (!Buffer.isBuffer(buffer)) throw new HTTPError("file missing", 400);
+    if (buffer.length > Config.get().cdn.maxAttachmentSize) throw new HTTPError("File too large", 413);
+
+    const att = await CloudAttachment.findOne({
         where: {
             uploadFilename: `${channel_id}/${batch_id}/${attachment_id}/${filename}`,
             channelId: channel_id,
@@ -161,56 +176,30 @@ router.put("/:channel_id/:batch_id/:attachment_id/:filename", multer.single("fil
             userFilename: filename,
         },
     });
+    if (!att) throw new HTTPError("Attachment not found", 404);
 
-    const maxLength = Config.get().cdn.maxAttachmentSize;
+    const path = `attachments/${channel_id}/${batch_id}/${attachment_id}/${filename}`;
+    let mimeType = att.userOriginalContentType;
+    if (mimeType === null) {
+        const ft = await fileTypeFromBuffer(buffer);
+        mimeType = att.contentType = ft?.mime || "application/octet-stream";
+    }
 
-    console.log("[Cloud Upload] Uploading attachment", att.id, att.userFilename, `Max size: ${maxLength} bytes`);
-
-    const chunks: Buffer[] = [];
-    let length = 0;
-
-    req.on("data", (chunk) => {
-        console.log(`[Cloud Upload] Received chunk of size ${chunk.length} bytes`);
-        chunks.push(chunk);
-        length += chunk.length;
-        if (length > maxLength) {
-            res.status(413).send("File too large");
-            req.destroy();
+    try {
+        const dimensions = mimeType?.includes("image") ? imageSize(buffer) : mimeType?.startsWith("video/") ? readVideoDimensions(buffer) : undefined;
+        if (dimensions) {
+            att.width = dimensions.width;
+            att.height = dimensions.height;
         }
-    });
-    req.on("end", async () => {
-        console.log(`[Cloud Upload] Finished receiving file, total size ${length} bytes`);
-        const buffer = Buffer.concat(chunks);
-        const path = `attachments/${channel_id}/${batch_id}/${attachment_id}/${filename}`;
+    } catch {
+        att.width = undefined;
+        att.height = undefined;
+    }
 
-        await storage.set(path, buffer);
-
-        let mimeType = att.userOriginalContentType;
-        if (att.userOriginalContentType === null) {
-            const ft = await fileTypeFromBuffer(buffer);
-            mimeType = att.contentType = ft?.mime || "application/octet-stream";
-        }
-
-        if (mimeType?.includes("image")) {
-            const dimensions = imageSize(buffer);
-            if (dimensions) {
-                att.width = dimensions.width;
-                att.height = dimensions.height;
-            }
-        } else if (mimeType?.startsWith("video/")) {
-            const dimensions = readVideoDimensions(buffer);
-            if (dimensions) {
-                att.width = dimensions.width;
-                att.height = dimensions.height;
-            }
-        }
-
-        att.size = buffer.length;
-        await att.save();
-
-        console.log("[Cloud Upload] Saved attachment", att.id, att.userFilename);
-        res.status(200).end();
-    });
+    await storage.set(path, buffer);
+    att.size = buffer.length;
+    await att.save();
+    return res.status(200).end();
 });
 
 router.delete("/:channel_id/:batch_id/:attachment_id/:filename", async (req: Request, res: Response) => {

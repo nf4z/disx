@@ -16,14 +16,15 @@
 	along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+import { HTTPError } from "lambert-server/HTTPError";
 import { Request, Response, Router } from "express";
 import { route } from "@spacebar/api/middlewares";
 import { ADMIN_PANEL_RIGHTS } from "@spacebar/api/util";
-import { Guild, Member, Message, Report, RESOLVED_INCIDENT_STATES, StatusIncident, User } from "@spacebar/database";
-import { brandImageUrls, Config, getRevInfoOrFail, getRights, instanceName, SpacebarApiErrors } from "@spacebar/util";
-import { In, Not } from "typeorm";
+import { brandImageUrls, Config, getRevInfoOrFail, instanceName } from "@spacebar/util";
+import { adminCounts, ADMIN_COUNTS_TTL_MS } from "@spacebar/api/util/utility/adminCounts";
 
 const router = Router({ mergeParams: true });
+const revision = getRevInfoOrFail();
 
 router.get(
     "/",
@@ -32,20 +33,12 @@ router.get(
         description: "Instance overview for the admin dashboard, including which admin areas the caller can access",
     }),
     async (req: Request, res: Response) => {
-        const rights = await getRights(req.user_id);
-        if (!rights.any([...ADMIN_PANEL_RIGHTS])) throw SpacebarApiErrors.MISSING_RIGHTS.withParams(ADMIN_PANEL_RIGHTS.join(" | "));
+        const rights = req.rights;
+        if (!rights.any([...ADMIN_PANEL_RIGHTS])) throw new HTTPError("This account does not have admin access", 403);
 
-        const [users, guilds, messages, members, disabledUsers, openIncidents, openReports] = await Promise.all([
-            User.count({ where: { bot: false } }),
-            Guild.count(),
-            Message.count(),
-            Member.count(),
-            User.count({ where: { disabled: true } }),
-            StatusIncident.count({ where: { status: Not(In(RESOLVED_INCIDENT_STATES)) } }),
-            Report.count({ where: { status: "open" } }),
-        ]);
+        const counts = await adminCounts();
 
-        const general = Config.get().general;
+        const { general } = Config.get();
         res.json({
             instance: {
                 id: general.instanceId,
@@ -53,9 +46,11 @@ router.get(
                 description: general.instanceDescription,
                 image: brandImageUrls().icon ?? general.image,
             },
-            counts: { users, guilds, messages, members, disabled_users: disabledUsers, open_incidents: openIncidents, open_reports: openReports },
+            counts: counts.value,
+            counts_sampled_at: counts.sampled_at,
+            counts_refresh_seconds: ADMIN_COUNTS_TTL_MS / 1000,
             uptime: process.uptime(),
-            revision: getRevInfoOrFail(),
+            revision,
             access: {
                 operator: rights.has("OPERATOR"),
                 settings: rights.has("OPERATOR"),

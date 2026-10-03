@@ -1,0 +1,51 @@
+{
+  "sampled_at": "2026-10-03T20:00:56.737Z",
+  "origin": "http://localhost:3290",
+  "revision": "96a0e16661f2b24ab3cc47b76008795f0cb84bf9",
+  "node": "v26.9.0",
+  "cpu_parallelism": 8,
+  "results": [
+    {
+      "path": "/admin",
+      "concurrency": 1,
+      "requests": 150,
+      "elapsed_ms": 169.01800000000003,
+      "requests_per_second": 887.4794400596385,
+      "p50_ms": 0.9959579999999733,
+      "p95_ms": 1.823500000000024,
+      "p99_ms": 3.7566249999999854,
+      "max_ms": 4.436125000000004,
+      "statuses": {
+        "200": 150
+      }
+    },
+    {
+      "path": "/admin",
+      "concurrency": 8,
+      "requests": 150,
+      "elapsed_ms": 80.89012500000001,
+      "requests_per_second": 1854.3672667090077,
+      "p50_ms": 3.206707999999935,
+      "p95_ms": 7.431958000000009,
+      "p99_ms": 37.03333300000003,
+      "max_ms": 37.909167000000025,
+      "statuses": {
+        "200": 150
+      }
+    },
+    {
+      "path": "/admin",
+      "concurrency": 32,
+      "requests": 150,
+      "elapsed_ms": 77.70349999999996,
+      "requests_per_second": 1930.4149748724326,
+      "p50_ms": 9.638124999999945,
+      "p95_ms": 65.50641599999994,
+      "p99_ms": 74.68737499999997,
+      "max_ms": 75.11466699999994,
+      "statuses": {
+        "200": 150
+      }
+    }
+  ]
+}

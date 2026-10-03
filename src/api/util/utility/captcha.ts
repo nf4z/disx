@@ -32,6 +32,7 @@ const verifyEndpoints = {
 export function captchaEnabled() {
     const { enabled, service, sitekey, secret, instance } = Config.get().security.captcha;
     if (!enabled || !service || !sitekey || !secret) return false;
+    if (service !== "cap" && !Config.get().externalRequests.thirdParty) return false;
     return service !== "cap" || !!instance;
 }
 
@@ -63,6 +64,7 @@ export async function verifyCaptcha(response: string, ip?: string): Promise<Capt
 
     const res = await fetch(verifyEndpoints[service], {
         method: "POST",
+        signal: AbortSignal.timeout(10_000),
         headers: {
             "Content-Type": "application/x-www-form-urlencoded",
         },

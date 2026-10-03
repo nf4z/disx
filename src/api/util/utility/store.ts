@@ -160,14 +160,12 @@ const sortByPosition = <T extends { position: number; created_at: Date }>(a: T, 
 
 async function customCollectibles() {
     const [packs, items, hidden] = await Promise.all([StorePack.find(), StoreItem.find(), StoreHiddenPack.find()]);
+    const grouped = groupStoreItems(items);
     const categories: CollectibleCategory[] = packs.sort(sortByPosition).map((pack) => {
-        const products = items
-            .filter((item) => item.pack_id === pack.id)
-            .sort(sortByPosition)
-            .flatMap((item) => {
-                const catalogItem = toCatalogItem(item);
-                return catalogItem ? [toProduct(item, catalogItem)] : [];
-            });
+        const products = (grouped.get(pack.id) ?? []).flatMap((item) => {
+            const catalogItem = toCatalogItem(item);
+            return catalogItem ? [toProduct(item, catalogItem)] : [];
+        });
         const banner = packArtUrl(pack, "banner");
         return {
             sku_id: pack.id,
@@ -277,7 +275,26 @@ export function assertKeepsMainArt(item: StoreItem, art: StoreArtInput = {}) {
 }
 
 /** Removes every uploaded file of an item. */
-export const deleteAllStoreArt = (item: StoreItem) => Promise.all(Object.keys(item.data.assets ?? {}).map((slot) => deleteStoreArt(artPath(item, slot))));
+export async function deleteStoreArtPaths(paths: Iterable<string>): Promise<void> {
+    const iterator = paths[Symbol.iterator]();
+    await Promise.all(
+        Array.from({ length: 8 }, async () => {
+            for (let next = iterator.next(); !next.done; next = iterator.next()) await deleteStoreArt(next.value);
+        }),
+    );
+}
+
+export const deleteAllStoreArt = (item: StoreItem) => deleteStoreArtPaths(Object.keys(item.data.assets ?? {}).map((slot) => artPath(item, slot)));
+
+/** Deletes pack art with one concurrency budget for the entire pack. */
+export function deleteStorePackArt(pack: StorePack, items: StoreItem[]) {
+    function* paths() {
+        yield `${pack.id}/banner`;
+        yield `${pack.id}/logo`;
+        for (const item of items) for (const slot of Object.keys(item.data.assets ?? {})) yield artPath(item, slot);
+    }
+    return deleteStoreArtPaths(paths());
+}
 
 const previewUrl = (item: StoreItem, slot: string) => {
     const hash = item.data.assets?.[slot];
@@ -326,7 +343,20 @@ export function serializeStoreItem(item: StoreItem) {
     };
 }
 
-export const serializeStorePack = (pack: StorePack, items: StoreItem[] = []) => ({
+/** Group and sort once when serializing a collection of packs. */
+export function groupStoreItems(items: StoreItem[]): Map<string, StoreItem[]> {
+    const grouped = new Map<string, StoreItem[]>();
+    for (const item of items) {
+        const packId = item.pack_id;
+        const siblings = grouped.get(packId);
+        if (siblings) siblings.push(item);
+        else grouped.set(packId, [item]);
+    }
+    for (const siblings of grouped.values()) siblings.sort(sortByPosition);
+    return grouped;
+}
+
+export const serializeStorePack = (pack: StorePack, items: StoreItem[] | Map<string, StoreItem[]> = []) => ({
     id: pack.id,
     name: pack.name,
     summary: pack.summary,
@@ -334,10 +364,7 @@ export const serializeStorePack = (pack: StorePack, items: StoreItem[] = []) => 
     banner: pack.banner_hash ? `/media/v1/collectibles-shop/${pack.id}/banner?v=${pack.banner_hash}` : null,
     logo: pack.logo_hash ? `/media/v1/collectibles-shop/${pack.id}/logo?v=${pack.logo_hash}` : null,
     created_at: pack.created_at,
-    items: items
-        .filter((item) => item.pack_id === pack.id)
-        .sort(sortByPosition)
-        .map(serializeStoreItem),
+    items: (items instanceof Map ? (items.get(pack.id) ?? []) : items.filter((item) => item.pack_id === pack.id).sort(sortByPosition)).map(serializeStoreItem),
 });
 
 /** Sets an item's type-specific settings from a create or update body. */

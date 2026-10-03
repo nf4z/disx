@@ -22,7 +22,7 @@ import { In, Raw } from "typeorm";
 import { fillMessageUrlEmbeds } from "../utility/EmbedHandlers";
 import { resolveSoundmoji } from "../utility/Soundboard";
 import { getDatabase, Application, Attachment, Channel, CloudAttachment, Guild, Member, Message, ReadState, Role, Sticker, User, Webhook } from "@spacebar/database";
-import { mathLogBase, arrayDistributeSequentially, Stopwatch, Random } from "@spacebar/extensions";
+import { Stopwatch, Random } from "@spacebar/extensions";
 import {
     ApiError,
     Config,
@@ -941,48 +941,28 @@ async function handleMessageMentionsAsync(message: Message, allowed?: AllowedMen
             subSw = Stopwatch.startNew();
         const subTrace: TraceSubTree = { micros: 0, calls: [] };
         try {
-            const states = await ReadState.find({
-                where: {
-                    user_id: In(ids),
-                    channel_id: channel.id,
-                    read_state_type: ReadStateType.CHANNEL,
-                },
-                select: { user_id: true },
-            });
-            subTrace.calls.push("findReadStates", { micros: subSw.getElapsedAndReset().totalMicroseconds });
+            const uniqueIds = [...new Set(ids)];
+            for (let offset = 0; offset < uniqueIds.length; offset += 1000) {
+                const chunk = uniqueIds.slice(offset, offset + 1000);
+                const states = await ReadState.find({
+                    where: {
+                        user_id: In(chunk),
+                        channel_id: channel.id,
+                        read_state_type: ReadStateType.CHANNEL,
+                    },
+                    select: { user_id: true },
+                });
+                subTrace.calls.push("findReadStates", { micros: subSw.getElapsedAndReset().totalMicroseconds });
 
-            const users = new Set(ids);
-            states.forEach((state) => users.delete(state.user_id));
-            subTrace.calls.push("collectMissingIds", { micros: subSw.getElapsedAndReset().totalMicroseconds });
+                const existingIds = new Set(states.map((state) => state.user_id));
+                const missingIds = chunk.filter((id) => !existingIds.has(id));
+                subTrace.calls.push("collectMissingIds", { micros: subSw.getElapsedAndReset().totalMicroseconds });
+                if (!missingIds.length) continue;
 
-            if (!users.size) {
-                subTrace.calls.push("--noop--", { micros: subSw.getElapsedAndReset().totalMicroseconds });
-                return;
+                const newStates = missingIds.map((user_id) => ({ id: Snowflake.generate(), user_id, channel_id: channel.id, read_state_type: ReadStateType.CHANNEL }));
+                await ReadState.createQueryBuilder().insert().values(newStates).orIgnore().execute();
+                subTrace.calls.push("insertNewReadStatesChunked", { micros: subSw.getElapsedAndReset().totalMicroseconds });
             }
-
-            const newReadStateSeqs = arrayDistributeSequentially(users.values().toArray(), Math.max(1, mathLogBase(users.size, 2))).map((seq) =>
-                seq.map((user_id) => ({ id: Snowflake.generate(), user_id, channel_id: channel.id, read_state_type: ReadStateType.CHANNEL })),
-            );
-            subTrace.calls.push(`constructNewReadStatesChunked(${newReadStateSeqs.length})`, { micros: subSw.getElapsedAndReset().totalMicroseconds });
-
-            await Promise.all(
-                newReadStateSeqs.map((seq) =>
-                    // just a safety thing... handle postgres hard limit at 65535 parameters, at 4 params per object... 16384
-                    seq.length > 15000
-                        ? fillInMissingIDs(
-                              seq.map((rs) => rs.user_id),
-                              subTrace,
-                          )
-                        : ReadState.insert(seq).catch((e) => {
-                              console.log("Failed to bulk insert", seq.length, "new ReadStates, trying again (race condition/too many params?)...\nDetails:", e);
-                              return fillInMissingIDs(
-                                  seq.map((rs) => rs.user_id),
-                                  subTrace,
-                              );
-                          }),
-                ),
-            );
-            subTrace.calls.push("insertNewReadStatesChunked", { micros: subSw.getElapsedAndReset().totalMicroseconds });
         } finally {
             trace?.calls.push(`fillInMissingIDs(${ids.length})`, { micros: fillMessageSw.getElapsedAndReset().totalMicroseconds, calls: subTrace.calls });
         }

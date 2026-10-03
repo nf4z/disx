@@ -20,7 +20,7 @@ import { Request, Response, Router } from "express";
 import { HTTPError } from "lambert-server/HTTPError";
 import { route } from "@spacebar/api/middlewares";
 import { Channel, Guild, Member, User } from "@spacebar/database";
-import { Config, emitEvent, GuildDeleteEvent } from "@spacebar/util";
+import { Config, handleFile, emitEvent, GuildDeleteEvent } from "@spacebar/util";
 import { AdminGuildUpdateSchema } from "@spacebar/schemas";
 import { applyGuildTag, purgeDeletedChannels, syncTagAdopters } from "@spacebar/api/util";
 import { pickOwner } from "../index";
@@ -42,6 +42,12 @@ const describeGuild = async (guild_id: string) => {
             nsfw: true,
             premium_tier: true,
             profile: true,
+            splash: true,
+            discovery_splash: true,
+            explicit_content_filter: true,
+            default_message_notifications: true,
+            preferred_locale: true,
+            afk_timeout: true,
         },
     });
     const [memberCount, channelCount, owner] = await Promise.all([
@@ -59,6 +65,12 @@ const describeGuild = async (guild_id: string) => {
         verification_level: guild.verification_level ?? 0,
         nsfw: guild.nsfw,
         premium_tier: guild.premium_tier ?? 0,
+        splash: guild.splash ?? null,
+        discovery_splash: guild.discovery_splash ?? null,
+        explicit_content_filter: guild.explicit_content_filter ?? null,
+        default_message_notifications: guild.default_message_notifications ?? null,
+        preferred_locale: guild.preferred_locale ?? null,
+        afk_timeout: guild.afk_timeout ?? null,
         member_count: memberCount,
         channel_count: channelCount,
         tag: guild.profile?.tag
@@ -103,7 +115,29 @@ router.patch(
             if (!(await Member.findOne({ where: { id: body.owner_id, guild_id }, select: { id: true } }))) throw new HTTPError("The new owner must be a member of the server", 400);
             guild.owner_id = body.owner_id;
         }
-        if (body.name !== undefined) guild.name = body.name.trim();
+        if (body.name !== undefined) {
+            if (body.name.trim().length < 2) throw new HTTPError("Server name must contain at least two characters", 400);
+            guild.name = body.name.trim();
+        }
+        for (const field of [
+            "verification_level",
+            "explicit_content_filter",
+            "default_message_notifications",
+            "premium_tier",
+            "nsfw",
+            "preferred_locale",
+            "afk_timeout",
+        ] as const) {
+            if (body[field] !== undefined) Object.assign(guild, { [field]: body[field] });
+        }
+        for (const [field, folder] of [
+            ["icon", "icons"],
+            ["banner", "banners"],
+            ["splash", "splashes"],
+            ["discovery_splash", "discovery-splashes"],
+        ] as const) {
+            if (body[field] !== undefined) Object.assign(guild, { [field]: body[field] ? await handleFile(`/${folder}/${guild_id}`, body[field]!) : null });
+        }
         if (body.description !== undefined) guild.description = body.description?.trim() || undefined;
         if (body.features !== undefined) guild.features = [...new Set(body.features.map((f) => f.trim().toUpperCase()).filter(Boolean))];
         // setting a tag without picking a badge yet gives it the first badge, like the client does

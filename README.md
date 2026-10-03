@@ -11,6 +11,8 @@ The server is a fork of [Spacebar server](https://github.com/spacebarchat/server
 
 [docs/parity.md](docs/parity.md) lists 143 Discord features and what this server does with each one, checked against a running instance with the real client on 2026-10-03.
 
+[docs/admin-performance.md](docs/admin-performance.md) covers the expanded instance dashboard, external-service defaults, tested performance fixes and remaining audit findings.
+
 | Status      | Count | Meaning                                                    |
 | ----------- | ----: | ---------------------------------------------------------- |
 | working     |   123 | Checked through the API or by driving the client in Brave. |

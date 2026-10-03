@@ -1001,7 +1001,7 @@ export const SpacebarApiErrors = {
     DELETE_MESSAGE_DISABLED: new ApiError("You are not allowed to delete your own messages", 25061, 403),
     FEATURE_PERMANENTLY_DISABLED: new ApiError("This feature has been disabled server-side", 45006, 501),
     FEATURE_IS_IMMUTABLE: new ApiError("The feature ({}) cannot be edited.", 45007, 403),
-    MISSING_RIGHTS: new ApiError("You lack rights to perform that action ({})", 50013, undefined, [""]),
+    MISSING_RIGHTS: new ApiError("You lack rights to perform that action ({})", 50013, 403, [""]),
     CANNOT_REPLACE_BY_BACKFILL: new ApiError("Cannot backfill to message ID that already exists", 55002, 409),
     CANNOT_BACKFILL_TO_THE_FUTURE: new ApiError("You cannot backfill messages in the future", 55003),
     CANNOT_GRANT_PERMISSIONS_EXCEEDING_RIGHTS: new ApiError("You cannot grant permissions exceeding your own rights", 50050),

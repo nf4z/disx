@@ -9,6 +9,7 @@
         <link rel="stylesheet" href="/admin/admin.css" />
     </head>
     <body>
+        <a class="skip-link" href="#view">Skip to content</a>
         <div id="login" class="login" hidden>
             <form class="card login-card" id="login-form" autocomplete="on">
                 <div class="brand login-brand">
@@ -37,18 +38,35 @@
                         <span class="muted">Admin</span>
                     </div>
                 </div>
-                <nav id="nav">
-                    <a href="#/overview" data-tab="overview">Overview</a>
-                    <a href="#/settings" data-tab="settings" data-access="settings">Site settings</a>
-                    <a href="#/users" data-tab="users" data-access="users">Users</a>
-                    <a href="#/badges" data-tab="badges" data-access="settings">Badges</a>
-                    <a href="#/games" data-tab="games" data-access="settings">Games</a>
-                    <a href="#/store" data-tab="store" data-access="settings">Store</a>
-                    <a href="#/announcements" data-tab="announcements" data-access="settings">Announcements</a>
-                    <a href="#/reports" data-tab="reports" data-access="reports">Reports</a>
-                    <a href="#/guilds" data-tab="guilds" data-access="guilds">Servers</a>
-                    <a href="#/status" data-tab="status" data-access="status">Status page</a>
-                    <a href="#/system" data-tab="system" data-access="system">System</a>
+                <label class="nav-search"
+                    >Find a section<input id="nav-search" type="search" placeholder="Search dashboard…" aria-controls="nav" /><span class="hint">⌘ / Ctrl K</span></label
+                >
+                <nav id="nav" aria-label="Admin sections">
+                    <div class="nav-group">
+                        <span class="nav-label">Instance</span>
+                        <a href="#/overview" data-tab="overview">Overview</a>
+                        <a href="#/settings" data-tab="settings" data-access="settings">Site settings</a>
+                        <a href="#/announcements" data-tab="announcements" data-access="settings">Announcements</a>
+                    </div>
+                    <div class="nav-group">
+                        <span class="nav-label">People & servers</span>
+                        <a href="#/users" data-tab="users" data-access="users">Users & profiles</a>
+                        <a href="#/guilds" data-tab="guilds" data-access="guilds">Servers</a>
+                        <a href="#/reports" data-tab="reports" data-access="reports">Reports</a>
+                    </div>
+                    <div class="nav-group">
+                        <span class="nav-label">Customization</span>
+                        <a href="#/store" data-tab="store" data-access="settings">Shop & collectibles</a>
+                        <a href="#/badges" data-tab="badges" data-access="settings">Profile badges</a>
+                        <a href="#/games" data-tab="games" data-access="settings">Games</a>
+                    </div>
+                    <div class="nav-group">
+                        <span class="nav-label">Operations</span>
+                        <a href="#/performance" data-tab="performance" data-access="system">Performance</a>
+                        <a href="#/status" data-tab="status" data-access="status">Status page</a>
+                        <a href="#/system" data-tab="system" data-access="system">System & compatibility</a>
+                    </div>
+                    <p id="nav-empty" class="muted" hidden>No matching sections. Try another search.</p>
                 </nav>
                 <div class="sidebar-foot">
                     <div class="me" id="me"></div>
@@ -62,7 +80,7 @@
 
         <div id="drawer" class="drawer" hidden>
             <div class="drawer-backdrop" data-close></div>
-            <section class="drawer-panel" role="dialog" aria-modal="true">
+            <section class="drawer-panel" role="dialog" aria-modal="true" aria-labelledby="drawer-title">
                 <header class="drawer-head">
                     <h2 id="drawer-title"></h2>
                     <button class="btn ghost small" type="button" data-close aria-label="Close">✕</button>

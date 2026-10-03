@@ -300,6 +300,7 @@ export const EmbedHandlers: {
 
     "twitter.com": (url) => EmbedHandlers["www.twitter.com"](url),
     "www.twitter.com": async (url: URL) => {
+        if (!Config.get().externalRequests.thirdParty) return null;
         const token = Config.get().external.twitter;
         if (!token) return null;
 

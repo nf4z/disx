@@ -16,6 +16,8 @@
 	along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+import { Config } from "@spacebar/util";
+import { allowsCdnUpstream } from "../../util/config/types/ExternalRequestConfiguration";
 import { Response } from "express";
 import { fileTypeFromBuffer } from "file-type";
 import { storage } from "./Storage";
@@ -42,16 +44,24 @@ export async function sendAsset(res: Response, data: Buffer, name: string) {
 }
 
 const inflight = new Map<string, Promise<Buffer | null>>();
+const unavailable = new Map<string, number>();
 
 export function fetchUpstreamAsset(path: string, url: string): Promise<Buffer | null> {
     const pending = inflight.get(path);
     if (pending) return pending;
     const task = (async () => {
         try {
-            const response = await fetch(url, { signal: AbortSignal.timeout(15000) });
+            const cached = await storage.get(path);
+            if (cached) return cached;
+            if (!allowsCdnUpstream(Config.get().externalRequests, url)) return null;
+            if ((unavailable.get(path) ?? 0) > Date.now()) return null;
+            if (unavailable.size >= 1024) unavailable.delete(unavailable.keys().next().value!);
+            unavailable.set(path, Date.now() + 30_000);
+            const response = await fetch(url, { signal: AbortSignal.timeout(15000), redirect: "error" });
             if (!response.ok) return null;
             const buffer = Buffer.from(await response.arrayBuffer());
             await storage.set(path, buffer);
+            unavailable.delete(path);
             return buffer;
         } catch {
             return null;

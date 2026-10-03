@@ -32,7 +32,7 @@ const pad32 = (value: Buffer) => (value.length >= 32 ? value.subarray(value.leng
 
 export function vapidPublicKey() {
     const { enabled, vapidPublicKey } = Config.get().security.webPush;
-    return enabled ? vapidPublicKey : null;
+    return enabled && Config.get().externalRequests.thirdParty ? vapidPublicKey : null;
 }
 
 function vapidSubject() {
@@ -95,6 +95,7 @@ export async function sendWebPush(
     payload: object,
     opts: { ttl?: number; topic?: string; urgency?: "very-low" | "low" | "normal" | "high" } = {},
 ) {
+    if (!Config.get().externalRequests.thirdParty || !Config.get().security.webPush.enabled) return { status: 503, gone: false, skipped: true };
     const audience = new URL(subscription.endpoint).origin;
     const body = Buffer.from(JSON.stringify(payload));
     if (body.length > RECORD_SIZE - 17) throw new Error(`web push payload is ${body.length} bytes`);

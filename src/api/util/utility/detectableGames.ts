@@ -16,34 +16,13 @@
 	along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-interface DetectableGame {
-    id: string;
-    name: string;
-    [key: string]: unknown;
-}
-
-let cache: { games: DetectableGame[]; byId: Map<string, DetectableGame>; expires: number } | undefined;
-let pending: Promise<DetectableGame[]> | undefined;
+import { DetectableGames, DetectableGame } from "./games";
 
 export async function getDetectableGames(): Promise<DetectableGame[]> {
-    if (cache && cache.expires > Date.now()) return cache.games;
-    pending ??= (async () => {
-        try {
-            const response = await fetch("https://discord.com/api/v10/games/detectable", { signal: AbortSignal.timeout(15000) });
-            if (!response.ok) return cache?.games ?? [];
-            const games = (await response.json()) as DetectableGame[];
-            cache = { games, byId: new Map(games.map((game) => [game.id, game])), expires: Date.now() + 6 * 60 * 60 * 1000 };
-            return games;
-        } catch {
-            return cache?.games ?? [];
-        } finally {
-            pending = undefined;
-        }
-    })();
-    return pending;
+    return (await DetectableGames.load()).games;
 }
 
 export async function getDetectableGamesById(ids: string[]) {
-    await getDetectableGames();
-    return ids.map((id) => cache?.byId.get(id)).filter((game): game is DetectableGame => !!game);
+    const { byId } = await DetectableGames.load();
+    return ids.map((id) => byId.get(id)).filter((game): game is DetectableGame => !!game);
 }

@@ -16,10 +16,10 @@
 	along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-require("module-alias/register");
+require("../register-paths.cjs");
 
-const express = require("express");
 const path = require("path");
+const express = require("express");
 const { traverseDirectory } = require("lambert-server");
 const RouteUtility = require("../../dist/api/middlewares/Route.js");
 const { greenBright, yellowBright, blueBright, redBright, underline, bgYellow, black } = require("picocolors");
@@ -36,11 +36,7 @@ const routes = new Map();
 let currentFile = "";
 let currentPath = "";
 let currentRoutePrefix = "";
-
-/*
-	For some reason, if a route exports multiple functions, it won't be registered here!
-	If someone could fix that I'd really appreciate it, but for now just, don't do that :p
-*/
+const routeOptions = new WeakMap();
 
 function colorizeMethod(method) {
     switch (method.toLowerCase()) {
@@ -71,35 +67,46 @@ function formatPath(path) {
  * @param args
  */
 function proxy(file, apiMethod, apiPathPrefix, apiPath, ...args) {
-    const opts = args.find((x) => x?.prototype?.OPTS_MARKER == true);
+    // Express supports nested middleware arrays. Keep metadata off function
+    // prototypes so bound/arrow functions and transpilation do not affect it.
+    const middleware = args.flat(Infinity).find((handler) => typeof handler === "function" && routeOptions.has(handler));
+    const opts = middleware && routeOptions.get(middleware);
     if (!opts) {
         console.error(
             `  \x1b[5m${bgYellow(black("WARN"))}\x1b[25m ${file.replace(path.resolve(__dirname, "..", "..", "dist"), "/src")} has route without route() description middleware: ${colorizeMethod(apiMethod)} ${formatPath(apiPath)}`,
         );
-        routes.set(apiPathPrefix + apiPath + "|" + apiMethod, null);
+        routes.set(currentRoutePrefix + apiPathPrefix + apiPath + "|" + apiMethod, null);
         return;
     }
 
     console.log(`${colorizeMethod(apiMethod).padStart("DELETE".length + 10)} ${formatPath(apiPathPrefix + apiPath)}`);
-    opts.file = file.replace("/dist/", "/src/").replace(".js", ".ts");
-    routes.set(currentRoutePrefix + apiPathPrefix + apiPath + "|" + apiMethod, opts());
+    routes.set(currentRoutePrefix + apiPathPrefix + apiPath + "|" + apiMethod, { ...opts, file: file.replace("/dist/", "/src/").replace(/\.js$/, ".ts") });
 }
 
 express.Router = () => {
-    return { ...Object.fromEntries(methods.map((method) => [method, proxy.bind(null, currentFile, method, currentPath)])), use: () => {} };
+    const file = currentFile;
+    const prefix = currentPath;
+    const router = { use: () => router };
+    for (const method of methods) {
+        router[method] = (...args) => {
+            proxy(file, method, prefix, ...args);
+            return router;
+        };
+    }
+    return router;
 };
 
 RouteUtility.route = (opts) => {
     const func = function () {
         return opts;
     };
-    func.prototype.OPTS_MARKER = true;
+    routeOptions.set(func, opts);
     return func;
 };
 
-function getPrefixedRouteDescriptions(routePrefix, root) {
+async function getPrefixedRouteDescriptions(routePrefix, root) {
     currentRoutePrefix = routePrefix;
-    traverseDirectory({ dirname: root, recursive: true }, (file) => {
+    await traverseDirectory({ dirname: root, recursive: true }, (file) => {
         currentFile = file;
 
         currentPath = file.replace(root.slice(0, -1), "");
@@ -108,17 +115,20 @@ function getPrefixedRouteDescriptions(routePrefix, root) {
         currentPath = currentPath.replaceAll(/%[A-Za-z0-9]{2}/g, (match) => decodeURIComponent(match)); // special case to handle .well-known for example
         if (currentPath.endsWith("/index")) currentPath = currentPath.slice(0, "/index".length * -1); // delete index from path
 
+        // Permit repeated generation in one process without losing cached routes.
+        delete require.cache[require.resolve(file)];
         try {
             require(file);
-        } catch (e) {
-            console.error(e);
+        } catch (error) {
+            throw new Error(`Failed to discover routes in ${file}`, { cause: error });
         }
     });
 }
 
-module.exports = function getRouteDescriptions() {
-    getPrefixedRouteDescriptions("/api", path.join(__dirname, "..", "..", "dist", "api", "routes", "/"));
-    getPrefixedRouteDescriptions("", path.join(__dirname, "..", "..", "dist", "api", "routes_toplevel", "/"));
+module.exports = async function getRouteDescriptions() {
+    routes.clear();
+    await getPrefixedRouteDescriptions("/api", path.join(__dirname, "..", "..", "dist", "api", "routes", "/"));
+    await getPrefixedRouteDescriptions("", path.join(__dirname, "..", "..", "dist", "api", "routes_toplevel", "/"));
 
-    return routes;
+    return new Map(routes);
 };

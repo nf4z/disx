@@ -78,7 +78,7 @@ export async function handleAuthentication(req: Request) {
         req.user = user;
         req.session = session;
         req.oauth2 = oauth2;
-        req.rights = new Rights(Number(user.rights));
+        req.rights = new Rights(user.rights);
         req.isAuthenticated = true;
 
         const superProperties = req.headers["x-super-properties"];

@@ -243,33 +243,17 @@ export class Member extends BaseClassWithoutId {
 
         GuildInsights.recordLeave(guild_id, member.joined_at);
 
-        // use promise all to execute all promises at the same time -> save time
-        return Promise.all([
-            Member.delete({
-                id: user_id,
-                guild_id,
-            }).then(() =>
-                Promise.all(
-                    managedRoles.map(async (role) => {
-                        await Role.delete({ id: role.id });
-                        await emitEvent({ event: "GUILD_ROLE_DELETE", guild_id, data: { guild_id, role_id: role.id } } satisfies GuildRoleDeleteEvent);
-                    }),
-                ),
-            ),
+        await Member.delete({ id: user_id, guild_id });
+        await Promise.all([
             Guild.decrement({ id: guild_id }, "member_count", 1),
-
-            emitEvent({
-                event: "GUILD_DELETE",
-                data: {
-                    id: guild_id,
-                },
-                user_id: user_id,
-            } satisfies GuildDeleteEvent),
-            emitEvent({
-                event: "GUILD_MEMBER_REMOVE",
-                data: { guild_id, user: member.user.toPublicUser() },
-                guild_id,
-            } satisfies GuildMemberRemoveEvent),
+            ...managedRoles.map(async (role) => {
+                await Role.delete({ id: role.id });
+                await emitEvent({ event: "GUILD_ROLE_DELETE", guild_id, data: { guild_id, role_id: role.id } } satisfies GuildRoleDeleteEvent);
+            }),
+        ]);
+        await Promise.all([
+            emitEvent({ event: "GUILD_DELETE", data: { id: guild_id }, user_id } satisfies GuildDeleteEvent),
+            emitEvent({ event: "GUILD_MEMBER_REMOVE", data: { guild_id, user: member.user.toPublicUser() }, guild_id } satisfies GuildMemberRemoveEvent),
         ]);
     }
 
@@ -286,8 +270,8 @@ export class Member extends BaseClassWithoutId {
         ]);
         if (!member.roles.some((x) => x.id === role_id)) member.roles.push(Role.create({ id: role_id }));
 
+        await member.save();
         await Promise.all([
-            member.save(),
             emitEvent({
                 event: "GUILD_MEMBER_UPDATE",
                 data: {
@@ -311,8 +295,8 @@ export class Member extends BaseClassWithoutId {
         ]);
         member.roles = member.roles.filter((x) => x.id !== role_id);
 
+        await member.save();
         await Promise.all([
-            member.save(),
             emitEvent({
                 event: "GUILD_MEMBER_UPDATE",
                 data: {

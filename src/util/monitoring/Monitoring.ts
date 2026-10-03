@@ -16,6 +16,7 @@
 	along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+import { monitorEventLoopDelay } from "node:perf_hooks";
 import { IncomingMessage, ServerResponse } from "node:http";
 import * as client from "prom-client";
 import { Application } from "express";
@@ -23,10 +24,53 @@ import { Metric } from "prom-client";
 
 export class Monitoring {
     static isInitialised = false;
+    private static eventLoop = monitorEventLoopDelay({ resolution: 20 });
+
+    public static async snapshot() {
+        const metric = client.register.getSingleMetric("spacebar_http_duration") as client.Histogram<string> | undefined;
+        const values = (await metric?.get())?.values ?? [];
+        const routes = new Map<string, { path: string; method: string; requests: number; errors: number; limited: number; seconds: number }>();
+        for (const value of values) {
+            const labels = value.labels;
+            const key = `${labels.method} ${labels.path}`;
+            if (!routes.has(key)) routes.set(key, { path: String(labels.path), method: String(labels.method), requests: 0, errors: 0, limited: 0, seconds: 0 });
+            const row = routes.get(key)!;
+            if (value.metricName?.endsWith("_count")) {
+                row.requests += value.value;
+                if (Number(labels.status_code) >= 500) row.errors += value.value;
+                if (Number(labels.status_code) === 429) row.limited += value.value;
+            }
+            if (value.metricName?.endsWith("_sum")) row.seconds += value.value;
+        }
+        const delay = (value: number) => (Number.isFinite(value) ? value / 1e6 : 0);
+        return {
+            sampled_at: new Date().toISOString(),
+            scope: "This API process, since startup",
+            node: process.version,
+            uptime_seconds: process.uptime(),
+            memory: process.memoryUsage(),
+            cpu_seconds: Object.fromEntries(Object.entries(process.cpuUsage()).map(([key, value]) => [key, value / 1e6])),
+            event_loop: {
+                mean_ms: delay(this.eventLoop.mean),
+                p95_ms: delay(this.eventLoop.percentile(95)),
+                p99_ms: delay(this.eventLoop.percentile(99)),
+                max_ms: delay(this.eventLoop.max),
+            },
+            requests: [...routes.values()].reduce((n, row) => n + row.requests, 0),
+            errors: [...routes.values()].reduce((n, row) => n + row.errors, 0),
+            rate_limited: [...routes.values()].reduce((n, row) => n + row.limited, 0),
+            routes: [...routes.values()]
+                .filter((row) => row.requests > 0)
+                .map((row) => ({ ...row, mean_ms: (row.seconds * 1000) / row.requests }))
+                .sort((a, b) => b.mean_ms - a.mean_ms)
+                .slice(0, 50),
+        };
+    }
     public static async init() {
         if (Monitoring.isInitialised) return;
         console.log("[Monitoring] Initialising prometheus metrics");
         client.collectDefaultMetrics({ prefix: "spacebar_" });
+        this.eventLoop.enable();
         Monitoring.isInitialised = true;
     }
 

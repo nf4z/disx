@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
@@ -10,6 +11,7 @@ import (
 	"runtime"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/pion/ice/v4"
 	"github.com/pion/interceptor"
@@ -168,7 +170,18 @@ func handleLeave(clientID string) error {
 }
 
 // handle the initial offer from a client
-func handleOffer(p *Peer, msg SignalMessage, requestID string) error {
+const iceGatherTimeout = 10 * time.Second
+
+func waitForGathering(ctx context.Context, complete <-chan struct{}) error {
+	select {
+	case <-complete:
+		return nil
+	case <-ctx.Done():
+		return fmt.Errorf("ICE gathering: %w", ctx.Err())
+	}
+}
+
+func handleOffer(ctx context.Context, p *Peer, msg SignalMessage, requestID string) error {
 	if msg.SDP == "" {
 		return fmt.Errorf("offer message missing SDP")
 	}
@@ -186,12 +199,17 @@ func handleOffer(p *Peer, msg SignalMessage, requestID string) error {
 	if err != nil {
 		return fmt.Errorf("CreateAnswer: %w", err)
 	}
+	// Install the completion callback before gathering can start.
+	gatherComplete := webrtc.GatheringCompletePromise(p.pc)
 	if err = p.pc.SetLocalDescription(answer); err != nil {
 		return fmt.Errorf("SetLocalDescription: %w", err)
 	}
 
-	gatherComplete := webrtc.GatheringCompletePromise(p.pc)
-	<-gatherComplete
+	gatherCtx, cancel := context.WithTimeout(ctx, iceGatherTimeout)
+	defer cancel()
+	if err := waitForGathering(gatherCtx, gatherComplete); err != nil {
+		return err
+	}
 
 	return ipcConn.sendReply(requestID, SignalMessage{
 		Type:     "answer",
@@ -243,13 +261,13 @@ func handleStopPublish(p *Peer, msg SignalMessage) error {
 		return fmt.Errorf("invalid trackType: %s", trackType)
 	}
 
+	p.mu.Lock()
 	if trackType == "audio" {
 		p.isAudioPublished = false
 	} else {
 		p.isVideoPublished = false
 	}
 
-	p.mu.Lock()
 	pt := p.getPublishedTrack(trackType)
 	if pt == nil {
 		p.mu.Unlock()
@@ -398,16 +416,9 @@ func setupOnTrack(p *Peer) {
 		log.Printf("Client %s started publishing %s (SSRC: %d)", p.id, trackType, ssrc)
 
 		subKey := p.id + "_" + trackType
-		sfu.mu.RLock()
-		for _, other := range sfu.peers {
-			other.mu.Lock()
-			subscribed := other.subscriptions[subKey]
-			other.mu.Unlock()
-			if subscribed {
-				other.ensureSinks(pt)
-			}
+		for _, other := range sfu.Subscribers(subKey) {
+			other.ensureSinks(pt)
 		}
-		sfu.mu.RUnlock()
 
 		pt.requestKeyframe()
 		go pt.requestRetransmissions()
@@ -455,8 +466,7 @@ func cleanupPeer(p *Peer) {
 	p.dropSinks(nil)
 
 	// Remove subscriptions from other peers that were subscribed to this peer
-	sfu.mu.RLock()
-	for _, other := range sfu.peers {
+	for _, other := range sfu.PeerSnapshot() {
 		other.mu.Lock()
 		for key := range other.subscriptions {
 			prefix := p.id + "_"
@@ -467,7 +477,6 @@ func cleanupPeer(p *Peer) {
 		other.mu.Unlock()
 		other.dropSinks(p)
 	}
-	sfu.mu.RUnlock()
 
 	p.pc.Close()
 	log.Printf("Client %s disconnected", p.id)

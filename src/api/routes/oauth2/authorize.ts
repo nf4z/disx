@@ -37,6 +37,7 @@ import { emitCommandIndexUpdate } from "@spacebar/api/util/handlers/ApplicationC
 import { issueOAuth2Token, signTicket } from "@spacebar/api/util";
 import { toPublicApplication } from "@spacebar/api/util/handlers/Application";
 import { randomBytes } from "node:crypto";
+import { In } from "typeorm";
 import { ApplicationAuthorizeSchema, AuditLogEvents } from "@spacebar/schemas";
 
 const router = Router({ mergeParams: true });
@@ -150,21 +151,27 @@ router.get(
             relations: { guild: true, roles: true, user: true },
             select: {
                 guild: { id: true, name: true, icon: true, mfa_level: true, owner_id: true },
-                roles: { id: true },
+                roles: { id: true, permissions: true },
                 user: { flags: true },
             },
         });
 
+        const guildIds = [...new Set(guilds.map((member) => member.guild.id))];
+        const defaultRoles = guildIds.length ? await Role.find({ where: { id: In(guildIds) }, select: { id: true, permissions: true } }) : [];
+        const defaultRolesByGuild = new Map(defaultRoles.map((role) => [role.id, role]));
         const guildsWithPermissions = guilds.map((x) => {
+            const defaultRole = defaultRolesByGuild.get(x.guild.id);
+            const roles = [...(x.roles ?? [])];
+            if (defaultRole && !roles.some((role) => role.id === defaultRole.id)) roles.push(defaultRole);
             const perms = Permissions.finalPermission({
                 user: {
                     id: user.id,
-                    roles: x.roles?.map((x) => x.id) || [],
+                    roles: roles.map((role) => role.id),
                     communication_disabled_until: x.communication_disabled_until,
                     flags: x.user.flags,
                 },
                 guild: {
-                    roles: x?.roles || [],
+                    roles,
                     id: x.guild.id,
                     owner_id: x.guild.owner_id!, // ownerless guilds...?
                 },

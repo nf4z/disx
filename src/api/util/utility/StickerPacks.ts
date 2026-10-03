@@ -17,6 +17,7 @@
 */
 
 import { Sticker, StickerPack, getDatabase } from "@spacebar/database";
+import { Config } from "@spacebar/util";
 import { StickerType } from "@spacebar/schemas";
 
 interface UpstreamSticker {
@@ -43,6 +44,7 @@ let importing: Promise<void> | undefined;
 let lastAttempt = 0;
 
 export function ensureStandardStickerPacks(): Promise<void> {
+    if (!Config.get().externalRequests.discordStickerPacks) return Promise.resolve();
     if (importing) return importing;
     if (Date.now() - lastAttempt < 60 * 60 * 1000) return Promise.resolve();
     importing = (async () => {
@@ -50,7 +52,10 @@ export function ensureStandardStickerPacks(): Promise<void> {
         if ((await StickerPack.count()) > 0) return;
         const upstream = process.env.STICKER_PACKS_UPSTREAM ?? "https://discord.com/api/v9/sticker-packs";
         if (upstream === "off") return;
-        const response = await fetch(upstream, { signal: AbortSignal.timeout(15000) });
+        const url = new URL(upstream);
+        if (url.protocol !== "https:" || url.username || url.password || url.port) return;
+        if (url.hostname !== "discord.com" && !Config.get().externalRequests.thirdParty) return;
+        const response = await fetch(upstream, { signal: AbortSignal.timeout(15000), redirect: "error" });
         if (!response.ok) throw new Error(`sticker pack import failed with ${response.status}`);
         const { sticker_packs } = (await response.json()) as { sticker_packs: UpstreamPack[] };
         await getDatabase()!.transaction(async (manager) => {

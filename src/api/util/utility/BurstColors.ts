@@ -16,17 +16,28 @@
 	along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-import { Config } from "@spacebar/util";
+import fs from "node:fs/promises";
+import path from "node:path";
+import { Config } from "../../../util/util/Config";
+import { ASSETS_FOLDER } from "../../../util/util/Constants";
 import { PartialEmoji } from "@spacebar/schemas";
 
-const cache = new Map<string, string[]>();
+const CACHE_LIMIT = 1024;
+const cache = new Map<string, Promise<string[]>>();
 
 const twemojiCode = (name: string) => [...(name.includes("‍") ? name : name.replace(/️/g, ""))].map((char) => char.codePointAt(0)!.toString(16)).join("-");
 
-const emojiImageUrl = (emoji: PartialEmoji) =>
-    emoji.id
-        ? `${(Config.get().cdn.endpointPrivate || "").replace(/\/+$/, "")}/emojis/${emoji.id}.png?size=64`
-        : `https://cdn.jsdelivr.net/gh/jdecked/twemoji@latest/assets/72x72/${twemojiCode(emoji.name ?? "")}.png`;
+const fallbackPalette = (key: string): string[] => {
+    let hash = 2166136261;
+    for (const char of key) hash = Math.imul(hash ^ char.codePointAt(0)!, 16777619);
+    const palettes = [
+        ["#f9c23c", "#f28c28"],
+        ["#ed6a9a", "#9b72cf"],
+        ["#5ac8a8", "#50a7e5"],
+        ["#a38bea", "#638be6"],
+    ];
+    return palettes[(hash >>> 0) % palettes.length];
+};
 
 const hex = (value: number) => Math.round(value).toString(16).padStart(2, "0");
 
@@ -53,22 +64,43 @@ function palette(data: Buffer | Uint8Array, count = 2) {
     return colors.map(([r, g, b]) => `#${hex(r)}${hex(g)}${hex(b)}`);
 }
 
-export async function getBurstColors(emoji: PartialEmoji): Promise<string[]> {
-    const key = emoji.id ?? emoji.name ?? "";
-    const cached = cache.get(key);
-    if (cached) return cached;
-
-    let colors: string[] = [];
+async function loadColors(emoji: PartialEmoji, key: string): Promise<string[]> {
     try {
-        const res = await fetch(emojiImageUrl(emoji), { signal: AbortSignal.timeout(5000) });
-        if (res.ok) {
+        let data: Buffer | undefined;
+        if (emoji.id) {
+            const endpoint = Config.get().cdn.endpointPrivate?.replace(/\/+$/, "");
+            if (endpoint) {
+                const res = await fetch(`${endpoint}/emojis/${emoji.id}.png?size=64`, { signal: AbortSignal.timeout(1500) });
+                if (res.ok) data = Buffer.from(await res.arrayBuffer());
+            }
+        } else {
+            const code = twemojiCode(emoji.name ?? "");
+            if (/^[0-9a-f]+(?:-[0-9a-f]+)*$/.test(code)) {
+                data = await fs.readFile(path.join(ASSETS_FOLDER, "twemoji", "72x72", `${code}.png`));
+            }
+        }
+        if (data) {
             const { Jimp } = await import("jimp");
-            const image = await Jimp.read(Buffer.from(await res.arrayBuffer()));
-            colors = palette(image.bitmap.data);
+            const image = await Jimp.read(data);
+            const colors = palette(image.bitmap.data);
+            if (colors.length) return colors;
         }
     } catch {
-        colors = [];
+        return fallbackPalette(key);
     }
-    if (colors.length) cache.set(key, colors);
-    return colors;
+    return fallbackPalette(key);
+}
+
+export async function getBurstColors(emoji: PartialEmoji): Promise<string[]> {
+    const key = emoji.id ? `id:${emoji.id}` : `unicode:${twemojiCode(emoji.name ?? "")}`;
+    let pending = cache.get(key);
+    if (pending) {
+        cache.delete(key);
+        cache.set(key, pending);
+    } else {
+        pending = loadColors(emoji, key);
+        cache.set(key, pending);
+        if (cache.size > CACHE_LIMIT) cache.delete(cache.keys().next().value!);
+    }
+    return [...(await pending)];
 }

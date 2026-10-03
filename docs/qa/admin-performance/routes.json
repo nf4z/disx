@@ -1,0 +1,177 @@
+{
+  "sampled_at": "2026-10-03T20:00:58.149Z",
+  "origin": "http://localhost:3290",
+  "revision": "96a0e16661f2b24ab3cc47b76008795f0cb84bf9",
+  "node": "v26.9.0",
+  "cpu_parallelism": 8,
+  "results": [
+    {
+      "path": "/admin/users?limit=50",
+      "concurrency": 1,
+      "requests": 100,
+      "elapsed_ms": 176.825125,
+      "requests_per_second": 565.5304923437775,
+      "p50_ms": 1.5291670000000295,
+      "p95_ms": 2.809667000000047,
+      "p99_ms": 4.835499999999968,
+      "max_ms": 8.026333000000022,
+      "statuses": {
+        "200": 100
+      }
+    },
+    {
+      "path": "/admin/users?limit=50",
+      "concurrency": 8,
+      "requests": 100,
+      "elapsed_ms": 67.62641700000006,
+      "requests_per_second": 1478.7120837704579,
+      "p50_ms": 5.0208749999999895,
+      "p95_ms": 8.394541000000004,
+      "p99_ms": 8.825500000000034,
+      "max_ms": 9.176041999999995,
+      "statuses": {
+        "200": 100
+      }
+    },
+    {
+      "path": "/admin/users?limit=50",
+      "concurrency": 32,
+      "requests": 100,
+      "elapsed_ms": 57.51187500000003,
+      "requests_per_second": 1738.771340701376,
+      "p50_ms": 12.401333000000022,
+      "p95_ms": 52.806583000000046,
+      "p99_ms": 55.48083400000007,
+      "max_ms": 55.86749999999995,
+      "statuses": {
+        "200": 100
+      }
+    },
+    {
+      "path": "/admin/guilds?limit=50",
+      "concurrency": 1,
+      "requests": 100,
+      "elapsed_ms": 138.42366700000002,
+      "requests_per_second": 722.4198156807968,
+      "p50_ms": 1.395167000000015,
+      "p95_ms": 1.7735830000000306,
+      "p99_ms": 3.2154580000000124,
+      "max_ms": 3.2726659999999583,
+      "statuses": {
+        "200": 100
+      }
+    },
+    {
+      "path": "/admin/guilds?limit=50",
+      "concurrency": 8,
+      "requests": 100,
+      "elapsed_ms": 58.35454099999993,
+      "requests_per_second": 1713.6626950762945,
+      "p50_ms": 4.44500000000005,
+      "p95_ms": 6.160082999999986,
+      "p99_ms": 6.322874999999954,
+      "max_ms": 10.945084000000065,
+      "statuses": {
+        "200": 100
+      }
+    },
+    {
+      "path": "/admin/guilds?limit=50",
+      "concurrency": 32,
+      "requests": 100,
+      "elapsed_ms": 61.667958,
+      "requests_per_second": 1621.587664699389,
+      "p50_ms": 18.148290999999972,
+      "p95_ms": 38.18241699999999,
+      "p99_ms": 39.797458000000006,
+      "max_ms": 40.02633300000002,
+      "statuses": {
+        "200": 100
+      }
+    },
+    {
+      "path": "/admin/store",
+      "concurrency": 1,
+      "requests": 100,
+      "elapsed_ms": 111.17462499999999,
+      "requests_per_second": 899.4858314116194,
+      "p50_ms": 1.0268750000000182,
+      "p95_ms": 1.6377919999999904,
+      "p99_ms": 2.201332999999977,
+      "max_ms": 2.7261250000000246,
+      "statuses": {
+        "200": 100
+      }
+    },
+    {
+      "path": "/admin/store",
+      "concurrency": 8,
+      "requests": 100,
+      "elapsed_ms": 66.56216700000004,
+      "requests_per_second": 1502.3549338470295,
+      "p50_ms": 5.056916000000001,
+      "p95_ms": 6.3324159999999665,
+      "p99_ms": 6.616583999999989,
+      "max_ms": 6.905790999999908,
+      "statuses": {
+        "200": 100
+      }
+    },
+    {
+      "path": "/admin/store",
+      "concurrency": 32,
+      "requests": 100,
+      "elapsed_ms": 94.30299999999988,
+      "requests_per_second": 1060.4116518032313,
+      "p50_ms": 20.517749999999978,
+      "p95_ms": 49.10212499999989,
+      "p99_ms": 50.663499999999885,
+      "max_ms": 51.01999999999998,
+      "statuses": {
+        "200": 100
+      }
+    },
+    {
+      "path": "/admin/system/performance",
+      "concurrency": 1,
+      "requests": 100,
+      "elapsed_ms": 90.05574999999999,
+      "requests_per_second": 1110.4232655882608,
+      "p50_ms": 0.8667499999999109,
+      "p95_ms": 1.2198339999999916,
+      "p99_ms": 1.446875000000091,
+      "max_ms": 1.6946669999999813,
+      "statuses": {
+        "200": 100
+      }
+    },
+    {
+      "path": "/admin/system/performance",
+      "concurrency": 8,
+      "requests": 100,
+      "elapsed_ms": 47.62195899999983,
+      "requests_per_second": 2099.8716159492797,
+      "p50_ms": 3.5945419999998194,
+      "p95_ms": 4.8771670000000995,
+      "p99_ms": 5.433917000000065,
+      "max_ms": 5.501916000000165,
+      "statuses": {
+        "200": 100
+      }
+    },
+    {
+      "path": "/admin/system/performance",
+      "concurrency": 32,
+      "requests": 100,
+      "elapsed_ms": 49.194124999999985,
+      "requests_per_second": 2032.7630585969366,
+      "p50_ms": 15.543333000000075,
+      "p95_ms": 17.294624999999996,
+      "p99_ms": 18.882665999999972,
+      "max_ms": 18.926582999999937,
+      "statuses": {
+        "200": 100
+      }
+    }
+  ]
+}

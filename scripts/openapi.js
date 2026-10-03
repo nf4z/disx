@@ -21,13 +21,13 @@ process.env.LOG_ROUTES = "false";
 const { Stopwatch } = require("../dist/extensions/Stopwatch");
 const totalSw = Stopwatch.startNew();
 
-require("module-alias/register");
+require("./register-paths.cjs");
 const getRouteDescriptions = require("./util/getRouteDescriptions");
 const path = require("path");
 const fs = require("fs");
 const { bgRedBright, white } = require("picocolors");
 
-const openapiPath = path.join(__dirname, "..", "assets", "openapi.json");
+const openapiPath = process.env.OPENAPI_OUTPUT || path.join(__dirname, "..", "assets", "openapi.json");
 const SchemaPath = path.join(__dirname, "..", "assets", "schemas.json");
 const schemas = JSON.parse(fs.readFileSync(SchemaPath, { encoding: "utf8" }));
 let missingRouteCount = 0;
@@ -130,8 +130,8 @@ const authTypes = {
     never: [{}],
 };
 
-function apiRoutes(missingRoutes) {
-    const routes = getRouteDescriptions();
+async function apiRoutes(missingRoutes) {
+    const routes = await getRouteDescriptions();
 
     // populate tags
     const tags = Array.from(routes.keys())
@@ -309,7 +309,11 @@ async function main() {
     let missingRoutes = undefined;
 
     combineSchemas(schemas);
-    apiRoutes(missingRoutes);
+    await apiRoutes(missingRoutes);
+
+    if (!Object.keys(specification.paths).length) {
+        throw new Error("OpenAPI generation discovered no documented paths; refusing to overwrite the specification");
+    }
 
     fs.writeFileSync(openapiPath, JSON.stringify(specification, null, 4).replaceAll("#/definitions", "#/components/schemas").replaceAll("bigint", "number"));
     console.log("Wrote OpenAPI specification to", openapiPath);
@@ -329,4 +333,7 @@ async function main() {
     if (missingResponseSchemaDeclarationCount) console.log("! Found", missingResponseSchemaDeclarationCount, "routes missing a response schema declaration !");
 }
 
-main().then(() => {});
+main().catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+});

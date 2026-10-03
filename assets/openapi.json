@@ -9196,6 +9196,54 @@
             "AdminSettingsUpdateSchema": {
                 "type": "object",
                 "properties": {
+                    "externalRequests": {
+                        "type": "object",
+                        "properties": {
+                            "discordDecorations": {
+                                "type": "boolean"
+                            },
+                            "discordAssetFallback": {
+                                "type": "boolean"
+                            },
+                            "discordClientAssets": {
+                                "type": "boolean"
+                            },
+                            "discordGames": {
+                                "type": "boolean"
+                            },
+                            "discordTemplates": {
+                                "type": "boolean"
+                            },
+                            "discordStickerPacks": {
+                                "type": "boolean"
+                            },
+                            "discordBadDomains": {
+                                "type": "boolean"
+                            },
+                            "thirdParty": {
+                                "type": "boolean"
+                            }
+                        },
+                        "additionalProperties": false
+                    },
+                    "limits": {
+                        "$ref": "#/components/schemas/AdminResourceLimitsSchema"
+                    },
+                    "guild": {
+                        "type": "object",
+                        "properties": {
+                            "defaultFeatures": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                }
+                            },
+                            "publicThreadsInvitable": {
+                                "type": "boolean"
+                            }
+                        },
+                        "additionalProperties": false
+                    },
                     "general": {
                         "type": "object",
                         "properties": {
@@ -9504,6 +9552,65 @@
             "AdminUserUpdateSchema": {
                 "type": "object",
                 "properties": {
+                    "avatar_decoration_sku_id": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "nameplate_sku_id": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "collectibles_sku_ids": {
+                        "anyOf": [
+                            {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                }
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    },
+                    "username": {
+                        "minLength": 2,
+                        "maxLength": 32,
+                        "type": "string"
+                    },
+                    "pronouns": {
+                        "maxLength": 40,
+                        "type": "string"
+                    },
+                    "avatar": {
+                        "pattern": "^data:image/",
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "banner": {
+                        "pattern": "^data:image/",
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "accent_color": {
+                        "minimum": 0,
+                        "maximum": 16777215,
+                        "type": "integer",
+                        "nullable": true
+                    },
+                    "theme_colors": {
+                        "anyOf": [
+                            {
+                                "type": "array",
+                                "items": {
+                                    "type": "integer"
+                                }
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    },
                     "global_name": {
                         "maxLength": 32,
                         "type": "string",
@@ -9694,6 +9801,62 @@
             "AdminGuildUpdateSchema": {
                 "type": "object",
                 "properties": {
+                    "icon": {
+                        "pattern": "^data:image/",
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "banner": {
+                        "pattern": "^data:image/",
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "splash": {
+                        "pattern": "^data:image/",
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "discovery_splash": {
+                        "pattern": "^data:image/",
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "verification_level": {
+                        "minimum": 0,
+                        "maximum": 4,
+                        "type": "integer"
+                    },
+                    "explicit_content_filter": {
+                        "minimum": 0,
+                        "maximum": 2,
+                        "type": "integer"
+                    },
+                    "default_message_notifications": {
+                        "minimum": 0,
+                        "maximum": 1,
+                        "type": "integer"
+                    },
+                    "premium_tier": {
+                        "minimum": 0,
+                        "maximum": 3,
+                        "type": "integer"
+                    },
+                    "nsfw": {
+                        "type": "boolean"
+                    },
+                    "preferred_locale": {
+                        "type": "string"
+                    },
+                    "afk_timeout": {
+                        "enum": [
+                            1800,
+                            300,
+                            3600,
+                            60,
+                            900
+                        ],
+                        "type": "number"
+                    },
                     "name": {
                         "minLength": 2,
                         "maxLength": 100,
@@ -10207,6 +10370,222 @@
                     }
                 }
             },
+            "AdminResourceLimitsSchema": {
+                "type": "object",
+                "properties": {
+                    "user": {
+                        "type": "object",
+                        "properties": {
+                            "maxGuilds": {
+                                "minimum": 1,
+                                "maximum": 2147483647,
+                                "type": "integer"
+                            },
+                            "maxUsername": {
+                                "minimum": 1,
+                                "maximum": 2147483647,
+                                "type": "integer"
+                            },
+                            "maxFriends": {
+                                "minimum": 1,
+                                "maximum": 2147483647,
+                                "type": "integer"
+                            },
+                            "maxBio": {
+                                "minimum": 1,
+                                "maximum": 2147483647,
+                                "type": "integer"
+                            },
+                            "maxPronouns": {
+                                "minimum": 1,
+                                "maximum": 2147483647,
+                                "type": "integer"
+                            }
+                        },
+                        "additionalProperties": false
+                    },
+                    "guild": {
+                        "type": "object",
+                        "properties": {
+                            "maxRoles": {
+                                "minimum": 1,
+                                "maximum": 2147483647,
+                                "type": "integer"
+                            },
+                            "maxEmojis": {
+                                "minimum": 1,
+                                "maximum": 2147483647,
+                                "type": "integer"
+                            },
+                            "maxStickers": {
+                                "minimum": 1,
+                                "maximum": 2147483647,
+                                "type": "integer"
+                            },
+                            "maxMembers": {
+                                "minimum": 1,
+                                "maximum": 2147483647,
+                                "type": "integer"
+                            },
+                            "maxChannels": {
+                                "minimum": 1,
+                                "maximum": 2147483647,
+                                "type": "integer"
+                            },
+                            "maxBulkBanUsers": {
+                                "minimum": 1,
+                                "maximum": 2147483647,
+                                "type": "integer"
+                            },
+                            "maxChannelsInCategory": {
+                                "minimum": 1,
+                                "maximum": 2147483647,
+                                "type": "integer"
+                            }
+                        },
+                        "additionalProperties": false
+                    },
+                    "message": {
+                        "type": "object",
+                        "properties": {
+                            "maxCharacters": {
+                                "minimum": 1,
+                                "maximum": 2147483647,
+                                "type": "integer"
+                            },
+                            "maxTTSCharacters": {
+                                "minimum": 1,
+                                "maximum": 2147483647,
+                                "type": "integer"
+                            },
+                            "maxReactions": {
+                                "minimum": 1,
+                                "maximum": 2147483647,
+                                "type": "integer"
+                            },
+                            "maxAttachments": {
+                                "minimum": 1,
+                                "maximum": 2147483647,
+                                "type": "integer"
+                            },
+                            "maxAttachmentSize": {
+                                "minimum": 1,
+                                "maximum": 2147483647,
+                                "type": "integer"
+                            },
+                            "maxBulkDelete": {
+                                "minimum": 1,
+                                "maximum": 2147483647,
+                                "type": "integer"
+                            },
+                            "maxEmbedDownloadSize": {
+                                "minimum": 1,
+                                "maximum": 2147483647,
+                                "type": "integer"
+                            },
+                            "maxPreloadCount": {
+                                "minimum": 1,
+                                "maximum": 2147483647,
+                                "type": "integer"
+                            },
+                            "maxEmbeds": {
+                                "minimum": 1,
+                                "maximum": 2147483647,
+                                "type": "integer"
+                            },
+                            "maxEmbedCharacters": {
+                                "minimum": 1,
+                                "maximum": 2147483647,
+                                "type": "integer"
+                            }
+                        },
+                        "additionalProperties": false
+                    },
+                    "channel": {
+                        "type": "object",
+                        "properties": {
+                            "maxPins": {
+                                "minimum": 1,
+                                "maximum": 2147483647,
+                                "type": "integer"
+                            },
+                            "maxTopic": {
+                                "minimum": 1,
+                                "maximum": 2147483647,
+                                "type": "integer"
+                            },
+                            "maxWebhooks": {
+                                "minimum": 1,
+                                "maximum": 2147483647,
+                                "type": "integer"
+                            },
+                            "maxName": {
+                                "minimum": 1,
+                                "maximum": 2147483647,
+                                "type": "integer"
+                            },
+                            "maxGroupDmRecipients": {
+                                "minimum": 1,
+                                "maximum": 2147483647,
+                                "type": "integer"
+                            }
+                        },
+                        "additionalProperties": false
+                    }
+                }
+            },
+            "AdminChannelUpdateSchema": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "minLength": 1,
+                        "maxLength": 100,
+                        "type": "string"
+                    },
+                    "topic": {
+                        "maxLength": 4096,
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "nsfw": {
+                        "type": "boolean"
+                    },
+                    "rate_limit_per_user": {
+                        "minimum": 0,
+                        "maximum": 21600,
+                        "type": "integer"
+                    },
+                    "parent_id": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                }
+            },
+            "AdminRoleUpdateSchema": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "minLength": 1,
+                        "maxLength": 100,
+                        "type": "string"
+                    },
+                    "color": {
+                        "minimum": 0,
+                        "maximum": 16777215,
+                        "type": "integer"
+                    },
+                    "permissions": {
+                        "pattern": "^[0-9]{1,20}$",
+                        "type": "string"
+                    },
+                    "hoist": {
+                        "type": "boolean"
+                    },
+                    "mentionable": {
+                        "type": "boolean"
+                    }
+                }
+            },
             "AttachmentListResponse": {
                 "type": "object",
                 "properties": {
@@ -10628,9 +11007,7 @@
                         "additionalProperties": false
                     },
                     "intents": {
-                        "type": "number",
-                        "properties": {},
-                        "additionalProperties": false
+                        "type": "number"
                     },
                     "presence": {
                         "$ref": "#/components/schemas/ActivitySchema"
@@ -10649,9 +11026,7 @@
                         "maxItems": 2,
                         "type": "array",
                         "items": {
-                            "type": "number",
-                            "properties": {},
-                            "additionalProperties": false
+                            "type": "number"
                         }
                     },
                     "guild_subscriptions": {
@@ -22189,9 +22564,6 @@
         },
         {
             "name": "verify-email"
-        },
-        {
-            "name": "webhooks"
         },
         {
             "name": "widget"
@@ -39301,6 +39673,193 @@
                 ]
             }
         },
+        "/api/channels/{channel_id}/threads/": {
+            "post": {
+                "x-permission-required": "VIEW_CHANNEL",
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ThreadCreationSchema"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "No description available"
+                    },
+                    "403": {
+                        "description": "No description available"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "channel_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "channel_id"
+                    }
+                ],
+                "tags": [
+                    "api"
+                ]
+            }
+        },
+        "/api/channels/{channel_id}/threads/search": {
+            "get": {
+                "x-permission-required": "VIEW_CHANNEL",
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No description available"
+                    },
+                    "403": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/APIErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/APIErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "channel_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "channel_id"
+                    }
+                ],
+                "tags": [
+                    "api"
+                ]
+            }
+        },
+        "/api/channels/{channel_id}/threads/archived/public": {
+            "get": {
+                "x-permission-required": "VIEW_CHANNEL",
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No description available"
+                    },
+                    "403": {
+                        "description": "No description available"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "channel_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "channel_id"
+                    }
+                ],
+                "tags": [
+                    "api"
+                ]
+            }
+        },
+        "/api/channels/{channel_id}/threads/archived/private": {
+            "get": {
+                "x-permission-required": "VIEW_CHANNEL",
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No description available"
+                    },
+                    "403": {
+                        "description": "No description available"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "channel_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "channel_id"
+                    }
+                ],
+                "tags": [
+                    "api"
+                ]
+            }
+        },
+        "/api/channels/{channel_id}/threads/active": {
+            "get": {
+                "x-permission-required": "VIEW_CHANNEL",
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No description available"
+                    },
+                    "403": {
+                        "description": "No description available"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "channel_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "channel_id"
+                    }
+                ],
+                "tags": [
+                    "api"
+                ]
+            }
+        },
         "/api/channels/{channel_id}/thread-members/": {
             "get": {
                 "x-permission-required": "VIEW_CHANNEL",
@@ -40652,6 +41211,185 @@
                         "schema": {
                             "type": "number"
                         }
+                    }
+                ],
+                "tags": [
+                    "api"
+                ]
+            }
+        },
+        "/api/channels/{channel_id}/messages/": {
+            "get": {
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PublicMessageListResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/APIErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "No description available"
+                    },
+                    "404": {
+                        "description": "No description available"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "channel_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "channel_id"
+                    },
+                    {
+                        "name": "around",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "before",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "after",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "schema": {
+                            "type": "number"
+                        },
+                        "description": "max number of messages to return (1-100). defaults to 50"
+                    }
+                ],
+                "tags": [
+                    "api"
+                ]
+            },
+            "post": {
+                "x-right-required": "SEND_MESSAGES",
+                "x-permission-required": "VIEW_CHANNEL",
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/MessageCreateSchema"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PublicMessage"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/APIErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "No description available"
+                    },
+                    "404": {
+                        "description": "No description available"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "channel_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "channel_id"
+                    }
+                ],
+                "tags": [
+                    "api"
+                ]
+            }
+        },
+        "/api/channels/{channel_id}/messages/ack": {
+            "delete": {
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AcknowledgeDeleteSchema"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "204": {
+                        "description": "No description available"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "channel_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "channel_id"
                     }
                 ],
                 "tags": [
@@ -42236,6 +42974,66 @@
                 ]
             }
         },
+        "/api/channels/{channel_id}/call/": {
+            "get": {
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No description available"
+                    },
+                    "404": {
+                        "description": "No description available"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "channel_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "channel_id"
+                    }
+                ],
+                "tags": [
+                    "api"
+                ]
+            },
+            "patch": {
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No description available"
+                    },
+                    "404": {
+                        "description": "No description available"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "channel_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "channel_id"
+                    }
+                ],
+                "tags": [
+                    "api"
+                ]
+            }
+        },
         "/api/channels/{channel_id}/attachments/": {
             "post": {
                 "security": [
@@ -42403,6 +43201,40 @@
                         "label": "Spacebar-only",
                         "color": "red"
                     }
+                ]
+            }
+        },
+        "/api/auth/verify/view-backup-codes-challenge/": {
+            "post": {
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/BackupCodesChallengeResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/APIErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "tags": [
+                    "api"
                 ]
             }
         },
@@ -42857,6 +43689,21 @@
                                 }
                             }
                         }
+                    }
+                },
+                "tags": [
+                    "api"
+                ]
+            }
+        },
+        "/api/auth/conditional/start/": {
+            "post": {
+                "security": [
+                    {}
+                ],
+                "responses": {
+                    "default": {
+                        "description": "No description available"
                     }
                 },
                 "tags": [
@@ -45657,6 +46504,31 @@
                 ]
             }
         },
+        "/api/admin/system/performance/": {
+            "get": {
+                "x-right-required": "OPERATOR",
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "description": "Process memory, event loop delay and HTTP route timings since startup",
+                "responses": {
+                    "default": {
+                        "description": "No description available"
+                    }
+                },
+                "tags": [
+                    "api"
+                ],
+                "x-badges": [
+                    {
+                        "label": "Spacebar-only",
+                        "color": "red"
+                    }
+                ]
+            }
+        },
         "/api/admin/system/collectibles/": {
             "get": {
                 "x-right-required": "OPERATOR",
@@ -45982,6 +46854,31 @@
                     }
                 ],
                 "description": "The store's own packs and items, and the mirrored discord packs with whether each is in the shop",
+                "responses": {
+                    "default": {
+                        "description": "No description available"
+                    }
+                },
+                "tags": [
+                    "api"
+                ],
+                "x-badges": [
+                    {
+                        "label": "Spacebar-only",
+                        "color": "red"
+                    }
+                ]
+            }
+        },
+        "/api/admin/store/catalog/": {
+            "get": {
+                "x-right-required": "MANAGE_USERS",
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "description": "Compact local catalog for choosing profile cosmetics in the admin dashboard",
                 "responses": {
                     "default": {
                         "description": "No description available"
@@ -46703,6 +47600,97 @@
                 ]
             }
         },
+        "/api/admin/guilds/{guild_id}/roles/": {
+            "get": {
+                "x-right-required": "MANAGE_GUILDS",
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "description": "List server roles and available permission flags",
+                "responses": {
+                    "default": {
+                        "description": "No description available"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "guild_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "guild_id"
+                    }
+                ],
+                "tags": [
+                    "api"
+                ],
+                "x-badges": [
+                    {
+                        "label": "Spacebar-only",
+                        "color": "red"
+                    }
+                ]
+            }
+        },
+        "/api/admin/guilds/{guild_id}/roles/{role_id}/": {
+            "patch": {
+                "x-right-required": "MANAGE_GUILDS",
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "description": "Edit a role's appearance and permissions in any server",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AdminRoleUpdateSchema"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "default": {
+                        "description": "No description available"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "guild_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "guild_id"
+                    },
+                    {
+                        "name": "role_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "role_id"
+                    }
+                ],
+                "tags": [
+                    "api"
+                ],
+                "x-badges": [
+                    {
+                        "label": "Spacebar-only",
+                        "color": "red"
+                    }
+                ]
+            }
+        },
         "/api/admin/guilds/{guild_id}/": {
             "get": {
                 "x-right-required": "MANAGE_GUILDS",
@@ -46804,6 +47792,97 @@
                             "type": "string"
                         },
                         "description": "guild_id"
+                    }
+                ],
+                "tags": [
+                    "api"
+                ],
+                "x-badges": [
+                    {
+                        "label": "Spacebar-only",
+                        "color": "red"
+                    }
+                ]
+            }
+        },
+        "/api/admin/guilds/{guild_id}/channels/": {
+            "get": {
+                "x-right-required": "MANAGE_GUILDS",
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "description": "List a server's channels for instance management",
+                "responses": {
+                    "default": {
+                        "description": "No description available"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "guild_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "guild_id"
+                    }
+                ],
+                "tags": [
+                    "api"
+                ],
+                "x-badges": [
+                    {
+                        "label": "Spacebar-only",
+                        "color": "red"
+                    }
+                ]
+            }
+        },
+        "/api/admin/guilds/{guild_id}/channels/{channel_id}/": {
+            "patch": {
+                "x-right-required": "MANAGE_GUILDS",
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "description": "Edit channel details in any server",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AdminChannelUpdateSchema"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "default": {
+                        "description": "No description available"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "guild_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "guild_id"
+                    },
+                    {
+                        "name": "channel_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "channel_id"
                     }
                 ],
                 "tags": [

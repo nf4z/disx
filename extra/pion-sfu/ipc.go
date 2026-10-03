@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"os"
 	"runtime"
 	"sync"
+	"time"
 
 	"github.com/pion/rtcp"
 )
@@ -54,8 +56,47 @@ func getListener(path string) (net.Listener, error) {
 	return net.Listen("unix", path)
 }
 
+// Fixed shards bound concurrent signaling work and preserve each client's order.
+// Heartbeats bypass pending negotiation work. A saturated shard applies bounded
+// backpressure until its current operation finishes or reaches its deadline.
+const signalingWorkers = 16
+
+func signalingShard(clientID string) uint32 {
+	var hash uint32 = 2166136261
+	for i := 0; i < len(clientID); i++ {
+		hash = (hash ^ uint32(clientID[i])) * 16777619
+	}
+	return hash % signalingWorkers
+}
+
 func (ipcConn *IpcConnection) handleConnection() {
-	defer ipcConn.conn.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	var workers sync.WaitGroup
+	queues := make([]chan IpcMessage, signalingWorkers)
+	for i := range queues {
+		queues[i] = make(chan IpcMessage, 1)
+		workers.Add(1)
+		go func(queue <-chan IpcMessage) {
+			defer workers.Done()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case msg := <-queue:
+					if ctx.Err() != nil {
+						return
+					}
+					ipcConn.processMessage(ctx, msg)
+				}
+			}
+		}(queues[i])
+	}
+	defer func() {
+		cancel()
+		// Unblock replies before waiting for negotiation workers to stop.
+		ipcConn.conn.Close()
+		workers.Wait()
+	}()
 
 	headerBuf := make([]byte, 4)
 
@@ -92,11 +133,19 @@ func (ipcConn *IpcConnection) handleConnection() {
 			continue
 		}
 
-		ipcConn.processMessage(msg)
+		if msg.Type == "ping" {
+			ipcConn.processMessage(ctx, msg)
+			continue
+		}
+		select {
+		case queues[signalingShard(msg.Payload.ClientID)] <- msg:
+		case <-ctx.Done():
+			return
+		}
 	}
 }
 
-func (ipcConn *IpcConnection) processMessage(ipcMsg IpcMessage) {
+func (ipcConn *IpcConnection) processMessage(ctx context.Context, ipcMsg IpcMessage) {
 	// handle ping pong heartbeats
 	if ipcMsg.Type == "ping" {
 		ipcConn.sendReply(ipcMsg.ID, SignalMessage{
@@ -143,7 +192,7 @@ func (ipcConn *IpcConnection) processMessage(ipcMsg IpcMessage) {
 		} else {
 			switch msg.Type {
 			case "offer":
-				handleErr = handleOffer(p, msg, requestID)
+				handleErr = handleOffer(ctx, p, msg, requestID)
 			case "publish":
 				handleErr = handlePublish(p, msg)
 			case "stop-publish":
@@ -197,8 +246,24 @@ func (ipcConn *IpcConnection) sendReply(requestID string, payload SignalMessage,
 	header := make([]byte, 4)
 	binary.BigEndian.PutUint32(header, length)
 
-	ipcConn.conn.Write(header)
-	ipcConn.conn.Write(data)
-
+	if err := ipcConn.conn.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		return err
+	}
+	defer ipcConn.conn.SetWriteDeadline(time.Time{})
+	for _, part := range [][]byte{header, data} {
+		for len(part) > 0 {
+			n, err := ipcConn.conn.Write(part)
+			if err != nil {
+				// A partial frame makes the stream unusable; let the reader cancel work.
+				ipcConn.conn.Close()
+				return err
+			}
+			if n == 0 {
+				ipcConn.conn.Close()
+				return io.ErrShortWrite
+			}
+			part = part[n:]
+		}
+	}
 	return nil
 }

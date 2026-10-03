@@ -173,16 +173,21 @@ function describeError(body) {
     return fieldErrors.length ? fieldErrors.join("; ") : body.message;
 }
 
+let pageRequests = new AbortController();
+
 async function api(path, { method = "GET", body, auth: useAuth = true } = {}) {
     // FormData goes as multipart, and the browser sets its content type with the boundary
+    const signal = method === "GET" ? pageRequests.signal : undefined;
     const multipart = body instanceof FormData;
     const headers = {};
     if (body !== undefined && !multipart) headers["Content-Type"] = "application/json";
     if (useAuth && currentToken()) headers.Authorization = currentToken();
-    const res = await fetch(API + path, { method, headers, body: body !== undefined && !multipart ? JSON.stringify(body) : body }).catch(() => {
+    const res = await fetch(API + path, { method, headers, signal, body: body !== undefined && !multipart ? JSON.stringify(body) : body }).catch((error) => {
+        if (signal?.aborted) throw new ApiError(499, { message: "Navigation changed" });
         throw new ApiError(0, { message: "Couldn't reach the server. Check your connection and try again." });
     });
     const text = await res.text();
+    if (signal?.aborted) throw new ApiError(499, { message: "Navigation changed" });
     let data = null;
     try {
         data = text ? JSON.parse(text) : null;
@@ -203,10 +208,14 @@ async function act(button, fn, success) {
     if (button) button.disabled = true;
     try {
         const result = await fn();
-        if (success) toast(success);
+        if (success) {
+            const form = button?.closest("form");
+            if (form) delete form.dataset.dirty;
+            toast(success);
+        }
         return result;
     } catch (e) {
-        if (e.status !== 401) toast(e.message, "error");
+        if (e.status !== 401 && e.status !== 499) toast(e.message, "error");
         return undefined;
     } finally {
         if (button) button.disabled = false;
@@ -278,14 +287,16 @@ const USER_TAGS = [
 
 // mirrors how the patched web client draws the tag next to a name
 const nameTag = (tag, isBot) => {
-    if (tag === "official" || tag === "system")
-        return html`<span class="name-tag" title="Official message">${raw(CHECK_ICON)}${tag === "official" ? "OFFICIAL" : "SYSTEM"}</span>`;
+    if (tag === "official" || tag === "system") return html`<span class="name-tag" title="Official message">${raw(CHECK_ICON)}${tag === "official" ? "OFFICIAL" : "SYSTEM"}</span>`;
     const verified = tag === "verified_bot" || tag === "verified_ai";
     const ai = tag === "ai" || tag === "verified_ai";
     if (!ai && !isBot) return html`<span class="muted">no tag</span>`;
-    return html`<span class="name-tag ${ai ? "ai" : ""}" title="${verified ? (ai ? "Verified AI" : "Verified Bot") : ""}">${verified ? raw(CHECK_ICON) : ""}${ai ? "AI" : "BOT"}</span>`;
+    return html`<span class="name-tag ${ai ? "ai" : ""}" title="${verified ? (ai ? "Verified AI" : "Verified Bot") : ""}"
+        >${verified ? raw(CHECK_ICON) : ""}${ai ? "AI" : "BOT"}</span
+    >`;
 };
-const CHECK_ICON = '<svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24"><path fill="currentColor" d="M18.7 7.3a1 1 0 0 1 0 1.4l-8 8a1 1 0 0 1-1.4 0l-4-4a1 1 0 1 1 1.4-1.4l3.3 3.29 7.3-7.3a1 1 0 0 1 1.4 0Z"/></svg>';
+const CHECK_ICON =
+    '<svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24"><path fill="currentColor" d="M18.7 7.3a1 1 0 0 1 0 1.4l-8 8a1 1 0 0 1-1.4 0l-4-4a1 1 0 1 1 1.4-1.4l3.3 3.29 7.3-7.3a1 1 0 0 1 1.4 0Z"/></svg>';
 
 const badgeIcon = (b) => html`<img class="badge-icon" src="/badge-icons/${b.icon}.png" alt="" loading="lazy" />`;
 
@@ -381,7 +392,9 @@ const stateBadge = (key) => html`<span class="badge ${RESOLVED.includes(key) ? "
 const impactBadge = (incident) =>
     incident.impact === "maintenance"
         ? html`<span class="badge info">Maintenance</span>`
-        : html`<span class="badge ${IMPACTS.find(([k]) => k === incident.impact)?.[2] ?? ""}">${IMPACTS.find(([k]) => k === incident.impact)?.[1] ?? incident.impact} impact</span>`;
+        : html`<span class="badge ${IMPACTS.find(([k]) => k === incident.impact)?.[2] ?? ""}"
+              >${IMPACTS.find(([k]) => k === incident.impact)?.[1] ?? incident.impact} impact</span
+          >`;
 
 const options = (list, selected) => list.map(([value, label]) => html`<option value="${value}" ${String(value) === String(selected) ? raw("selected") : ""}>${label}</option>`);
 
@@ -424,8 +437,14 @@ async function boot() {
     $("#brand-name").textContent = state.overview.instance.name;
     document.title = `${state.overview.instance.name} Admin`;
     syncBrandIcon();
-    mount($("#me"), html`${avatar(state.me)}<div class="ident"><div><strong>${userName(state.me)}</strong><span class="muted">${userTag(state.me)}</span></div></div>`);
-    for (const link of $$("#nav a")) link.hidden = link.dataset.access ? !state.overview.access[link.dataset.access] : false;
+    mount(
+        $("#me"),
+        html`${avatar(state.me)}
+            <div class="ident">
+                <div><strong>${userName(state.me)}</strong><span class="muted">${userTag(state.me)}</span></div>
+            </div>`,
+    );
+    filterNavigation();
     syncNavCounts();
     route();
 }
@@ -485,40 +504,116 @@ const TABS = {
     reports: renderReports,
     status: renderStatus,
     system: renderSystem,
+    performance: renderPerformance,
 };
 
+let activeHash = location.hash;
 function route() {
     if (!state.overview) return;
     let [tab] = location.hash.replace(/^#\/?/, "").split("/");
     const link = $(`#nav a[data-tab="${CSS.escape(tab || "")}"]`);
     if (!TABS[tab] || !link || link.hidden) tab = "overview";
-    for (const a of $$("#nav a")) a.classList.toggle("active", a.dataset.tab === tab);
-    closeDrawer();
-    const view = $("#view");
+    if (!closeDrawer() || ($("form[data-dirty]", $("#view")) && !confirm("Discard unsaved changes?"))) {
+        history.replaceState(null, "", activeHash);
+        return;
+    }
+    for (const a of $$("#nav a")) {
+        a.classList.toggle("active", a.dataset.tab === tab);
+        if (a.dataset.tab === tab) a.setAttribute("aria-current", "page");
+        else a.removeAttribute("aria-current");
+    }
+    activeHash = location.hash;
+    pageRequests.abort();
+    pageRequests = new AbortController();
+    const view = $("#view").cloneNode(false);
+    $("#view").replaceWith(view);
     mount(view, html`<div class="spinner">Loading…</div>`);
     TABS[tab](view).catch((e) => {
-        if (e.status !== 401) mount(view, html`<div class="card"><h2>Something went wrong</h2><p class="muted">${e.message}</p></div>`);
+        if (e.status !== 401 && e.status !== 499)
+            mount(
+                view,
+                html`<div class="card">
+                    <h2>Something went wrong</h2>
+                    <p class="muted">${e.message}</p>
+                </div>`,
+            );
     });
 }
 window.addEventListener("hashchange", route);
 
 /* ---------- drawer ---------- */
 
+let drawerReturnFocus;
 function openDrawer(title, content) {
+    if (!$("#drawer").hidden && !closeDrawer()) return null;
+    drawerReturnFocus = document.activeElement;
+    const fresh = $("#drawer-body").cloneNode(false);
+    $("#drawer-body").replaceWith(fresh);
     $("#drawer-title").textContent = title;
     mount($("#drawer-body"), content);
     $("#drawer").hidden = false;
+    $("#app").inert = true;
+    document.body.style.overflow = "hidden";
+    $(".drawer-head button").focus();
     return $("#drawer-body");
 }
 function closeDrawer() {
+    if ($("#drawer").hidden) return true;
+    if ($("form[data-dirty]", $("#drawer")) && !confirm("Discard unsaved changes?")) return false;
     $("#drawer").hidden = true;
+    $("#app").inert = false;
+    document.body.style.overflow = "";
+    if (drawerReturnFocus?.isConnected) drawerReturnFocus.focus();
     $("#drawer-body").innerHTML = "";
+    return true;
 }
 $("#drawer").addEventListener("click", (e) => {
     if (e.target.closest("[data-close]")) closeDrawer();
 });
 document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && !$("#drawer").hidden) closeDrawer();
+});
+
+function filterNavigation() {
+    const query = $("#nav-search").value.trim().toLowerCase();
+    for (const link of $$("#nav a")) {
+        const allowed = !link.dataset.access || state.overview?.access[link.dataset.access];
+        link.hidden = !allowed || !link.textContent.toLowerCase().includes(query);
+    }
+    for (const group of $$(".nav-group")) group.hidden = !$$("a", group).some((link) => !link.hidden);
+    $("#nav-empty").hidden = $$("#nav a").some((link) => !link.hidden);
+}
+$("#nav-search").addEventListener("input", filterNavigation);
+document.addEventListener("input", (event) => {
+    const form = event.target.closest("form");
+    if (form && form.id !== "login-form") form.dataset.dirty = "true";
+});
+window.addEventListener("beforeunload", (event) => {
+    if ($("form[data-dirty]")) {
+        event.preventDefault();
+        event.returnValue = "";
+    }
+});
+document.addEventListener("keydown", (event) => {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k" && !$("#app").inert) {
+        event.preventDefault();
+        $("#nav-search").focus();
+        $("#nav-search").select();
+    }
+    if (event.key === "Tab" && !$("#drawer").hidden) {
+        const focusable = $$("button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href]", $("#drawer")).filter(
+            (el) => el.getClientRects().length,
+        );
+        const first = focusable[0],
+            last = focusable.at(-1);
+        if (event.shiftKey && document.activeElement === first) {
+            event.preventDefault();
+            last?.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+            event.preventDefault();
+            first?.focus();
+        }
+    }
 });
 
 /* ---------- overview ---------- */
@@ -548,23 +643,30 @@ async function renderOverview(view) {
             <div class="stack">
                 <div class="stats">
                     ${stat("Users", fmtNumber(o.counts.users), o.access.users ? "#/users" : null)}
-                    ${stat("Servers", fmtNumber(o.counts.guilds), o.access.guilds ? "#/guilds" : null)}
-                    ${stat("Messages", fmtNumber(o.counts.messages))}
-                    ${stat("Memberships", fmtNumber(o.counts.members))}
-                    ${stat("Disabled accounts", fmtNumber(o.counts.disabled_users), o.access.users ? "#/users" : null)}
+                    ${stat("Servers", fmtNumber(o.counts.guilds), o.access.guilds ? "#/guilds" : null)} ${stat("Messages", fmtNumber(o.counts.messages))}
+                    ${stat("Memberships", fmtNumber(o.counts.members))} ${stat("Disabled accounts", fmtNumber(o.counts.disabled_users), o.access.users ? "#/users" : null)}
                     ${stat("Open incidents", fmtNumber(o.counts.open_incidents), o.access.status ? "#/status" : null)}
                     ${o.access.reports ? stat("Open reports", fmtNumber(o.counts.open_reports), "#/reports") : ""}
                 </div>
+                <p class="muted">Counts sampled ${fmtDate(o.counts_sampled_at)}. Refresh every ${o.counts_refresh_seconds ?? 30} seconds.</p>
                 <div class="card">
                     <h3>Instance</h3>
                     <div class="list">
-                        <div class="list-item"><span class="grow muted">Public status</span>${status ? html`<span class="badge ${status.status.indicator === "none" ? "ok" : status.status.indicator === "maintenance" ? "info" : "warn"}"><span class="dot"></span>${status.status.description}</span>` : "—"}</div>
+                        <div class="list-item">
+                            <span class="grow muted">Public status</span
+                            >${status ? html`<span class="badge ${status.status.indicator === "none" ? "ok" : status.status.indicator === "maintenance" ? "info" : "warn"}"><span class="dot"></span>${status.status.description}</span>` : "—"}
+                        </div>
                         <div class="list-item"><span class="grow muted">Uptime</span><span>${fmtDuration(o.uptime)}</span></div>
                         <div class="list-item"><span class="grow muted">Revision</span><code>${o.revision?.rev?.slice(0, 10) ?? "unknown"}</code></div>
                         <div class="list-item"><span class="grow muted">Instance ID</span><code>${o.instance.id}</code></div>
-                        <div class="list-item"><span class="grow muted">Your access</span><span class="badges">${Object.entries(o.access)
-                            .filter(([k, v]) => v && k !== "operator")
-                            .map(([k]) => html`<span class="badge accent">${k}</span>`)}</span></div>
+                        <div class="list-item">
+                            <span class="grow muted">Your access</span
+                            ><span class="badges"
+                                >${Object.entries(o.access)
+                                    .filter(([k, v]) => v && k !== "operator")
+                                    .map(([k]) => html`<span class="badge accent">${k}</span>`)}</span
+                            >
+                        </div>
                     </div>
                 </div>
             </div>
@@ -589,6 +691,56 @@ const RATE_LIMITS = [
     ["register", "Registrations per IP", "Only successful sign-ups count"],
 ];
 
+const RESOURCE_LIMITS = {
+    user: [
+        "Account limits",
+        [
+            ["maxGuilds", "Joined servers"],
+            ["maxUsername", "Username characters"],
+            ["maxFriends", "Friends"],
+            ["maxBio", "Bio characters"],
+            ["maxPronouns", "Pronoun characters"],
+        ],
+    ],
+    guild: [
+        "Server limits",
+        [
+            ["maxRoles", "Roles"],
+            ["maxEmojis", "Emojis"],
+            ["maxStickers", "Stickers"],
+            ["maxMembers", "Members"],
+            ["maxChannels", "Channels"],
+            ["maxBulkBanUsers", "Users per bulk ban"],
+            ["maxChannelsInCategory", "Channels per category"],
+        ],
+    ],
+    message: [
+        "Message limits",
+        [
+            ["maxCharacters", "Message characters"],
+            ["maxTTSCharacters", "Text-to-speech characters"],
+            ["maxReactions", "Reactions"],
+            ["maxAttachments", "Attachments"],
+            ["maxAttachmentSize", "Attachment bytes"],
+            ["maxBulkDelete", "Messages per bulk delete"],
+            ["maxEmbedDownloadSize", "Embed download bytes"],
+            ["maxPreloadCount", "Preloaded channels"],
+            ["maxEmbeds", "Embeds"],
+            ["maxEmbedCharacters", "Embed characters"],
+        ],
+    ],
+    channel: [
+        "Channel limits",
+        [
+            ["maxPins", "Pinned messages"],
+            ["maxTopic", "Topic characters"],
+            ["maxWebhooks", "Webhooks"],
+            ["maxName", "Name characters"],
+            ["maxGroupDmRecipients", "Group DM participants"],
+        ],
+    ],
+};
+
 const E2EE_LIMITS = [
     ["maxEnvelopeBytes", "Largest encrypted message", "Bytes. Discord-sized messages fit in the default 65536.", 1024],
     ["maxEnvelopeDevices", "Devices per encrypted message", "How many recipient devices one message can be encrypted for.", 1],
@@ -612,7 +764,16 @@ async function renderSettings(view) {
             >${label}${hint ? html`<span class="hint">${hint}</span>` : ""}<input type="${type}" name="${path}" value="${getPath(s, path) ?? ""}" placeholder="${placeholder}"
         /></label>`;
     const number = (path, label, hint, min = 0) =>
-        html`<label>${label}${hint ? html`<span class="hint">${hint}</span>` : ""}<input type="number" data-number name="${path}" min="${min}" step="1" value="${getPath(s, path) ?? ""}" required /></label>`;
+        html`<label
+            >${label}${hint ? html`<span class="hint">${hint}</span>` : ""}<input
+                type="number"
+                data-number
+                name="${path}"
+                min="${min}"
+                step="1"
+                value="${getPath(s, path) ?? ""}"
+                required
+        /></label>`;
     const toggle = (path, label, hint) =>
         html`<label class="toggle"
             ><input type="checkbox" name="${path}" ${getPath(s, path) ? raw("checked") : ""} /><span>${label}${hint ? html`<span class="hint">${hint}</span>` : ""}</span></label
@@ -633,14 +794,47 @@ async function renderSettings(view) {
                 </div>
             </div>
             <form id="settings-form" class="stack">
+                <div class="settings-jump" aria-label="Settings shortcuts">
+                    <a href="#/settings" data-settings-target="settings-instance">Instance</a><a href="#/settings" data-settings-target="settings-branding">Branding</a
+                    ><a href="#/settings" data-settings-target="settings-registration">Registration</a
+                    ><a href="#/settings" data-settings-target="settings-limits">Feature limits</a>
+                </div>
                 <div class="card">
-                    <h2>Instance information</h2>
+                    <h2>External requests</h2>
+                    <p class="muted">Local files and cached assets remain available. By default, only Discord's existing decoration artwork can be downloaded.</p>
+                    <div class="stack">
+                        ${toggle("externalRequests.discordDecorations", "Download existing Discord decoration artwork", "Avatar decorations, nameplates and profile effects. Shop items remain free.")}
+                        ${toggle("externalRequests.discordAssetFallback", "Download other missing Discord assets")}
+                        ${toggle("externalRequests.discordClientAssets", "Download missing Discord client assets while browsing")}
+                        ${toggle("externalRequests.discordGames", "Refresh the games list from Discord")}
+                        ${toggle("externalRequests.discordTemplates", "Import server templates from Discord")}
+                        ${toggle("externalRequests.discordStickerPacks", "Import standard sticker packs from Discord")}
+                        ${toggle("externalRequests.discordBadDomains", "Download Discord's blocked-domain list")}
+                        ${toggle("externalRequests.thirdParty", "Allow configured third-party integrations", "Also requires configuring each provider. Leave off for local operation.")}
+                    </div>
+                </div>
+                <div class="card" id="settings-limits">
+                    <h2>Feature limits</h2>
+                    <p class="muted">Control the limits used by accounts, servers, messages and channels.</p>
+                    ${Object.entries(RESOURCE_LIMITS).map(
+                        ([section, [label, fields]]) =>
+                            html`<details class="settings-section">
+                                <summary>${label}</summary>
+                                <div class="form-grid">${fields.map(([key, name]) => number(`limits.${section}.${key}`, name, "", 1))}</div>
+                            </details>`,
+                    )}
+                    <label
+                        >Default server features<span class="hint">One per line. Used when new servers are created.</span
+                        ><textarea name="guild.defaultFeatures" data-lines>${(s.guild.defaultFeatures ?? []).join("\n")}</textarea>
+                    </label>
+                    ${toggle("guild.publicThreadsInvitable", "Let members invite others to public threads")}
+                </div>
+                <div class="card">
+                    <h2 id="settings-instance">Instance information</h2>
                     <div class="form-grid">
                         <label>Instance name<input name="general.instanceName" value="${s.general.instanceName}" required maxlength="100" /></label>
                         ${text("general.image", "Icon URL", "Fallback icon when the client icon below is empty", "url")}
-                        <label class="span"
-                            >Description<textarea name="general.instanceDescription" maxlength="1000">${s.general.instanceDescription ?? ""}</textarea></label
-                        >
+                        <label class="span">Description<textarea name="general.instanceDescription" maxlength="1000">${s.general.instanceDescription ?? ""}</textarea></label>
                         ${text("general.frontPage", "Homepage URL", "Linked from the status page", "url")}
                         ${text("general.tosPage", "Terms of service URL", "Opened from every Terms of Service link in the client", "url")}
                         ${text("general.privacyPage", "Privacy policy URL", "Falls back to the terms of service URL", "url")}
@@ -650,10 +844,15 @@ async function renderSettings(view) {
                     </div>
                 </div>
                 <div class="card">
-                    <h2>Web client branding</h2>
-                    <p class="muted" style="margin:0 0 14px">What the bundled web client shows instead of Discord's name and artwork. Open clients pick it up on their next reload.</p>
+                    <h2 id="settings-branding">Web client branding</h2>
+                    <p class="muted" style="margin:0 0 14px">
+                        What the bundled web client shows instead of Discord's name and artwork. Open clients pick it up on their next reload.
+                    </p>
                     <div class="form-grid">
-                        <label>Name in the client<span class="hint">Replaces "Discord" in titles and text</span><input name="client.instanceName" value="${s.client.instanceName}" required maxlength="100" /></label>
+                        <label
+                            >Name in the client<span class="hint">Replaces "Discord" in titles and text</span
+                            ><input name="client.instanceName" value="${s.client.instanceName}" required maxlength="100"
+                        /></label>
                         ${text("client.icon", "Square icon", "A URL, or a file path relative to the server folder. Used for the favicon, avatars and the app icon.", "text", "assets/icon.png")}
                         ${text("client.logo", "Wordmark logo", "A URL or file path. Shown where Discord shows its wordmark; empty draws the name next to the icon.", "text")}
                         ${text("client.helpUrl", "Help center URL", "Where help links go. Empty hides them.", "url", "https://")}
@@ -661,7 +860,7 @@ async function renderSettings(view) {
                     </div>
                 </div>
                 <div class="card">
-                    <h2>Registration</h2>
+                    <h2 id="settings-registration">Registration</h2>
                     <div class="stack">
                         ${toggle("register.disabled", "Disable registration entirely", "Nobody can create an account, including with an invite.")}
                         ${toggle("register.allowNewRegistration", "Allow new registrations", "Turn off to stop new sign-ups while keeping invite-based registration rules.")}
@@ -675,22 +874,28 @@ async function renderSettings(view) {
                         >Blacklisted usernames<span class="hint"
                             >One per line, not case-sensitive. Nobody can register with these or change their username to one, and the sign-up page says so as they type.
                             <code>*</code> matches anything, so <code>*admin*</code> blocks every name containing "admin". Accounts that already have one keep it.</span
-                        ><textarea name="register.blacklistedUsernames" data-lines rows="5" placeholder="admin&#10;moderator&#10;*official*">${(s.register.blacklistedUsernames ?? []).join("\n")}</textarea></label
-                    >
+                        ><textarea name="register.blacklistedUsernames" data-lines rows="5" placeholder="admin&#10;moderator&#10;*official*">
+${(s.register.blacklistedUsernames ?? []).join("\n")}</textarea>
+                    </label>
                     <div class="form-grid" style="margin-top:16px">
                         ${number("register.dateOfBirth.minimum", "Minimum age", "Years. Set to 0 to accept any date of birth.")}
-                        ${number("register.password.minLength", "Minimum password length", "", 1)}
-                        ${number("register.password.minNumbers", "Digits a password needs")}
-                        ${number("register.password.minUpperCase", "Capital letters a password needs")}
-                        ${number("register.password.minSymbols", "Symbols a password needs")}
+                        ${number("register.password.minLength", "Minimum password length", "", 1)} ${number("register.password.minNumbers", "Digits a password needs")}
+                        ${number("register.password.minUpperCase", "Capital letters a password needs")} ${number("register.password.minSymbols", "Symbols a password needs")}
                     </div>
                 </div>
                 <div class="card">
-                    <div class="row" style="justify-content:space-between;margin-bottom:12px"><h2 style="margin:0">Captcha</h2>${captchaState}</div>
+                    <div class="row" style="justify-content:space-between;margin-bottom:12px">
+                        <h2 style="margin:0">Captcha</h2>
+                        ${captchaState}
+                    </div>
                     <div class="stack">
                         ${toggle("captcha.enabled", "Use a captcha", "Needs a service, a site key and a secret. Cap also needs its server URL.")}
                         <div class="form-grid">
-                            <label>Service<select name="captcha.service">${options(CAPTCHA_SERVICES, s.captcha.service ?? "")}</select></label>
+                            <label
+                                >Service<select name="captcha.service">
+                                    ${options(CAPTCHA_SERVICES, s.captcha.service ?? "")}
+                                </select></label
+                            >
                             ${text("captcha.instance", "Cap server URL", "Cap Standalone base URL. Browsers have to reach it too.", "url", "https://cap.example.com")}
                             ${text("captcha.sitekey", "Site key", "")}
                             <label
@@ -698,8 +903,7 @@ async function renderSettings(view) {
                                 ><input type="password" name="captcha.secret" autocomplete="new-password" placeholder="${s.captcha.secret_set ? "••••••••" : ""}"
                             /></label>
                         </div>
-                        ${toggle("register.requireCaptcha", "Ask for a captcha when registering", "")}
-                        ${toggle("login.requireCaptcha", "Ask for a captcha when signing in", "")}
+                        ${toggle("register.requireCaptcha", "Ask for a captcha when registering", "")} ${toggle("login.requireCaptcha", "Ask for a captcha when signing in", "")}
                         ${toggle("passwordReset.requireCaptcha", "Ask for a captcha when requesting a password reset", "")}
                     </div>
                 </div>
@@ -710,15 +914,34 @@ async function renderSettings(view) {
                         ${toggle("rate.enabled", "Rate limit requests", "Accounts with the BYPASS_RATE_LIMITS right are never limited.")}
                         <div class="form-grid">
                             ${RATE_LIMITS.map(
-                                ([key, label, hint]) => html`<div class="stack" style="gap:6px">
-                                    <strong style="font-size:13px">${label}</strong><span class="hint muted" style="font-size:12px">${hint}</span>
-                                    <div class="row" style="flex-wrap:nowrap">
-                                        <input type="number" data-number name="rate.${key}.count" min="1" step="1" value="${s.rate[key].count}" aria-label="${label}: requests" required />
-                                        <span class="muted">per</span>
-                                        <input type="number" data-number name="rate.${key}.window" min="1" step="1" value="${s.rate[key].window}" aria-label="${label}: seconds" required />
-                                        <span class="muted">s</span>
-                                    </div>
-                                </div>`,
+                                ([key, label, hint]) =>
+                                    html`<div class="stack" style="gap:6px">
+                                        <strong style="font-size:13px">${label}</strong><span class="hint muted" style="font-size:12px">${hint}</span>
+                                        <div class="row" style="flex-wrap:nowrap">
+                                            <input
+                                                type="number"
+                                                data-number
+                                                name="rate.${key}.count"
+                                                min="1"
+                                                step="1"
+                                                value="${s.rate[key].count}"
+                                                aria-label="${label}: requests"
+                                                required
+                                            />
+                                            <span class="muted">per</span>
+                                            <input
+                                                type="number"
+                                                data-number
+                                                name="rate.${key}.window"
+                                                min="1"
+                                                step="1"
+                                                value="${s.rate[key].window}"
+                                                aria-label="${label}: seconds"
+                                                required
+                                            />
+                                            <span class="muted">s</span>
+                                        </div>
+                                    </div>`,
                             )}
                         </div>
                     </div>
@@ -736,6 +959,11 @@ async function renderSettings(view) {
         `,
     );
 
+    for (const link of $$("[data-settings-target]", view))
+        link.addEventListener("click", (event) => {
+            event.preventDefault();
+            document.getElementById(link.dataset.settingsTarget)?.scrollIntoView({ block: "start" });
+        });
     $("#settings-form").addEventListener("submit", async (e) => {
         e.preventDefault();
         const form = e.currentTarget;
@@ -900,14 +1128,61 @@ function bindPager(root, total, st, load) {
     });
 }
 
+const imageField = (field, label, current) =>
+    html`<label>${label}<input type="file" name="${field}_file" accept="image/png,image/jpeg,image/webp,image/gif" /></label>
+        ${current ? html`<label class="toggle"><input type="checkbox" name="${field}_remove" /><span>Remove ${label.toLowerCase()}</span></label>` : ""}`;
+const imagePatch = async (form, fields, patch) => {
+    for (const field of fields) {
+        const file = form.elements[`${field}_file`]?.files[0];
+        if (file) {
+            if (file.size > 7 * 1024 * 1024) throw new Error("Choose an image smaller than 7 MB.");
+            patch[field] = await readAsDataUrl(file);
+        } else if (form.elements[`${field}_remove`]?.checked) patch[field] = null;
+    }
+    if (JSON.stringify(patch).length > 9 * 1024 * 1024) throw new Error("These images exceed the upload limit. Save one image at a time.");
+};
+const hexColor = (value) =>
+    `#${Number(value ?? 0x5865f2)
+        .toString(16)
+        .padStart(6, "0")}`;
+
+let profileCatalog;
+const getProfileCatalog = async () => {
+    if (!profileCatalog || Date.now() >= profileCatalog.expires) {
+        const entry = { expires: Date.now() + 30000, promise: api("/admin/store/catalog") };
+        profileCatalog = entry;
+        entry.promise.catch(() => {
+            if (profileCatalog === entry) profileCatalog = null;
+        });
+    }
+    return profileCatalog.promise;
+};
+
 async function openUser(id, reload) {
     const body = openDrawer("User", html`<div class="spinner">Loading…</div>`);
-    let u, badges, standing;
+    if (!body) return;
+    let u, badges, standing, catalog;
     try {
-        [u, badges, standing] = await Promise.all([api(`/admin/users/${id}`), api("/admin/badges"), api(`/admin/users/${id}/violations`)]);
+        [u, badges, standing, catalog] = await Promise.all([api(`/admin/users/${id}`), api("/admin/badges"), api(`/admin/users/${id}/violations`), getProfileCatalog()]);
     } catch (e) {
         return mount(body, html`<p class="form-error">${e.message}</p>`);
     }
+    const cosmeticOf = (type) => u.profile_collectibles?.find((item) => item.type === type)?.sku_id ?? "";
+    const choicesFor = (type, selected, query = "") => {
+        const matching = catalog.items.filter((item) => item.type === type && `${item.pack} ${item.name}`.toLowerCase().includes(query.toLowerCase())).slice(0, 100);
+        const current = catalog.items.find((item) => item.sku_id === selected);
+        if (selected && !matching.some((item) => item.sku_id === selected)) matching.unshift(current ?? { sku_id: selected, name: "Current item", pack: "Profile" });
+        return [["", "None"], ...matching.map((item) => [item.sku_id, `${item.pack} · ${item.name}`])];
+    };
+    const cosmeticField = (type, field, label, selected) =>
+        html`<div class="stack" style="gap:6px">
+            <label>Find ${label.toLowerCase()}<input type="search" data-cosmetic-search="${field}" data-cosmetic-type="${type}" placeholder="Search names and packs" /></label
+            ><label
+                >${label}<select name="${field}">
+                    ${options(choicesFor(type, selected), selected ?? "")}
+                </select></label
+            ><span class="hint">Showing up to 100 matching items.</span>
+        </div>`;
     const isOperator = state.overview.access.operator;
     const isSelf = u.id === state.me.id;
 
@@ -933,24 +1208,61 @@ async function openUser(id, reload) {
 
             <form id="user-form" class="card stack">
                 <h3>Profile & account</h3>
+                <label>Username<input name="username" value="${u.username}" minlength="2" maxlength="32" required /></label>
+                <label>Pronouns<input name="pronouns" value="${u.pronouns ?? ""}" maxlength="40" /></label>
+                <div class="form-grid">
+                    ${imageField("avatar", "Avatar", u.avatar)} ${imageField("banner", "Profile banner", u.banner)}
+                    <label>Accent color<input type="color" name="accent_color" value="${hexColor(u.accent_color)}" /></label>
+                    <label class="toggle"
+                        ><input type="checkbox" name="accent_default" ${u.accent_color == null ? raw("checked") : ""} /><span>Use automatic accent color</span></label
+                    >
+                    <label>Primary profile color<input type="color" name="theme_primary" value="${hexColor(u.theme_colors?.[0])}" /></label>
+                    <label>Secondary profile color<input type="color" name="theme_secondary" value="${hexColor(u.theme_colors?.[1])}" /></label>
+                    <label class="toggle"><input type="checkbox" name="theme_default" ${!u.theme_colors ? raw("checked") : ""} /><span>Use default profile theme</span></label>
+                </div>
                 <label>Display name<input name="global_name" value="${u.global_name ?? ""}" maxlength="32" placeholder="${u.username}" /></label>
                 <label>Bio<textarea name="bio" maxlength="1024">${u.bio ?? ""}</textarea></label>
-                <label>Premium<select name="premium_type">${options(PREMIUM_TYPES, u.premium_type ?? 0)}</select></label>
+                <div class="form-grid">
+                    ${cosmeticField(0, "avatar_decoration_sku_id", "Avatar decoration", u.avatar_decoration_sku_id)}
+                    ${cosmeticField(2, "nameplate_sku_id", "Nameplate", u.nameplate_sku_id)} ${cosmeticField(1, "profile_effect_sku_id", "Profile effect", cosmeticOf(1))}
+                    ${cosmeticField(3, "profile_frame_sku_id", "Profile frame", cosmeticOf(3))}
+                </div>
+                <label
+                    >Premium<select name="premium_type">
+                        ${options(PREMIUM_TYPES, u.premium_type ?? 0)}
+                    </select></label
+                >
                 <div class="stack">
                     <h3>Name tag</h3>
                     <div class="row">
-                        <select name="tag" class="grow" style="max-width:260px">${options(USER_TAGS, u.tag ?? "none")}</select>
+                        <select name="tag" class="grow" style="max-width:260px">
+                            ${options(USER_TAGS, u.tag ?? "none")}
+                        </select>
                         <span class="row" style="gap:6px"><span class="muted">Preview</span><strong>${userName(u)}</strong><span id="tag-preview"></span></span>
                     </div>
                     <span class="hint muted" id="tag-hint"></span>
                 </div>
                 <div class="stack">
-                    <div class="row" style="justify-content:space-between"><h3>Profile badges</h3>${isOperator ? html`<a class="btn small ghost" href="#/badges">Manage badges</a>` : ""}</div>
-                    ${badges.length
-                        ? html`<div class="checks">${badges.map(
-                              (b) => html`<label class="toggle"><input type="checkbox" name="badge" value="${b.id}" ${u.badge_ids?.includes(b.id) ? raw("checked") : ""} /><span class="row" style="gap:8px">${badgeIcon(b)}${b.description}</span></label>`,
-                          )}</div>`
-                        : html`<p class="muted" style="margin:0">No badges yet.${isOperator ? html` <a href="#/badges">Create one</a>.` : ""}</p>`}
+                    <div class="row" style="justify-content:space-between">
+                        <h3>Profile badges</h3>
+                        ${isOperator ? html`<a class="btn small ghost" href="#/badges">Manage badges</a>` : ""}
+                    </div>
+                    ${
+                        badges.length
+                            ? html`<div class="checks">
+                                  ${badges.map(
+                                      (b) =>
+                                          html`<label class="toggle"
+                                              ><input type="checkbox" name="badge" value="${b.id}" ${u.badge_ids?.includes(b.id) ? raw("checked") : ""} /><span
+                                                  class="row"
+                                                  style="gap:8px"
+                                                  >${badgeIcon(b)}${b.description}</span
+                                              ></label
+                                          >`,
+                                  )}
+                              </div>`
+                            : html`<p class="muted" style="margin:0">No badges yet.${isOperator ? html` <a href="#/badges">Create one</a>.` : ""}</p>`
+                    }
                     <label class="toggle"
                         ><input type="checkbox" name="hide_premium_badge" ${u.hide_premium_badge ? raw("checked") : ""} /><span
                             ><span class="row" style="gap:8px"><img class="badge-icon" src="/badge-icons/2ba85e8026a8614b640c2837bcdfe21b.png" alt="" />Hide the Nitro badge</span
@@ -964,23 +1276,28 @@ async function openUser(id, reload) {
                         >Account disabled<span class="hint">Blocks sign-in and API access and ends their sessions. Reversible.</span></span
                     ></label
                 >
-                ${isOperator
-                    ? html`
-                          <div class="stack">
-                              <h3>Instance rights</h3>
-                              <div class="checks">
-                                  ${RIGHTS.map(
-                                      ([name, bit, hint]) =>
-                                          html`<label class="toggle"
-                                              ><input type="checkbox" data-right="${bit}" ${hasRight(u.rights, bit) ? raw("checked") : ""} ${isSelf && bit === 0 ? raw("disabled") : ""} /><span
-                                                  ><code>${name}</code><span class="hint">${hint}</span></span
-                                              ></label
-                                          >`,
-                                  )}
+                ${
+                    isOperator
+                        ? html`
+                              <div class="stack">
+                                  <h3>Instance rights</h3>
+                                  <div class="checks">
+                                      ${RIGHTS.map(
+                                          ([name, bit, hint]) =>
+                                              html`<label class="toggle"
+                                                  ><input
+                                                      type="checkbox"
+                                                      data-right="${bit}"
+                                                      ${hasRight(u.rights, bit) ? raw("checked") : ""}
+                                                      ${isSelf && bit === 0 ? raw("disabled") : ""}
+                                                  /><span><code>${name}</code><span class="hint">${hint}</span></span></label
+                                              >`,
+                                      )}
+                                  </div>
                               </div>
-                          </div>
-                      `
-                    : ""}
+                          `
+                        : ""
+                }
                 <div class="form-actions"><button class="btn primary" type="submit">Save user</button></div>
             </form>
 
@@ -988,37 +1305,49 @@ async function openUser(id, reload) {
             <div class="card stack" id="security-card"></div>
             <div class="card stack" id="sessions-card"></div>
 
-            ${u.guilds.length
-                ? html`<div class="card">
-                      <h3>Servers (${u.guilds.length})</h3>
-                      <div class="list">
-                          ${u.guilds.map(
-                              (g) => html`<div class="list-item">
-                                  ${guildIcon(g)}<span class="grow">${g.name}</span>${g.owner ? html`<span class="badge accent">Owner</span>` : ""}
-                                  ${state.overview.access.guilds ? html`<button class="btn small ghost" data-guild="${g.id}" type="button">Open</button>` : ""}
-                              </div>`,
-                          )}
-                      </div>
-                  </div>`
-                : ""}
-            ${u.instance_bans.length
-                ? html`<div class="card"><h3>Instance bans</h3><div class="list">${u.instance_bans.map((b) => html`<div class="list-item"><span class="grow">${b.reason}</span><span class="muted">${fmtDay(b.created_at)}</span></div>`)}</div></div>`
-                : ""}
-            ${!isSelf
-                ? html`<div class="card danger-zone stack">
-                      <h3>Danger zone</h3>
-                      <p class="muted" style="margin:0">
-                          Permanently deletes the account, its DMs and memberships, and hands owned servers to the next-highest member. This can't be undone.
-                      </p>
-                      <label class="toggle"
-                          ><input type="checkbox" id="ban-persist" checked /><span
-                              >Ban them from registering again<span class="hint">Adds them to the instance ban list with the reason below.</span></span
-                          ></label
-                      >
-                      <label>Reason<input id="ban-reason" placeholder="Shown in the instance ban list" /></label>
-                      <div><button class="btn danger" id="ban-user" type="button">Delete & ban user</button></div>
-                  </div>`
-                : ""}
+            ${
+                u.guilds.length
+                    ? html`<div class="card">
+                          <h3>Servers (${u.guilds.length})</h3>
+                          <div class="list">
+                              ${u.guilds.map(
+                                  (g) =>
+                                      html`<div class="list-item">
+                                          ${guildIcon(g)}<span class="grow">${g.name}</span>${g.owner ? html`<span class="badge accent">Owner</span>` : ""}
+                                          ${state.overview.access.guilds ? html`<button class="btn small ghost" data-guild="${g.id}" type="button">Open</button>` : ""}
+                                      </div>`,
+                              )}
+                          </div>
+                      </div>`
+                    : ""
+            }
+            ${
+                u.instance_bans.length
+                    ? html`<div class="card">
+                          <h3>Instance bans</h3>
+                          <div class="list">
+                              ${u.instance_bans.map((b) => html`<div class="list-item"><span class="grow">${b.reason}</span><span class="muted">${fmtDay(b.created_at)}</span></div>`)}
+                          </div>
+                      </div>`
+                    : ""
+            }
+            ${
+                !isSelf
+                    ? html`<div class="card danger-zone stack">
+                          <h3>Danger zone</h3>
+                          <p class="muted" style="margin:0">
+                              Permanently deletes the account, its DMs and memberships, and hands owned servers to the next-highest member. This can't be undone.
+                          </p>
+                          <label class="toggle"
+                              ><input type="checkbox" id="ban-persist" checked /><span
+                                  >Ban them from registering again<span class="hint">Adds them to the instance ban list with the reason below.</span></span
+                              ></label
+                          >
+                          <label>Reason<input id="ban-reason" placeholder="Shown in the instance ban list" /></label>
+                          <div><button class="btn danger" id="ban-user" type="button">Delete & ban user</button></div>
+                      </div>`
+                    : ""
+            }
         `,
     );
 
@@ -1026,6 +1355,10 @@ async function openUser(id, reload) {
         e.preventDefault();
         const form = e.currentTarget;
         const patch = {
+            username: form.username.value,
+            pronouns: form.pronouns.value,
+            accent_color: form.accent_default.checked ? null : parseInt(form.accent_color.value.slice(1), 16),
+            theme_colors: form.theme_default.checked ? null : [form.theme_primary, form.theme_secondary].map((input) => parseInt(input.value.slice(1), 16)),
             global_name: form.global_name.value,
             bio: form.bio.value,
             premium_type: Number(form.premium_type.value),
@@ -1034,6 +1367,11 @@ async function openUser(id, reload) {
             hide_premium_badge: form.hide_premium_badge.checked,
         };
         // keep the order badges were originally given in, appending new ones
+        for (const field of ["avatar_decoration_sku_id", "nameplate_sku_id"]) {
+            if (form.elements[field].value !== (u[field] ?? "")) patch[field] = form.elements[field].value || null;
+        }
+        if (form.profile_effect_sku_id.value !== cosmeticOf(1) || form.profile_frame_sku_id.value !== cosmeticOf(3))
+            patch.collectibles_sku_ids = [form.profile_effect_sku_id.value, form.profile_frame_sku_id.value].filter(Boolean);
         const checked = $$("input[name=badge]:checked", form).map((x) => x.value);
         const nextBadges = [...(u.badge_ids ?? []).filter((b) => checked.includes(b)), ...checked.filter((b) => !(u.badge_ids ?? []).includes(b))];
         if (JSON.stringify(nextBadges) !== JSON.stringify(u.badge_ids ?? [])) patch.badge_ids = nextBadges;
@@ -1046,12 +1384,28 @@ async function openUser(id, reload) {
             }
             if (rights.toString() !== String(u.rights)) patch.rights = rights.toString();
         }
-        const saved = await act($("button[type=submit]", form), () => api(`/admin/users/${u.id}`, { method: "PATCH", body: patch }), "User updated");
+        const saved = await act(
+            $("button[type=submit]", form),
+            async () => {
+                await imagePatch(form, ["avatar", "banner"], patch);
+                return api(`/admin/users/${u.id}`, { method: "PATCH", body: patch });
+            },
+            "User updated",
+        );
         if (saved) {
             reload?.();
             openUser(u.id, reload);
         }
     });
+
+    for (const input of $$("[data-cosmetic-search]", body))
+        input.addEventListener(
+            "input",
+            debounce(() => {
+                const select = $("#user-form", body).elements[input.dataset.cosmeticSearch];
+                mount(select, options(choicesFor(Number(input.dataset.cosmeticType), select.value, input.value), select.value));
+            }, 150),
+        );
 
     const syncTag = () => {
         const tag = $("#user-form").tag.value;
@@ -1078,8 +1432,7 @@ async function openUser(id, reload) {
                 </div>
                 <label
                     >Standing<span class="hint"
-                        >What the user sees on their Account Standing page. Automatic goes down one step per active violation (suspended for disabled
-                        accounts).</span
+                        >What the user sees on their Account Standing page. Automatic goes down one step per active violation (suspended for disabled accounts).</span
                     ><select name="standing">
                         <option value="">Automatic (${standingOf(standing.standing.automatic)[1].toLowerCase()})</option>
                         ${options(STANDINGS, standing.standing.override ?? "")}
@@ -1087,59 +1440,75 @@ async function openUser(id, reload) {
                 >
                 <div class="stack">
                     <h3>Violations (${standing.violations.length})</h3>
-                    ${standing.violations.length
-                        ? standing.violations.map(
-                              (v) => html`<div class="violation ${v.active ? "" : "inactive"}" data-violation="${v.id}">
-                                  <div class="row">
-                                      <strong class="grow">${violationType(v.classification_type)}</strong>
-                                      ${v.appeal_status === 1 ? html`<span class="badge warn">Appeal pending</span>` : ""}
-                                      ${v.appeal_status === 2 ? html`<span class="badge">Appeal denied</span>` : ""}
-                                      ${v.appeal_status === 3 ? html`<span class="badge ok">Overturned</span>` : ""}
-                                      ${v.active ? html`<span class="badge danger">Active</span>` : v.appeal_status !== 3 ? html`<span class="badge">Expired</span>` : ""}
-                                  </div>
-                                  <p>${v.description}</p>
-                                  ${v.appeal_status
-                                      ? html`<div class="appeal-note">
-                                            <strong>Appeal</strong> · ${APPEAL_REASONS[v.appeal_signal ?? 3]}${v.appealed_at ? html` · ${fmtDate(v.appealed_at)}` : ""}
-                                            ${v.appeal_user_input ? html`<p>${v.appeal_user_input}</p>` : ""}
-                                        </div>`
-                                      : ""}
-                                  ${v.actions.length ? html`<div class="badges">${v.actions.map((a) => html`<span class="badge">${violationAction(a.action_type)}</span>`)}</div>` : ""}
-                                  <div class="muted">
-                                      Issued ${fmtDate(v.created_at)}${v.issued_by ? html` by ${userName(v.issued_by)}` : ""} ·
-                                      ${v.permanent ? "Permanent" : html`${v.active || new Date(v.expires_at) > new Date() ? "Expires" : "Expired"} ${fmtDate(v.expires_at)}`}
-                                  </div>
-                                  <div class="row" style="justify-content:flex-end">
-                                      ${v.appeal_status === 1
-                                          ? html`<button class="btn small" type="button" data-appeal="2">Deny appeal</button
-                                                ><button class="btn small primary" type="button" data-appeal="3">Overturn</button>`
-                                          : ""}
-                                      <button class="btn small ghost" type="button" data-remove-violation>Remove</button>
-                                  </div>
-                              </div>`,
-                          )
-                        : html`<p class="muted" style="margin:0">No violations.</p>`}
+                    ${
+                        standing.violations.length
+                            ? standing.violations.map(
+                                  (v) =>
+                                      html`<div class="violation ${v.active ? "" : "inactive"}" data-violation="${v.id}">
+                                          <div class="row">
+                                              <strong class="grow">${violationType(v.classification_type)}</strong>
+                                              ${v.appeal_status === 1 ? html`<span class="badge warn">Appeal pending</span>` : ""}
+                                              ${v.appeal_status === 2 ? html`<span class="badge">Appeal denied</span>` : ""}
+                                              ${v.appeal_status === 3 ? html`<span class="badge ok">Overturned</span>` : ""}
+                                              ${v.active ? html`<span class="badge danger">Active</span>` : v.appeal_status !== 3 ? html`<span class="badge">Expired</span>` : ""}
+                                          </div>
+                                          <p>${v.description}</p>
+                                          ${
+                                              v.appeal_status
+                                                  ? html`<div class="appeal-note">
+                                                        <strong>Appeal</strong> · ${APPEAL_REASONS[v.appeal_signal ?? 3]}${v.appealed_at ? html` · ${fmtDate(v.appealed_at)}` : ""}
+                                                        ${v.appeal_user_input ? html`<p>${v.appeal_user_input}</p>` : ""}
+                                                    </div>`
+                                                  : ""
+                                          }
+                                          ${v.actions.length ? html`<div class="badges">${v.actions.map((a) => html`<span class="badge">${violationAction(a.action_type)}</span>`)}</div>` : ""}
+                                          <div class="muted">
+                                              Issued ${fmtDate(v.created_at)}${v.issued_by ? html` by ${userName(v.issued_by)}` : ""} ·
+                                              ${v.permanent ? "Permanent" : html`${v.active || new Date(v.expires_at) > new Date() ? "Expires" : "Expired"} ${fmtDate(v.expires_at)}`}
+                                          </div>
+                                          <div class="row" style="justify-content:flex-end">
+                                              ${
+                                                  v.appeal_status === 1
+                                                      ? html`<button class="btn small" type="button" data-appeal="2">Deny appeal</button
+                                                            ><button class="btn small primary" type="button" data-appeal="3">Overturn</button>`
+                                                      : ""
+                                              }
+                                              <button class="btn small ghost" type="button" data-remove-violation>Remove</button>
+                                          </div>
+                                      </div>`,
+                              )
+                            : html`<p class="muted" style="margin:0">No violations.</p>`
+                    }
                 </div>
                 <details class="stack">
                     <summary class="btn small" style="width:max-content">Add violation</summary>
                     <form id="violation-form" class="stack" style="margin-top:12px">
-                        <label>Type<select name="classification_type">${options(VIOLATION_TYPES, 3030)}</select></label>
+                        <label
+                            >Type<select name="classification_type">
+                                ${options(VIOLATION_TYPES, 3030)}
+                            </select></label
+                        >
                         <label
                             >Message to the user<span class="hint">Shown on their Account Standing page.</span
-                            ><textarea name="description" required maxlength="2000" placeholder="You sent unsolicited advertisements to other members."></textarea
-                        ></label>
+                            ><textarea name="description" required maxlength="2000" placeholder="You sent unsolicited advertisements to other members."></textarea>
+                        </label>
                         <div class="stack">
                             <span class="muted">Actions taken</span>
                             <div class="checks">
                                 ${VIOLATION_ACTIONS.map(
-                                    ([id, label]) => html`<label class="toggle"><input type="checkbox" name="action" value="${id}" ${id === 4 ? raw("checked") : ""} /><span>${label}</span></label>`,
+                                    ([id, label]) =>
+                                        html`<label class="toggle"
+                                            ><input type="checkbox" name="action" value="${id}" ${id === 4 ? raw("checked") : ""} /><span>${label}</span></label
+                                        >`,
                                 )}
                             </div>
                         </div>
-                        <label>Counts against them for<select name="duration">${options(VIOLATION_DURATIONS, 90)}</select></label>
-                        <p class="muted" style="margin:0">
-                            This records the violation and its effect on their standing. To actually restrict the account, disable it above.
-                        </p>
+                        <label
+                            >Counts against them for<select name="duration">
+                                ${options(VIOLATION_DURATIONS, 90)}
+                            </select></label
+                        >
+                        <p class="muted" style="margin:0">This records the violation and its effect on their standing. To actually restrict the account, disable it above.</p>
                         <div class="form-actions"><button class="btn danger" type="submit">Add violation</button></div>
                     </form>
                 </details>
@@ -1232,9 +1601,15 @@ async function renderUserSecurity(u) {
     try {
         mfa = await api(`/admin/users/${u.id}/mfa`);
     } catch (e) {
-        return mount(card, html`<h3>Sign-in & security</h3><p class="form-error">${e.message}</p>`);
+        return mount(
+            card,
+            html`<h3>Sign-in & security</h3>
+                <p class="form-error">${e.message}</p>`,
+        );
     }
-    const methods = [mfa.totp ? "an authenticator app" : null, mfa.security_keys ? `${mfa.security_keys} security ${mfa.security_keys === 1 ? "key" : "keys"}` : null].filter(Boolean);
+    const methods = [mfa.totp ? "an authenticator app" : null, mfa.security_keys ? `${mfa.security_keys} security ${mfa.security_keys === 1 ? "key" : "keys"}` : null].filter(
+        Boolean,
+    );
     mount(
         card,
         html`
@@ -1244,9 +1619,12 @@ async function renderUserSecurity(u) {
                     <div class="grow">
                         <strong>Two-factor authentication</strong>
                         <div class="muted">
-                            ${mfa.mfa_enabled
-                                ? html`On with ${methods.join(" and ") || "a method this page can't name"}${mfa.backup_codes ? html`, ${fmtNumber(mfa.backup_codes)} backup codes left` : ""}`
-                                : "Off"}
+                            ${
+                                mfa.mfa_enabled
+                                    ? html`On with
+                                      ${methods.join(" and ") || "a method this page can't name"}${mfa.backup_codes ? html`, ${fmtNumber(mfa.backup_codes)} backup codes left` : ""}`
+                                    : "Off"
+                            }
                         </div>
                     </div>
                     ${mfa.mfa_enabled && !isSelf ? html`<button class="btn small" id="mfa-reset" type="button">Turn off 2FA</button>` : ""}
@@ -1254,7 +1632,9 @@ async function renderUserSecurity(u) {
                 <div class="list-item">
                     <div class="grow">
                         <strong>Password</strong>
-                        <div class="muted">Make a reset link that works for one hour. ${u.email ? "It can also be emailed to them." : "They have no email, so send them the link yourself."}</div>
+                        <div class="muted">
+                            Make a reset link that works for one hour. ${u.email ? "It can also be emailed to them." : "They have no email, so send them the link yourself."}
+                        </div>
                     </div>
                     ${!isSelf ? html`<button class="btn small" id="password-reset" type="button">Make reset link</button>` : ""}
                 </div>
@@ -1264,7 +1644,10 @@ async function renderUserSecurity(u) {
     );
 
     $("#mfa-reset", card)?.addEventListener("click", async (e) => {
-        if (!confirm(`Turn off two-factor for ${userName(u)}? Their authenticator app, security keys and backup codes stop working, and they can sign in with only their password.`)) return;
+        if (
+            !confirm(`Turn off two-factor for ${userName(u)}? Their authenticator app, security keys and backup codes stop working, and they can sign in with only their password.`)
+        )
+            return;
         const done = await act(e.currentTarget, () => api(`/admin/users/${u.id}/mfa`, { method: "DELETE" }), "Two-factor turned off");
         if (done !== undefined) renderUserSecurity(u);
     });
@@ -1275,13 +1658,19 @@ async function renderUserSecurity(u) {
         mount(
             result,
             html`<form id="reset-form" class="stack" style="gap:10px">
-                ${u.email
-                    ? html`<label class="toggle"
-                          ><input type="checkbox" name="send_email" checked /><span>Email the link to ${u.email}<span class="hint">Only sent when the instance has email set up.</span></span></label
-                      >`
-                    : ""}
+                ${
+                    u.email
+                        ? html`<label class="toggle"
+                              ><input type="checkbox" name="send_email" checked /><span
+                                  >Email the link to ${u.email}<span class="hint">Only sent when the instance has email set up.</span></span
+                              ></label
+                          >`
+                        : ""
+                }
                 <label class="toggle"
-                    ><input type="checkbox" name="revoke_sessions" /><span>Sign them out everywhere<span class="hint">Use this when the account might be compromised.</span></span></label
+                    ><input type="checkbox" name="revoke_sessions" /><span
+                        >Sign them out everywhere<span class="hint">Use this when the account might be compromised.</span></span
+                    ></label
                 >
                 <div class="form-actions" style="margin-top:0"><button class="btn primary small" type="submit">Make reset link</button></div>
             </form>`,
@@ -1302,9 +1691,9 @@ async function renderUserSecurity(u) {
                     <div class="row">
                         <button class="btn small" id="copy-reset" type="button">Copy link</button>
                         <span class="muted"
-                            >${out.emailed ? `Also emailed to ${u.email}.` : body.send_email ? "Email isn't set up on this instance, so nothing was sent." : ""}${body.revoke_sessions
-                                ? " Their sessions were ended."
-                                : ""}</span
+                            >${out.emailed ? `Also emailed to ${u.email}.` : body.send_email ? "Email isn't set up on this instance, so nothing was sent." : ""}${
+                                body.revoke_sessions ? " Their sessions were ended." : ""
+                            }</span
                         >
                     </div>
                 </div>`,
@@ -1327,7 +1716,11 @@ async function renderUserSessions(u) {
     try {
         sessions = await api(`/admin/users/${u.id}/sessions`);
     } catch (e) {
-        return mount(card, html`<h3>Sessions</h3><p class="form-error">${e.message}</p>`);
+        return mount(
+            card,
+            html`<h3>Sessions</h3>
+                <p class="form-error">${e.message}</p>`,
+        );
     }
     mount(
         card,
@@ -1336,24 +1729,28 @@ async function renderUserSessions(u) {
                 <h3>Sessions (${sessions.length})</h3>
                 ${sessions.length ? html`<button class="btn small" id="sessions-end-all" type="button">Sign out everywhere</button>` : ""}
             </div>
-            ${sessions.length
-                ? html`<div class="list">
-                      ${sessions.map(
-                          (s) => html`<div class="list-item" data-session="${s.id}">
-                              <div class="grow">
-                                  <strong>${describeClient(s)}</strong>
-                                  <div class="muted">
-                                      Last active ${fmtDate(s.last_seen ?? s.created_at)}${s.last_seen_location ? html` · ${s.last_seen_location}` : ""}${s.last_seen_ip
-                                          ? html` · <code>${s.last_seen_ip}</code>`
-                                          : ""}
-                                      · signed in ${fmtDay(s.created_at)}
-                                  </div>
-                              </div>
-                              <button class="btn small ghost" type="button" data-end>Sign out</button>
-                          </div>`,
-                      )}
-                  </div>`
-                : html`<p class="muted" style="margin:0">Not signed in anywhere.</p>`}
+            ${
+                sessions.length
+                    ? html`<div class="list">
+                          ${sessions.map(
+                              (s) =>
+                                  html`<div class="list-item" data-session="${s.id}">
+                                      <div class="grow">
+                                          <strong>${describeClient(s)}</strong>
+                                          <div class="muted">
+                                              Last active
+                                              ${fmtDate(s.last_seen ?? s.created_at)}${s.last_seen_location ? html` · ${s.last_seen_location}` : ""}${
+                                                  s.last_seen_ip ? html` · <code>${s.last_seen_ip}</code>` : ""
+                                              }
+                                              · signed in ${fmtDay(s.created_at)}
+                                          </div>
+                                      </div>
+                                      <button class="btn small ghost" type="button" data-end>Sign out</button>
+                                  </div>`,
+                          )}
+                      </div>`
+                    : html`<p class="muted" style="margin:0">Not signed in anywhere.</p>`
+            }
         `,
     );
     const end = async (button, sessionIds) => {
@@ -1472,7 +1869,9 @@ async function renderReports(view) {
                                                   <div class="muted">${r.reason || "No reason picked"}</div>
                                               </td>
                                               <td>${reportTarget(r)}</td>
-                                              <td class="hide-sm">${r.reporter ? html`<div class="ident">${avatar(r.reporter)}<span>${userName(r.reporter)}</span></div>` : "—"}</td>
+                                              <td class="hide-sm">
+                                                  ${r.reporter ? html`<div class="ident">${avatar(r.reporter)}<span>${userName(r.reporter)}</span></div>` : "—"}
+                                              </td>
                                               <td class="hide-sm">${fmtDate(r.created_at)}</td>
                                               <td><span class="badge ${reportStatus(r.status)[2]}">${reportStatus(r.status)[1]}</span></td>
                                           </tr>
@@ -1491,7 +1890,13 @@ async function renderReports(view) {
                 reportsState.offset = 0;
                 load();
             });
-        for (const row of $$("tbody tr", results)) row.addEventListener("click", () => openReport(reports.find((r) => r.id === row.dataset.id), load));
+        for (const row of $$("tbody tr", results))
+            row.addEventListener("click", () =>
+                openReport(
+                    reports.find((r) => r.id === row.dataset.id),
+                    load,
+                ),
+            );
         bindPager(results, total, reportsState, load);
     };
     await load();
@@ -1523,44 +1928,63 @@ function openReport(r, reload) {
                 <span class="badge ${reportStatus(r.status)[2]}" style="font-size:12px;padding:3px 10px"><span class="dot"></span>${reportStatus(r.status)[1]}</span>
             </div>
 
-            ${snap.content !== undefined
-                ? html`<div class="card stack" style="gap:8px">
-                      <div class="row" style="justify-content:space-between">
-                          <h3 style="margin:0">Reported message</h3>
-                          ${r.message_exists ? html`<span class="badge">Still posted</span>` : html`<span class="badge danger">Deleted</span>`}
-                      </div>
-                      ${snap.author ? html`<div class="ident">${avatar(snap.author)}<div><strong>${userName(snap.author)}</strong><span class="muted">${fmtDate(snap.sent_at)}</span></div></div>` : ""}
-                      <p style="margin:0;white-space:pre-wrap;overflow-wrap:anywhere">${snap.content || html`<span class="muted">No text</span>`}</p>
-                      ${images.length
-                          ? html`<div class="report-attachments">
-                                ${images.map((a) => html`<a href="${a.url}" target="_blank" rel="noopener"><img src="${a.url}" alt="Attachment ${a.filename}" loading="lazy" /></a>`)}
-                            </div>`
-                          : ""}
-                      ${files.length
-                          ? html`<div class="list">${files.map((a) => html`<div class="list-item"><a href="${a.url}" target="_blank" rel="noopener" class="grow">${a.filename}</a><span class="muted">${a.content_type ?? ""}</span></div>`)}</div>`
-                          : ""}
-                      ${snap.embeds ? html`<span class="muted">${fmtNumber(snap.embeds)} ${snap.embeds === 1 ? "embed" : "embeds"} not shown</span>` : ""}
-                      <span class="muted">This is how the message looked when it was reported.</span>
-                  </div>`
-                : ""}
+            ${
+                snap.content !== undefined
+                    ? html`<div class="card stack" style="gap:8px">
+                          <div class="row" style="justify-content:space-between">
+                              <h3 style="margin:0">Reported message</h3>
+                              ${r.message_exists ? html`<span class="badge">Still posted</span>` : html`<span class="badge danger">Deleted</span>`}
+                          </div>
+                          ${
+                              snap.author
+                                  ? html`<div class="ident">
+                                        ${avatar(snap.author)}
+                                        <div><strong>${userName(snap.author)}</strong><span class="muted">${fmtDate(snap.sent_at)}</span></div>
+                                    </div>`
+                                  : ""
+                          }
+                          <p style="margin:0;white-space:pre-wrap;overflow-wrap:anywhere">${snap.content || html`<span class="muted">No text</span>`}</p>
+                          ${
+                              images.length
+                                  ? html`<div class="report-attachments">
+                                        ${images.map((a) => html`<a href="${a.url}" target="_blank" rel="noopener"><img src="${a.url}" alt="Attachment ${a.filename}" loading="lazy" /></a>`)}
+                                    </div>`
+                                  : ""
+                          }
+                          ${
+                              files.length
+                                  ? html`<div class="list">
+                                        ${files.map((a) => html`<div class="list-item"><a href="${a.url}" target="_blank" rel="noopener" class="grow">${a.filename}</a><span class="muted">${a.content_type ?? ""}</span></div>`)}
+                                    </div>`
+                                  : ""
+                          }
+                          ${snap.embeds ? html`<span class="muted">${fmtNumber(snap.embeds)} ${snap.embeds === 1 ? "embed" : "embeds"} not shown</span>` : ""}
+                          <span class="muted">This is how the message looked when it was reported.</span>
+                      </div>`
+                    : ""
+            }
 
             <div class="card">
                 <div class="list">
-                    ${r.reported_user
-                        ? html`<div class="list-item">
-                              <span class="grow muted">Reported user</span>
-                              <span class="ident">${avatar(r.reported_user)}<span>${userName(r.reported_user)}</span></span>
-                              ${r.reported_user.disabled ? html`<span class="badge danger">Disabled</span>` : ""}
-                              ${access.users ? html`<button class="btn small ghost" type="button" data-open-user="${r.reported_user.id}">Open</button>` : ""}
-                          </div>`
-                        : ""}
-                    ${r.guild
-                        ? html`<div class="list-item">
-                              <span class="grow muted">Server</span>
-                              <span class="ident">${guildIcon(r.guild)}<span>${r.guild.name ?? r.guild.id}</span></span>
-                              ${access.guilds && r.guild.name ? html`<button class="btn small ghost" type="button" data-open-guild="${r.guild.id}">Open</button>` : ""}
-                          </div>`
-                        : ""}
+                    ${
+                        r.reported_user
+                            ? html`<div class="list-item">
+                                  <span class="grow muted">Reported user</span>
+                                  <span class="ident">${avatar(r.reported_user)}<span>${userName(r.reported_user)}</span></span>
+                                  ${r.reported_user.disabled ? html`<span class="badge danger">Disabled</span>` : ""}
+                                  ${access.users ? html`<button class="btn small ghost" type="button" data-open-user="${r.reported_user.id}">Open</button>` : ""}
+                              </div>`
+                            : ""
+                    }
+                    ${
+                        r.guild
+                            ? html`<div class="list-item">
+                                  <span class="grow muted">Server</span>
+                                  <span class="ident">${guildIcon(r.guild)}<span>${r.guild.name ?? r.guild.id}</span></span>
+                                  ${access.guilds && r.guild.name ? html`<button class="btn small ghost" type="button" data-open-guild="${r.guild.id}">Open</button>` : ""}
+                              </div>`
+                            : ""
+                    }
                     ${r.channel ? html`<div class="list-item"><span class="grow muted">Channel</span><span>${r.channel.name ? `#${r.channel.name}` : html`<code>${r.channel.id}</code>`}</span></div>` : ""}
                     ${r.application_id ? html`<div class="list-item"><span class="grow muted">App</span><code>${r.application_id}</code></div>` : ""}
                     ${r.guild_scheduled_event_id ? html`<div class="list-item"><span class="grow muted">Event</span><code>${r.guild_scheduled_event_id}</code></div>` : ""}
@@ -1571,51 +1995,75 @@ function openReport(r, reload) {
                     </div>
                     ${answers.map(
                         ([key, value]) =>
-                            html`<div class="list-item"><span class="grow muted">${key.replace(/_/g, " ")}</span><span style="white-space:pre-wrap;text-align:right">${Array.isArray(value) ? value.join(", ") : value}</span></div>`,
+                            html`<div class="list-item">
+                                <span class="grow muted">${key.replace(/_/g, " ")}</span
+                                ><span style="white-space:pre-wrap;text-align:right">${Array.isArray(value) ? value.join(", ") : value}</span>
+                            </div>`,
                     )}
                 </div>
             </div>
 
-            ${r.status !== "open"
-                ? html`<div class="card">
-                      <div class="list">
-                          <div class="list-item"><span class="grow muted">${reportStatus(r.status)[1]} by</span><span>${r.resolved_by ? userName(r.resolved_by) : "—"}</span></div>
-                          <div class="list-item"><span class="grow muted">On</span><span>${fmtDate(r.resolved_at)}</span></div>
-                          ${r.resolution_note ? html`<div class="list-item"><span class="grow muted">Note</span><span style="white-space:pre-wrap">${r.resolution_note}</span></div>` : ""}
-                          ${r.violation_id ? html`<div class="list-item"><span class="grow muted">Violation</span><code>${r.violation_id}</code></div>` : ""}
-                      </div>
-                  </div>`
-                : ""}
-
-            ${r.status === "open" && r.reported_user && access.users
-                ? html`<form id="report-violation" class="card stack">
-                      <h3>Issue a violation</h3>
-                      <label>Type<select name="classification_type">${options(VIOLATION_TYPES, guessViolationType(r.reason))}</select></label>
-                      <label
-                          >Message to the user<span class="hint">Shown on their Account Standing page${snap.content !== undefined ? ", with the reported message attached" : ""}.</span
-                          ><textarea name="description" required maxlength="2000">${lastReason ? `Reported for: ${lastReason}` : ""}</textarea></label
-                      >
-                      <div class="stack">
-                          <span class="muted">Actions taken</span>
-                          <div class="checks">
-                              ${VIOLATION_ACTIONS.map(
-                                  ([id, label]) => html`<label class="toggle"><input type="checkbox" name="action" value="${id}" ${id === 4 ? raw("checked") : ""} /><span>${label}</span></label>`,
-                              )}
+            ${
+                r.status !== "open"
+                    ? html`<div class="card">
+                          <div class="list">
+                              <div class="list-item">
+                                  <span class="grow muted">${reportStatus(r.status)[1]} by</span><span>${r.resolved_by ? userName(r.resolved_by) : "—"}</span>
+                              </div>
+                              <div class="list-item"><span class="grow muted">On</span><span>${fmtDate(r.resolved_at)}</span></div>
+                              ${r.resolution_note ? html`<div class="list-item"><span class="grow muted">Note</span><span style="white-space:pre-wrap">${r.resolution_note}</span></div>` : ""}
+                              ${r.violation_id ? html`<div class="list-item"><span class="grow muted">Violation</span><code>${r.violation_id}</code></div>` : ""}
                           </div>
-                      </div>
-                      <label>Counts against them for<select name="duration">${options(VIOLATION_DURATIONS, 90)}</select></label>
-                      <div class="form-actions">
-                          <button class="btn danger" type="submit">Issue violation</button>
-                      </div>
-                  </form>`
-                : ""}
+                      </div>`
+                    : ""
+            }
+            ${
+                r.status === "open" && r.reported_user && access.users
+                    ? html`<form id="report-violation" class="card stack">
+                          <h3>Issue a violation</h3>
+                          <label
+                              >Type<select name="classification_type">
+                                  ${options(VIOLATION_TYPES, guessViolationType(r.reason))}
+                              </select></label
+                          >
+                          <label
+                              >Message to the user<span class="hint"
+                                  >Shown on their Account Standing page${snap.content !== undefined ? ", with the reported message attached" : ""}.</span
+                              ><textarea name="description" required maxlength="2000">${lastReason ? `Reported for: ${lastReason}` : ""}</textarea>
+                          </label>
+                          <div class="stack">
+                              <span class="muted">Actions taken</span>
+                              <div class="checks">
+                                  ${VIOLATION_ACTIONS.map(
+                                      ([id, label]) =>
+                                          html`<label class="toggle"
+                                              ><input type="checkbox" name="action" value="${id}" ${id === 4 ? raw("checked") : ""} /><span>${label}</span></label
+                                          >`,
+                                  )}
+                              </div>
+                          </div>
+                          <label
+                              >Counts against them for<select name="duration">
+                                  ${options(VIOLATION_DURATIONS, 90)}
+                              </select></label
+                          >
+                          <div class="form-actions">
+                              <button class="btn danger" type="submit">Issue violation</button>
+                          </div>
+                      </form>`
+                    : ""
+            }
 
             <form id="report-form" class="card stack">
                 <h3>${r.status === "open" ? "Close this report" : "Change the outcome"}</h3>
                 <label>Note<span class="hint">For staff only. The reporter isn't told.</span><textarea name="note" maxlength="2000">${r.resolution_note ?? ""}</textarea></label>
-                ${r.message_exists && access.messages
-                    ? html`<label class="toggle"><input type="checkbox" name="delete_message" /><span>Delete the reported message<span class="hint">Removes it for everyone.</span></span></label>`
-                    : ""}
+                ${
+                    r.message_exists && access.messages
+                        ? html`<label class="toggle"
+                              ><input type="checkbox" name="delete_message" /><span>Delete the reported message<span class="hint">Removes it for everyone.</span></span></label
+                          >`
+                        : ""
+                }
                 <div class="form-actions">
                     ${r.status !== "open" ? html`<button class="btn" type="submit" value="open">Reopen</button>` : ""}
                     ${r.status !== "dismissed" ? html`<button class="btn" type="submit" value="dismissed">Dismiss</button>` : ""}
@@ -1624,6 +2072,7 @@ function openReport(r, reload) {
             </form>
         `,
     );
+    if (!body) return;
 
     for (const btn of $$("[data-open-user]", body)) btn.addEventListener("click", () => openUser(btn.dataset.openUser, reload));
     for (const btn of $$("[data-open-guild]", body)) btn.addEventListener("click", () => openGuild(btn.dataset.openGuild, reload));
@@ -1687,8 +2136,8 @@ async function renderAnnouncements(view) {
                 <div>
                     <h1>Announcements</h1>
                     <p class="muted">
-                        Sent as a plain direct message from <strong>${official.global_name || official.username}</strong>, the instance's official system account.
-                        Users can't reply to it.
+                        Sent as a plain direct message from <strong>${official.global_name || official.username}</strong>, the instance's official system account. Users can't reply
+                        to it.
                     </p>
                 </div>
             </div>
@@ -1698,20 +2147,17 @@ async function renderAnnouncements(view) {
                         ${avatar(official, "large")}
                         <div><strong>${official.global_name || official.username}</strong><span class="muted">${userTag(official)} · official account</span></div>
                     </div>
-                    <label class="btn small"
-                        >Change picture<input id="official-avatar" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/avif" hidden
-                    /></label>
+                    <label class="btn small">Change picture<input id="official-avatar" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/avif" hidden /></label>
                     ${official.avatar ? html`<button class="btn small" id="official-avatar-remove" type="button">Remove</button>` : ""}
                 </div>
                 <form id="announce-form" class="card stack">
                     <h2>New announcement</h2>
                     <label
                         >Message<span class="hint">Markdown works: **bold**, *italics*, links, lists.</span
-                        ><textarea name="body" required maxlength="4000" rows="6" placeholder="We'll be upgrading the database at 23:00 UTC…"></textarea
-                    ></label>
+                        ><textarea name="body" required maxlength="4000" rows="6" placeholder="We'll be upgrading the database at 23:00 UTC…"></textarea>
+                    </label>
                     <label
-                        >Attachments<span class="hint">Optional. Images, videos or any other files, sent along with the message.</span
-                        ><input name="files" type="file" multiple
+                        >Attachments<span class="hint">Optional. Images, videos or any other files, sent along with the message.</span><input name="files" type="file" multiple
                     /></label>
                     <label
                         >Send to<select name="audience" style="max-width:320px">
@@ -1728,19 +2174,22 @@ async function renderAnnouncements(view) {
                 </form>
                 <div class="stack">
                     <h2>Sent</h2>
-                    ${announcements.length
-                        ? announcements.map(
-                              (a) => html`<div class="card stack" style="gap:6px" data-id="${a.id}">
-                                  <div class="row">
-                                      <span class="grow muted">${fmtDate(a.created_at)}</span>
-                                      <span class="badge">${a.audience === "staff" ? "Staff" : "Everyone"} · ${fmtNumber(a.recipient_count)}</span>
-                                      <button class="btn danger small announcement-delete" type="button">Delete</button>
-                                  </div>
-                                  ${a.title ? html`<strong>${a.title}</strong>` : ""}
-                                  <p style="margin:0;white-space:pre-wrap">${a.body}</p>
-                              </div>`,
-                          )
-                        : html`<div class="card empty">Nothing sent yet.</div>`}
+                    ${
+                        announcements.length
+                            ? announcements.map(
+                                  (a) =>
+                                      html`<div class="card stack" style="gap:6px" data-id="${a.id}">
+                                          <div class="row">
+                                              <span class="grow muted">${fmtDate(a.created_at)}</span>
+                                              <span class="badge">${a.audience === "staff" ? "Staff" : "Everyone"} · ${fmtNumber(a.recipient_count)}</span>
+                                              <button class="btn danger small announcement-delete" type="button">Delete</button>
+                                          </div>
+                                          ${a.title ? html`<strong>${a.title}</strong>` : ""}
+                                          <p style="margin:0;white-space:pre-wrap">${a.body}</p>
+                                      </div>`,
+                              )
+                            : html`<div class="card empty">Nothing sent yet.</div>`
+                    }
                 </div>
             </div>
         `,
@@ -1826,33 +2275,44 @@ async function renderBadges(view) {
                 </div>
                 <button class="btn primary" id="new-badge" type="button">Create badge</button>
             </div>
-            ${badges.length
-                ? html`<div class="table-wrap">
-                      <table>
-                          <thead>
-                              <tr>
-                                  <th>Badge</th>
-                                  <th class="hide-sm">Link</th>
-                                  <th>Given to</th>
-                              </tr>
-                          </thead>
-                          <tbody>
-                              ${badges.map(
-                                  (b) => html`<tr data-id="${b.id}">
-                                      <td><div class="ident">${badgeIcon(b)}<strong>${b.description}</strong></div></td>
-                                      <td class="hide-sm">${b.link ? html`<span class="muted">${b.link}</span>` : html`<span class="muted">—</span>`}</td>
-                                      <td>${fmtNumber(b.holders)} ${b.holders === 1 ? "user" : "users"}</td>
-                                  </tr>`,
-                              )}
-                          </tbody>
-                      </table>
-                  </div>`
-                : html`<div class="card empty">No badges yet. Create one with your own icon or a preset.</div>`}
+            ${
+                badges.length
+                    ? html`<div class="table-wrap">
+                          <table>
+                              <thead>
+                                  <tr>
+                                      <th>Badge</th>
+                                      <th class="hide-sm">Link</th>
+                                      <th>Given to</th>
+                                  </tr>
+                              </thead>
+                              <tbody>
+                                  ${badges.map(
+                                      (b) =>
+                                          html`<tr data-id="${b.id}">
+                                              <td>
+                                                  <div class="ident">${badgeIcon(b)}<strong>${b.description}</strong></div>
+                                              </td>
+                                              <td class="hide-sm">${b.link ? html`<span class="muted">${b.link}</span>` : html`<span class="muted">—</span>`}</td>
+                                              <td>${fmtNumber(b.holders)} ${b.holders === 1 ? "user" : "users"}</td>
+                                          </tr>`,
+                                  )}
+                              </tbody>
+                          </table>
+                      </div>`
+                    : html`<div class="card empty">No badges yet. Create one with your own icon or a preset.</div>`
+            }
         `,
     );
     const refresh = () => renderBadges(view);
     $("#new-badge").addEventListener("click", () => openBadge(null, refresh));
-    for (const row of $$("tbody tr", view)) row.addEventListener("click", () => openBadge(badges.find((b) => b.id === row.dataset.id), refresh));
+    for (const row of $$("tbody tr", view))
+        row.addEventListener("click", () =>
+            openBadge(
+                badges.find((b) => b.id === row.dataset.id),
+                refresh,
+            ),
+        );
 }
 
 function openBadge(badge, refresh) {
@@ -1870,15 +2330,22 @@ function openBadge(badge, refresh) {
                     </div>
                 </div>
                 <label>Tooltip text<input name="description" required maxlength="120" value="${badge?.description ?? ""}" placeholder="Early Tester" /></label>
-                <label>Link<span class="hint">Optional. Opens when the badge is clicked.</span><input name="link" type="url" value="${badge?.link ?? ""}" placeholder="https://…" /></label>
+                <label
+                    >Link<span class="hint">Optional. Opens when the badge is clicked.</span><input name="link" type="url" value="${badge?.link ?? ""}" placeholder="https://…"
+                /></label>
                 <div class="stack">
                     <h3>Icon</h3>
-                    <label>Upload an image<span class="hint">Square PNG, WebP or GIF. Shown at about 22px.</span><input name="file" type="file" accept="image/png,image/jpeg,image/webp,image/gif" /></label>
+                    <label
+                        >Upload an image<span class="hint">Square PNG, WebP or GIF. Shown at about 22px.</span
+                        ><input name="file" type="file" accept="image/png,image/jpeg,image/webp,image/gif"
+                    /></label>
                     <span class="muted">or pick a preset</span>
                     <div class="preset-grid">
                         ${BADGE_PRESETS.map(
                             ([hash, name]) =>
-                                html`<button type="button" class="preset ${hash === icon ? "active" : ""}" data-preset="${hash}" data-name="${name}" title="${name}"><img src="/badge-icons/${hash}.png" alt="${name}" /></button>`,
+                                html`<button type="button" class="preset ${hash === icon ? "active" : ""}" data-preset="${hash}" data-name="${name}" title="${name}">
+                                    <img src="/badge-icons/${hash}.png" alt="${name}" />
+                                </button>`,
                         )}
                     </div>
                 </div>
@@ -1889,6 +2356,7 @@ function openBadge(badge, refresh) {
             </form>
         `,
     );
+    if (!body) return;
     const form = $("#badge-form", body);
     const preview = () => {
         const src = iconData ?? (icon ? `/badge-icons/${icon}.png` : null);
@@ -1950,7 +2418,9 @@ function openBadge(badge, refresh) {
 
 // art lives where the client looks for game art: app-icons/<game id>/<hash>
 const gameArt = (g, hash, cls = "") =>
-    hash ? html`<img class="avatar square ${cls}" src="/app-icons/${g.id}/${hash}.png?size=128" alt="" loading="lazy" />` : html`<span class="avatar square ${cls}">${initials(g.name)}</span>`;
+    hash
+        ? html`<img class="avatar square ${cls}" src="/app-icons/${g.id}/${hash}.png?size=128" alt="" loading="lazy" />`
+        : html`<span class="avatar square ${cls}">${initials(g.name)}</span>`;
 
 async function renderGames(view) {
     const games = await api("/admin/games");
@@ -1967,33 +2437,46 @@ async function renderGames(view) {
                 </div>
                 <button class="btn primary" id="new-game" type="button">Add game</button>
             </div>
-            ${games.length
-                ? html`<div class="table-wrap">
-                      <table>
-                          <thead>
-                              <tr>
-                                  <th>Game</th>
-                                  <th class="hide-sm">Also found by</th>
-                                  <th class="hide-sm">Added</th>
-                              </tr>
-                          </thead>
-                          <tbody>
-                              ${games.map(
-                                  (g) => html`<tr data-id="${g.id}">
-                                      <td><div class="ident">${gameArt(g, g.icon_hash)}<strong>${g.name}</strong></div></td>
-                                      <td class="hide-sm">${g.aliases.length ? html`<span class="muted">${g.aliases.join(", ")}</span>` : html`<span class="muted">—</span>`}</td>
-                                      <td class="hide-sm"><span class="muted">${fmtDate(g.created_at)}</span></td>
-                                  </tr>`,
-                              )}
-                          </tbody>
-                      </table>
-                  </div>`
-                : html`<div class="card empty">No custom games yet. Add one so people can put it on their profile or server.</div>`}
+            ${
+                games.length
+                    ? html`<div class="table-wrap">
+                          <table>
+                              <thead>
+                                  <tr>
+                                      <th>Game</th>
+                                      <th class="hide-sm">Also found by</th>
+                                      <th class="hide-sm">Added</th>
+                                  </tr>
+                              </thead>
+                              <tbody>
+                                  ${games.map(
+                                      (g) =>
+                                          html`<tr data-id="${g.id}">
+                                              <td>
+                                                  <div class="ident">${gameArt(g, g.icon_hash)}<strong>${g.name}</strong></div>
+                                              </td>
+                                              <td class="hide-sm">
+                                                  ${g.aliases.length ? html`<span class="muted">${g.aliases.join(", ")}</span>` : html`<span class="muted">—</span>`}
+                                              </td>
+                                              <td class="hide-sm"><span class="muted">${fmtDate(g.created_at)}</span></td>
+                                          </tr>`,
+                                  )}
+                              </tbody>
+                          </table>
+                      </div>`
+                    : html`<div class="card empty">No custom games yet. Add one so people can put it on their profile or server.</div>`
+            }
         `,
     );
     const refresh = () => renderGames(view);
     $("#new-game").addEventListener("click", () => openGame(null, refresh));
-    for (const row of $$("tbody tr", view)) row.addEventListener("click", () => openGame(games.find((g) => g.id === row.dataset.id), refresh));
+    for (const row of $$("tbody tr", view))
+        row.addEventListener("click", () =>
+            openGame(
+                games.find((g) => g.id === row.dataset.id),
+                refresh,
+            ),
+        );
 }
 
 function openGame(game, refresh) {
@@ -2017,11 +2500,17 @@ function openGame(game, refresh) {
                 /></label>
                 <div class="form-grid">
                     <div class="stack">
-                        <label>Icon<span class="hint">Square image, at least 256×256.</span><input name="icon" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/avif" /></label>
+                        <label
+                            >Icon<span class="hint">Square image, at least 256×256.</span
+                            ><input name="icon" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/avif"
+                        /></label>
                         ${game?.icon_hash ? html`<button class="btn small" type="button" data-remove="icon">Remove icon</button>` : ""}
                     </div>
                     <div class="stack">
-                        <label>Cover art<span class="hint">Optional. A tall box-art style image, like 600×800.</span><input name="cover" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/avif" /></label>
+                        <label
+                            >Cover art<span class="hint">Optional. A tall box-art style image, like 600×800.</span
+                            ><input name="cover" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/avif"
+                        /></label>
                         ${game?.cover_image_hash ? html`<button class="btn small" type="button" data-remove="cover">Remove cover art</button>` : ""}
                     </div>
                 </div>
@@ -2032,6 +2521,7 @@ function openGame(game, refresh) {
             </form>
         `,
     );
+    if (!body) return;
     const form = $("#game-form", body);
     const preview = () => {
         const icon = art.icon === undefined ? (game?.icon_hash ? `/app-icons/${game.id}/${game.icon_hash}.png?size=128` : null) : art.icon;
@@ -2118,56 +2608,62 @@ async function renderStore(view) {
                 <div>
                     <h1>Store</h1>
                     <p class="muted">
-                        Packs of avatar decorations, nameplates, profile effects and profile frames people can pick up for free in the shop. Your packs come first, then the
-                        ones mirrored from Discord, which you can take out of the shop. Changed art can take up to 6 hours to update for people who already loaded it.
+                        Packs of avatar decorations, nameplates, profile effects and profile frames people can pick up for free in the shop. Your packs come first, then the ones
+                        mirrored from Discord, which you can take out of the shop. Changed art can take up to 6 hours to update for people who already loaded it.
                     </p>
                 </div>
                 <button class="btn primary" id="new-pack" type="button">Add pack</button>
             </div>
             <div class="stack">
                 <h2>Your packs</h2>
-                ${data.packs.length
-                    ? html`<div class="table-wrap">
-                          <table>
-                              <thead>
-                                  <tr>
-                                      <th>Pack</th>
-                                      <th class="hide-sm">Items</th>
-                                  </tr>
-                              </thead>
-                              <tbody>
-                                  ${data.packs.map(
-                                      (p) => html`<tr data-pack="${p.id}">
-                                          <td>
-                                              <div class="ident">
-                                                  ${p.logo || p.banner
-                                                      ? html`<img class="avatar square" src="${p.logo || p.banner}" alt="" loading="lazy" style="object-fit:cover" />`
-                                                      : html`<span class="avatar square">${initials(p.name)}</span>`}
-                                                  <div><strong>${p.name}</strong><span class="muted">${p.summary || "No summary"}</span></div>
-                                              </div>
-                                          </td>
-                                          <td class="hide-sm">
-                                              <span class="badges"
-                                                  >${STORE_TYPES.map(([type, name]) => {
-                                                      const count = p.items.filter((i) => i.type === type).length;
-                                                      return count ? html`<span class="badge">${count} ${name.toLowerCase()}${count === 1 ? "" : "s"}</span>` : "";
-                                                  })}${p.items.length ? "" : html`<span class="muted">Empty</span>`}</span
-                                              >
-                                          </td>
-                                      </tr>`,
-                                  )}
-                              </tbody>
-                          </table>
-                      </div>`
-                    : html`<div class="card empty">No packs yet. Add one, then fill it with decorations, nameplates, effects and frames.</div>`}
+                ${
+                    data.packs.length
+                        ? html`<div class="table-wrap">
+                              <table>
+                                  <thead>
+                                      <tr>
+                                          <th>Pack</th>
+                                          <th class="hide-sm">Items</th>
+                                      </tr>
+                                  </thead>
+                                  <tbody>
+                                      ${data.packs.map(
+                                          (p) =>
+                                              html`<tr data-pack="${p.id}">
+                                                  <td>
+                                                      <div class="ident">
+                                                          ${
+                                                              p.logo || p.banner
+                                                                  ? html`<img class="avatar square" src="${p.logo || p.banner}" alt="" loading="lazy" style="object-fit:cover" />`
+                                                                  : html`<span class="avatar square">${initials(p.name)}</span>`
+                                                          }
+                                                          <div><strong>${p.name}</strong><span class="muted">${p.summary || "No summary"}</span></div>
+                                                      </div>
+                                                  </td>
+                                                  <td class="hide-sm">
+                                                      <span class="badges"
+                                                          >${STORE_TYPES.map(([type, name]) => {
+                                                              const count = p.items.filter((i) => i.type === type).length;
+                                                              return count ? html`<span class="badge">${count} ${name.toLowerCase()}${count === 1 ? "" : "s"}</span>` : "";
+                                                          })}${p.items.length ? "" : html`<span class="muted">Empty</span>`}</span
+                                                      >
+                                                  </td>
+                                              </tr>`,
+                                      )}
+                                  </tbody>
+                              </table>
+                          </div>`
+                        : html`<div class="card empty">No packs yet. Add one, then fill it with decorations, nameplates, effects and frames.</div>`
+                }
                 <h2>Packs from Discord</h2>
                 <p class="muted" style="margin:0">Turn a pack off to take it out of the shop. People who already have its items keep them.</p>
                 <div class="card stack" style="gap:0;padding:0">
                     ${data.builtin.map(
-                        (b) => html`<label class="list-item toggle" style="padding:10px 16px;margin:0">
-                            <input type="checkbox" data-builtin="${b.sku_id}" ${b.hidden ? "" : raw("checked")} />
-                            <span class="grow"><strong>${b.name}</strong><span class="hint">${b.items} ${b.items === 1 ? "item" : "items"}</span></span>
-                        </label>`,
+                        (b) =>
+                            html`<label class="list-item toggle" style="padding:10px 16px;margin:0">
+                                <input type="checkbox" data-builtin="${b.sku_id}" ${b.hidden ? "" : raw("checked")} />
+                                <span class="grow"><strong>${b.name}</strong><span class="hint">${b.items} ${b.items === 1 ? "item" : "items"}</span></span>
+                            </label>`,
                     )}
                 </div>
             </div>
@@ -2178,7 +2674,11 @@ async function renderStore(view) {
     for (const row of $$("tr[data-pack]", view)) row.addEventListener("click", () => openPack(row.dataset.pack, refresh));
     for (const box of $$("[data-builtin]", view))
         box.addEventListener("change", async () => {
-            const done = await act(null, () => api(`/admin/store/builtin/${box.dataset.builtin}`, { method: "PATCH", body: { hidden: !box.checked } }), box.checked ? "Back in the shop" : "Taken out of the shop");
+            const done = await act(
+                null,
+                () => api(`/admin/store/builtin/${box.dataset.builtin}`, { method: "PATCH", body: { hidden: !box.checked } }),
+                box.checked ? "Back in the shop" : "Taken out of the shop",
+            );
             if (!done) box.checked = !box.checked;
         });
 }
@@ -2200,12 +2700,16 @@ function artField(name, label, hint, current, { accept = IMAGE_TYPES, removable 
     return html`<div class="stack" style="gap:6px">
         <label>${label}${hint ? html`<span class="hint">${hint}</span>` : ""}<input type="file" data-art="${name}" accept="${accept}" /></label>
         <div class="row" style="gap:8px" data-art-preview="${name}">
-            ${current
-                ? html`${isVideo
-                          ? html`<video src="${current}" autoplay loop muted playsinline style="max-height:64px;max-width:220px;border-radius:6px"></video>`
-                          : html`<img src="${current}" alt="" style="max-height:64px;max-width:220px;border-radius:6px" />`}
+            ${
+                current
+                    ? html`${
+                          isVideo
+                              ? html`<video src="${current}" autoplay loop muted playsinline style="max-height:64px;max-width:220px;border-radius:6px"></video>`
+                              : html`<img src="${current}" alt="" style="max-height:64px;max-width:220px;border-radius:6px" />`
+                      }
                       ${removable ? html`<button class="btn small" type="button" data-art-remove="${name}">Remove</button>` : ""}`
-                : html`<span class="muted">Nothing uploaded</span>`}
+                    : html`<span class="muted">Nothing uploaded</span>`
+            }
         </div>
     </div>`;
 }
@@ -2218,8 +2722,13 @@ async function openPack(packId, refresh) {
         html`
             <form id="pack-form" class="stack">
                 <label>Name<input name="name" required maxlength="100" value="${pack?.name ?? ""}" placeholder="Spooky Season" /></label>
-                <label>Summary<span class="hint">Optional. Shown under the name in the shop.</span><textarea name="summary" maxlength="500" rows="2">${pack?.summary ?? ""}</textarea></label>
-                <label>Order<span class="hint">Lower numbers come first in the shop. The first pack is the big one at the top.</span><input name="position" type="number" step="1" value="${pack?.position ?? 0}" /></label>
+                <label
+                    >Summary<span class="hint">Optional. Shown under the name in the shop.</span><textarea name="summary" maxlength="500" rows="2">${pack?.summary ?? ""}</textarea>
+                </label>
+                <label
+                    >Order<span class="hint">Lower numbers come first in the shop. The first pack is the big one at the top.</span
+                    ><input name="position" type="number" step="1" value="${pack?.position ?? 0}"
+                /></label>
                 ${artField("banner", "Banner", "A wide image across the top of the pack, around 1280×300.", pack?.banner)}
                 ${artField("logo", "Logo", "Optional. Shown on the banner.", pack?.logo)}
                 <div class="form-actions">
@@ -2227,22 +2736,34 @@ async function openPack(packId, refresh) {
                     <button class="btn primary" type="submit">${pack ? "Save pack" : "Add pack"}</button>
                 </div>
             </form>
-            ${pack
-                ? html`<div class="stack" style="margin-top:20px">
-                      <div class="row" style="justify-content:space-between"><h3 style="margin:0">Items</h3><button class="btn small primary" id="item-new" type="button">Add item</button></div>
-                      ${pack.items.length
-                          ? html`<div class="card stack" style="gap:0;padding:0">
-                                ${pack.items.map(
-                                    (item) => html`<div class="list-item" style="padding:10px 16px;cursor:pointer" data-item="${item.id}">
-                                        <div class="ident grow">${itemThumb(item)}<div><strong>${item.name}</strong><span class="muted">${storeTypeName(item.type)}</span></div></div>
-                                    </div>`,
-                                )}
-                            </div>`
-                          : html`<p class="muted" style="margin:0">No items yet.</p>`}
-                  </div>`
-                : ""}
+            ${
+                pack
+                    ? html`<div class="stack" style="margin-top:20px">
+                          <div class="row" style="justify-content:space-between">
+                              <h3 style="margin:0">Items</h3>
+                              <button class="btn small primary" id="item-new" type="button">Add item</button>
+                          </div>
+                          ${
+                              pack.items.length
+                                  ? html`<div class="card stack" style="gap:0;padding:0">
+                                        ${pack.items.map(
+                                            (item) =>
+                                                html`<div class="list-item" style="padding:10px 16px;cursor:pointer" data-item="${item.id}">
+                                                    <div class="ident grow">
+                                                        ${itemThumb(item)}
+                                                        <div><strong>${item.name}</strong><span class="muted">${storeTypeName(item.type)}</span></div>
+                                                    </div>
+                                                </div>`,
+                                        )}
+                                    </div>`
+                                  : html`<p class="muted" style="margin:0">No items yet.</p>`
+                          }
+                      </div>`
+                    : ""
+            }
         `,
     );
+    if (!body) return;
     const form = $("#pack-form", body);
     for (const input of $$("[data-art]", form)) input.addEventListener("change", async () => (art[input.dataset.art] = await pickArt(input)));
     for (const btn of $$("[data-art-remove]", form))
@@ -2274,12 +2795,21 @@ async function openPack(packId, refresh) {
         }
     });
     $("#item-new", body)?.addEventListener("click", () => openStoreItem(pack, null, refresh));
-    for (const row of $$("[data-item]", body)) row.addEventListener("click", () => openStoreItem(pack, pack.items.find((i) => i.id === row.dataset.item), refresh));
+    for (const row of $$("[data-item]", body))
+        row.addEventListener("click", () =>
+            openStoreItem(
+                pack,
+                pack.items.find((i) => i.id === row.dataset.item),
+                refresh,
+            ),
+        );
 }
 
 const itemThumb = (item) => {
     const src = item.art.image ?? item.art.static ?? item.art.thumbnail ?? item.art.effect ?? item.art.front_top ?? item.art.front_bottom ?? item.art.back_top;
-    return src ? html`<img class="avatar square" src="${src}" alt="" loading="lazy" style="object-fit:contain;background:var(--bg-2, #111)" />` : html`<span class="avatar square">?</span>`;
+    return src
+        ? html`<img class="avatar square" src="${src}" alt="" loading="lazy" style="object-fit:contain;background:var(--bg-2, #111)" />`
+        : html`<span class="avatar square">?</span>`;
 };
 
 function storeItemFields(type, item) {
@@ -2287,9 +2817,19 @@ function storeItemFields(type, item) {
     const a = item?.art ?? {};
     switch (type) {
         case 0:
-            return artField("image", "Decoration", "A square PNG, APNG, GIF or WebP, 288×288. It's drawn over the avatar, so leave the middle transparent.", a.image, { removable: false });
+            return artField("image", "Decoration", "A square PNG, APNG, GIF or WebP, 288×288. It's drawn over the avatar, so leave the middle transparent.", a.image, {
+                removable: false,
+            });
         case 2:
-            return html`<label>Color<span class="hint">The background behind the name.</span><select name="palette">${options(palettes.map((p) => [p, p.replace("_", " ")]), item?.palette ?? "violet")}</select></label>
+            return html`<label
+                    >Color<span class="hint">The background behind the name.</span
+                    ><select name="palette">
+                        ${options(
+                            palettes.map((p) => [p, p.replace("_", " ")]),
+                            item?.palette ?? "violet",
+                        )}
+                    </select></label
+                >
                 ${artField("static", "Still image", "A wide PNG, 448×84. Shown when it isn't animating.", a.static, { accept: "image/png,image/webp,image/jpeg,image/avif", removable: false })}
                 ${artField("motion", "Animation", "Optional. A WebM video, or an animated PNG or GIF, the same size.", a.motion, { accept: `video/webm,video/mp4,${IMAGE_TYPES}` })}`;
         case 1:
@@ -2297,20 +2837,29 @@ function storeItemFields(type, item) {
                 ${artField("thumbnail", "Thumbnail", "Optional. The preview in the shop and the effect picker. The effect itself is used otherwise.", a.thumbnail)}
                 ${artField("reduced", "Reduced motion", "Optional. A still image shown to people who turned animations off.", a.reduced)}
                 <div class="form-grid">
-                    <label>Length<span class="hint">One play of the animation, in milliseconds.</span><input name="duration" type="number" min="100" max="60000" step="1" value="${item?.duration ?? 3000}" /></label>
+                    <label
+                        >Length<span class="hint">One play of the animation, in milliseconds.</span
+                        ><input name="duration" type="number" min="100" max="60000" step="1" value="${item?.duration ?? 3000}"
+                    /></label>
                     <label class="toggle"><input type="checkbox" name="loop" ${item?.loop === false ? "" : raw("checked")} /><span>Play on repeat</span></label>
                 </div>`;
         case 3:
             return html`<p class="muted" style="margin:0">
-                    Layers are ${sizes.frame.width}px wide: the ${sizes.frame.inner_width}px profile card plus the art past its sides. Top layers sit at the top of the card and bottom layers at the
-                    bottom; front layers go over the card and back layers behind it. At least one layer is needed.
+                    Layers are ${sizes.frame.width}px wide: the ${sizes.frame.inner_width}px profile card plus the art past its sides. Top layers sit at the top of the card and
+                    bottom layers at the bottom; front layers go over the card and back layers behind it. At least one layer is needed.
                 </p>
                 <div class="form-grid">
-                    <label>Reaches above the card<span class="hint">How many pixels of the top layers stick out above the card.</span><input name="overflow_top" type="number" min="0" max="2000" step="1" value="${item?.overflow_top ?? 280}" /></label>
-                    <label>Reaches below the card<span class="hint">How many pixels of the bottom layers stick out below it.</span><input name="overflow_bottom" type="number" min="0" max="2000" step="1" value="${item?.overflow_bottom ?? 190}" /></label>
+                    <label
+                        >Reaches above the card<span class="hint">How many pixels of the top layers stick out above the card.</span
+                        ><input name="overflow_top" type="number" min="0" max="2000" step="1" value="${item?.overflow_top ?? 280}"
+                    /></label>
+                    <label
+                        >Reaches below the card<span class="hint">How many pixels of the bottom layers stick out below it.</span
+                        ><input name="overflow_bottom" type="number" min="0" max="2000" step="1" value="${item?.overflow_bottom ?? 190}"
+                    /></label>
                 </div>
-                ${artField("front_top", "Front, top", "", a.front_top)} ${artField("front_bottom", "Front, bottom", "", a.front_bottom)} ${artField("back_top", "Back, top", "", a.back_top)}
-                ${artField("back_bottom", "Back, bottom", "", a.back_bottom)}`;
+                ${artField("front_top", "Front, top", "", a.front_top)} ${artField("front_bottom", "Front, bottom", "", a.front_bottom)}
+                ${artField("back_top", "Back, top", "", a.back_top)} ${artField("back_bottom", "Back, bottom", "", a.back_bottom)}`;
         default:
             return "";
     }
@@ -2323,12 +2872,26 @@ function openStoreItem(pack, item, refresh) {
         item ? `Edit ${storeTypeName(item.type).toLowerCase()}` : `Add to ${pack.name}`,
         html`
             <form id="store-item-form" class="stack">
-                ${item
-                    ? ""
-                    : html`<label>Type<select name="type">${options(STORE_TYPES.map(([t, name]) => [String(t), name]), "0")}</select><span class="hint" id="store-type-hint">${STORE_TYPES[0][2]}</span></label>`}
+                ${
+                    item
+                        ? ""
+                        : html`<label
+                              >Type<select name="type">
+                                  ${options(
+                                      STORE_TYPES.map(([t, name]) => [String(t), name]),
+                                      "0",
+                                  )}</select
+                              ><span class="hint" id="store-type-hint">${STORE_TYPES[0][2]}</span></label
+                          >`
+                }
                 <label>Name<input name="name" required maxlength="100" value="${item?.name ?? ""}" placeholder="Pumpkin Crown" /></label>
-                <label>Summary<span class="hint">Optional. Shown in the shop; each type has a default.</span><input name="summary" maxlength="500" value="${item?.summary ?? ""}" /></label>
-                <label>Description for screen readers<span class="hint">What it looks like, for people who can't see it.</span><input name="label" maxlength="500" value="${item?.label ?? ""}" /></label>
+                <label
+                    >Summary<span class="hint">Optional. Shown in the shop; each type has a default.</span><input name="summary" maxlength="500" value="${item?.summary ?? ""}"
+                /></label>
+                <label
+                    >Description for screen readers<span class="hint">What it looks like, for people who can't see it.</span
+                    ><input name="label" maxlength="500" value="${item?.label ?? ""}"
+                /></label>
                 <div class="stack" id="store-type-fields"></div>
                 <div class="form-actions">
                     <button class="btn" id="store-item-back" type="button" style="margin-right:auto">Back to ${pack.name}</button>
@@ -2338,6 +2901,7 @@ function openStoreItem(pack, item, refresh) {
             </form>
         `,
     );
+    if (!body) return;
     const form = $("#store-item-form", body);
     const renderFields = () => {
         for (const key of Object.keys(art)) delete art[key];
@@ -2439,7 +3003,9 @@ async function renderGuilds(view) {
                                                       </div>
                                                   </div>
                                               </td>
-                                              <td>${g.owner ? html`<div class="ident">${avatar(g.owner)}<span>${userName(g.owner)}</span></div>` : html`<span class="muted">None</span>`}</td>
+                                              <td>
+                                                  ${g.owner ? html`<div class="ident">${avatar(g.owner)}<span>${userName(g.owner)}</span></div>` : html`<span class="muted">None</span>`}
+                                              </td>
                                               <td>${fmtNumber(g.member_count)}</td>
                                               <td class="hide-sm">${fmtDay(snowflakeDate(g.id))}</td>
                                           </tr>
@@ -2469,6 +3035,7 @@ async function renderGuilds(view) {
 
 async function openGuild(id, reload) {
     const body = openDrawer("Server", html`<div class="spinner">Loading…</div>`);
+    if (!body) return;
     let g;
     try {
         g = await api(`/admin/guilds/${id}`);
@@ -2510,14 +3077,21 @@ async function openGuild(id, reload) {
 
             <form id="guild-form" class="card stack">
                 <h3>Details</h3>
+                <div class="form-grid">
+                    ${imageField("icon", "Server icon", g.icon)} ${imageField("banner", "Server banner", g.banner)} ${imageField("splash", "Invite background", g.splash)}
+                    ${imageField("discovery_splash", "Discovery background", g.discovery_splash)}
+                </div>
                 <label>Name<input name="name" value="${g.name}" minlength="2" maxlength="100" required /></label>
                 <label>Description<textarea name="description" maxlength="300">${g.description ?? ""}</textarea></label>
                 <div class="stack">
-                    <div class="row" style="justify-content:space-between"><h3>Server tag</h3><span id="tag-preview"></span></div>
+                    <div class="row" style="justify-content:space-between">
+                        <h3>Server tag</h3>
+                        <span id="tag-preview"></span>
+                    </div>
                     <label
                         >Tag<span class="hint"
-                            >Shown next to members' names. Staff can use any text of any length here (server owners are limited to 2–4 letters or numbers).
-                            Leave empty to remove the tag.</span
+                            >Shown next to members' names. Staff can use any text of any length here (server owners are limited to 2–4 letters or numbers). Leave empty to remove
+                            the tag.</span
                         ><input name="tag" autocomplete="off" value="${g.tag?.tag ?? ""}" placeholder="LARP"
                     /></label>
                     <div class="stack" id="tag-badge-fields">
@@ -2530,7 +3104,9 @@ async function openGuild(id, reload) {
                         >
                         <div class="row" id="badge-colors">
                             <label class="row" style="gap:8px">Main<input type="color" name="badge_color_primary" value="${g.tag?.badge_color_primary ?? "#5865f2"}" /></label>
-                            <label class="row" style="gap:8px">Accent<input type="color" name="badge_color_secondary" value="${g.tag?.badge_color_secondary ?? "#ffffff"}" /></label>
+                            <label class="row" style="gap:8px"
+                                >Accent<input type="color" name="badge_color_secondary" value="${g.tag?.badge_color_secondary ?? "#ffffff"}"
+                            /></label>
                         </div>
                     </div>
                 </div>
@@ -2543,10 +3119,86 @@ async function openGuild(id, reload) {
                         <button class="btn" type="button" id="feature-add">Add</button>
                     </div>
                 </div>
-                <label>Owner user ID<span class="hint">Transfer ownership to another member of this server.</span><input name="owner_id" value="${g.owner?.id ?? ""}" inputmode="numeric" /></label>
+                <div class="form-grid">
+                    <label
+                        >Verification level<select name="verification_level">
+                            ${options(
+                                [
+                                    [0, "None"],
+                                    [1, "Verified email"],
+                                    [2, "Registered for 5 minutes"],
+                                    [3, "Member for 10 minutes"],
+                                    [4, "Verified phone"],
+                                ],
+                                g.verification_level,
+                            )}
+                        </select></label
+                    >
+                    <label
+                        >Media filter<select name="explicit_content_filter">
+                            ${options(
+                                [
+                                    [0, "Off"],
+                                    [1, "Members without roles"],
+                                    [2, "All members"],
+                                ],
+                                g.explicit_content_filter,
+                            )}
+                        </select></label
+                    >
+                    <label
+                        >Default notifications<select name="default_message_notifications">
+                            ${options(
+                                [
+                                    [0, "All messages"],
+                                    [1, "Only mentions"],
+                                ],
+                                g.default_message_notifications,
+                            )}
+                        </select></label
+                    >
+                    <label
+                        >Boost tier<select name="premium_tier">
+                            ${options(
+                                [
+                                    [0, "None"],
+                                    [1, "Level 1"],
+                                    [2, "Level 2"],
+                                    [3, "Level 3"],
+                                ],
+                                g.premium_tier,
+                            )}
+                        </select></label
+                    >
+                    <label
+                        >Inactive voice timeout<select name="afk_timeout">
+                            ${options(
+                                [
+                                    [60, "1 minute"],
+                                    [300, "5 minutes"],
+                                    [900, "15 minutes"],
+                                    [1800, "30 minutes"],
+                                    [3600, "1 hour"],
+                                ],
+                                g.afk_timeout,
+                            )}
+                        </select></label
+                    >
+                    <label>Language<input name="preferred_locale" value="${g.preferred_locale ?? "en-US"}" required /></label>
+                    <label class="toggle"><input name="nsfw" type="checkbox" ${g.nsfw ? raw("checked") : ""} /><span>Age restricted server</span></label>
+                </div>
+                <label
+                    >Owner user ID<span class="hint">Transfer ownership to another member of this server.</span
+                    ><input name="owner_id" value="${g.owner?.id ?? ""}" inputmode="numeric"
+                /></label>
                 <div class="form-actions"><button class="btn primary" type="submit">Save server</button></div>
             </form>
 
+            <details class="card" id="server-resources">
+                <summary>Manage channels and roles</summary>
+                <p class="muted">Edit this server's channel details and role permissions.</p>
+                <div id="server-resource-body" class="stack"></div>
+            </details>
             <div class="card danger-zone stack">
                 <h3>Danger zone</h3>
                 <p class="muted" style="margin:0">Deletes the server with all its channels, messages, roles and members. This can't be undone.</p>
@@ -2555,6 +3207,46 @@ async function openGuild(id, reload) {
             </div>
         `,
     );
+    let resourcesLoaded = false;
+    $("#server-resources", body).addEventListener("toggle", async (event) => {
+        if (!event.currentTarget.open || resourcesLoaded) return;
+        const target = $("#server-resource-body", body);
+        mount(target, html`<div class="spinner">Loading channels and roles…</div>`);
+        try {
+            const [channelData, roleData] = await Promise.all([api(`/admin/guilds/${id}/channels`), api(`/admin/guilds/${id}/roles`)]);
+            resourcesLoaded = true;
+            mount(
+                target,
+                html`<h3>Channels</h3>
+                    ${channelData.truncated ? html`<p class="muted">Showing the first 1,000 channels.</p>` : ""}
+                    <div class="resource-list">
+                        ${channelData.channels.map((channel) => html`<button class="resource-row" type="button" data-edit-channel="${channel.id}"><span>${channel.type === 4 ? "Category" : channel.type === 2 ? "Voice" : "Channel"}</span><strong>${channel.name}</strong><span class="muted">Edit</span></button>`)}
+                    </div>
+                    <h3>Roles</h3>
+                    <div class="resource-list">
+                        ${roleData.roles.map((role) => html`<button class="resource-row" type="button" data-edit-role="${role.id}" ${role.managed ? raw("disabled") : ""}><strong>${role.name}</strong><span class="muted">${role.managed ? "Integration managed" : "Edit"}</span></button>`)}
+                    </div>`,
+            );
+            for (const button of $$("[data-edit-channel]", target))
+                button.addEventListener("click", () =>
+                    openAdminChannel(
+                        id,
+                        channelData.channels.find((channel) => channel.id === button.dataset.editChannel),
+                        channelData.channels,
+                    ),
+                );
+            for (const button of $$("[data-edit-role]", target))
+                button.addEventListener("click", () =>
+                    openAdminRole(
+                        id,
+                        roleData.roles.find((role) => role.id === button.dataset.editRole),
+                        roleData.permissions,
+                    ),
+                );
+        } catch (error) {
+            if (error.status !== 499) mount(target, html`<p class="form-error">${error.message}</p>`);
+        }
+    });
     renderFeatures();
 
     const addFeature = () => {
@@ -2581,8 +3273,7 @@ async function openGuild(id, reload) {
 
     const tagForm = $("#guild-form");
     let badge = g.tag?.badge ?? 0;
-    const badgeColours = () =>
-        tagForm.badge_default_colors.checked ? {} : { primary: tagForm.badge_color_primary.value, secondary: tagForm.badge_color_secondary.value };
+    const badgeColours = () => (tagForm.badge_default_colors.checked ? {} : { primary: tagForm.badge_color_primary.value, secondary: tagForm.badge_color_secondary.value });
     const previewUrl = (id, size) => `/clan-badges/preview/${id}?${new URLSearchParams({ size, ...badgeColours() })}`;
     const renderTagPreview = () => {
         const tag = tagForm.tag.value.trim();
@@ -2636,18 +3327,35 @@ async function openGuild(id, reload) {
     $("#guild-form").addEventListener("submit", async (e) => {
         e.preventDefault();
         const form = e.currentTarget;
-        const patch = { name: form.name.value, description: form.description.value, features: [...features] };
+        const patch = {
+            name: form.name.value,
+            description: form.description.value,
+            features: [...features],
+            nsfw: form.nsfw.checked,
+            preferred_locale: form.preferred_locale.value,
+        };
+        for (const field of ["verification_level", "explicit_content_filter", "default_message_notifications", "premium_tier", "afk_timeout"])
+            patch[field] = Number(form.elements[field].value);
         const owner = form.owner_id.value.trim();
         if (owner && owner !== g.owner?.id) patch.owner_id = owner;
 
         const tag = form.tag.value.trim();
         const colours = badgeColours();
         const next = { tag: tag || null, badge, badge_color_primary: colours.primary ?? null, badge_color_secondary: colours.secondary ?? null };
-        const prev = g.tag ? { tag: g.tag.tag, badge: g.tag.badge, badge_color_primary: g.tag.badge_color_primary, badge_color_secondary: g.tag.badge_color_secondary } : { tag: null };
+        const prev = g.tag
+            ? { tag: g.tag.tag, badge: g.tag.badge, badge_color_primary: g.tag.badge_color_primary, badge_color_secondary: g.tag.badge_color_secondary }
+            : { tag: null };
         if (!next.tag) {
             if (prev.tag) patch.tag = null;
         } else if (JSON.stringify(next) !== JSON.stringify(prev)) Object.assign(patch, next);
-        const saved = await act($("button[type=submit]", form), () => api(`/admin/guilds/${g.id}`, { method: "PATCH", body: patch }), "Server updated");
+        const saved = await act(
+            $("button[type=submit]", form),
+            async () => {
+                await imagePatch(form, ["icon", "banner", "splash", "discovery_splash"], patch);
+                return api(`/admin/guilds/${g.id}`, { method: "PATCH", body: patch });
+            },
+            "Server updated",
+        );
         if (saved) {
             reload?.();
             openGuild(g.id, reload);
@@ -2702,7 +3410,12 @@ async function renderSystem(view) {
     $("#system-refresh").addEventListener("click", () => renderSystem(view));
 
     const fail = (el, title) => (e) => {
-        if (e.status !== 401) mount(el, html`<h2>${title}</h2><p class="form-error">${e.message}</p>`);
+        if (e.status !== 401 && e.status !== 499)
+            mount(
+                el,
+                html`<h2>${title}</h2>
+                    <p class="form-error">${e.message}</p>`,
+            );
     };
     await Promise.all([
         api("/admin/system/client").then(renderClientStatus, fail($("#system-client"), "Web client")),
@@ -2736,101 +3449,134 @@ function renderClientStatus({ client, vencord, patch_check: check }) {
             <div class="card">
                 <div class="row" style="justify-content:space-between;margin-bottom:8px">
                     <h2 style="margin:0">Web client</h2>
-                    ${!client.enabled
-                        ? html`<span class="badge"><span class="dot"></span>Not served</span>`
-                        : client.present
-                          ? html`<span class="badge ok"><span class="dot"></span>Build ${client.build_number ?? "unknown"}</span>`
-                          : html`<span class="badge danger"><span class="dot"></span>Missing</span>`}
+                    ${
+                        !client.enabled
+                            ? html`<span class="badge"><span class="dot"></span>Not served</span>`
+                            : client.present
+                              ? html`<span class="badge ok"><span class="dot"></span>Build ${client.build_number ?? "unknown"}</span>`
+                              : html`<span class="badge danger"><span class="dot"></span>Missing</span>`
+                    }
                 </div>
-                ${client.present
-                    ? html`<div class="list">
-                          ${item("Build number", client.build_number ?? "—")}
-                          ${item("Version hash", html`<code>${client.version_hash?.slice(0, 12) ?? "—"}</code>`)}
-                          ${item("Downloaded", html`${fmtDate(client.generated_at)} <span class="muted">(${fmtAgo(client.generated_at)})</span>`)}
-                          ${item("Cached files", `${fmtNumber(client.files)} files, ${client.compressed_files == null ? "not precompressed" : `${fmtNumber(client.compressed_files)} precompressed`}`)}
-                          ${item("Client patches", client.patches.length ? html`<span class="badges" style="justify-content:flex-end">${client.patches.map((p) => html`<span class="badge">${p.replace(/\.js$/, "")}</span>`)}</span>` : "None")}
-                          ${item(
-                              "Failed downloads",
-                              client.failures.count ? html`<span class="badge warn">${fmtNumber(client.failures.count)}</span>` : html`<span class="badge ok">None</span>`,
-                          )}
-                          ${item(
-                              "Assets missing from the cache",
-                              client.misses.count ? html`<span class="badge warn">${fmtNumber(client.misses.count)} files</span>` : html`<span class="badge ok">None</span>`,
-                          )}
-                      </div>`
-                    : html`<p class="muted" style="margin:0">There's no client in <code>assets/cache</code>. Run <code>npm run generate:client</code> on the server.</p>`}
-                ${client.failures.count || client.misses.count
-                    ? html`<details style="margin-top:12px">
-                          <summary class="btn small" style="width:max-content">Show files</summary>
-                          <div class="stack" style="margin-top:10px;gap:10px">
-                              ${client.failures.count ? html`<div><strong>Failed during download</strong><pre class="file-list">${client.failures.items.join("\n")}</pre></div>` : ""}
-                              ${client.misses.count
-                                  ? html`<div>
-                                        <strong>Not in the cache, fetched from Discord when asked for</strong>
-                                        <pre class="file-list">${client.misses.items.join("\n")}</pre>
-                                        <span class="muted">Running <code>npm run generate:client</code> again adds them to the cache.</span>
-                                    </div>`
-                                  : ""}
-                          </div>
-                      </details>`
-                    : ""}
+                ${
+                    client.present
+                        ? html`<div class="list">
+                              ${item("Build number", client.build_number ?? "—")} ${item("Version hash", html`<code>${client.version_hash?.slice(0, 12) ?? "—"}</code>`)}
+                              ${item("Downloaded", html`${fmtDate(client.generated_at)} <span class="muted">(${fmtAgo(client.generated_at)})</span>`)}
+                              ${item("Cached files", `${fmtNumber(client.files)} files, ${client.compressed_files == null ? "not precompressed" : `${fmtNumber(client.compressed_files)} precompressed`}`)}
+                              ${item("Client patches", client.patches.length ? html`<span class="badges" style="justify-content:flex-end">${client.patches.map((p) => html`<span class="badge">${p.replace(/\.js$/, "")}</span>`)}</span>` : "None")}
+                              ${item(
+                                  "Failed downloads",
+                                  client.failures.count ? html`<span class="badge warn">${fmtNumber(client.failures.count)}</span>` : html`<span class="badge ok">None</span>`,
+                              )}
+                              ${item(
+                                  "Assets missing from the cache",
+                                  client.misses.count ? html`<span class="badge warn">${fmtNumber(client.misses.count)} files</span>` : html`<span class="badge ok">None</span>`,
+                              )}
+                          </div>`
+                        : html`<p class="muted" style="margin:0">There's no client in <code>assets/cache</code>. Run <code>npm run generate:client</code> on the server.</p>`
+                }
+                ${
+                    client.failures.count || client.misses.count
+                        ? html`<details style="margin-top:12px">
+                              <summary class="btn small" style="width:max-content">Show files</summary>
+                              <div class="stack" style="margin-top:10px;gap:10px">
+                                  ${
+                                      client.failures.count
+                                          ? html`<div>
+                                                <strong>Failed during download</strong>
+                                                <pre class="file-list">${client.failures.items.join("\n")}</pre>
+                                            </div>`
+                                          : ""
+                                  }
+                                  ${
+                                      client.misses.count
+                                          ? html`<div>
+                                                <strong>Not in the cache, fetched from Discord when asked for</strong>
+                                                <pre class="file-list">${client.misses.items.join("\n")}</pre>
+                                                <span class="muted">Running <code>npm run generate:client</code> again adds them to the cache.</span>
+                                            </div>`
+                                          : ""
+                                  }
+                              </div>
+                          </details>`
+                        : ""
+                }
             </div>
             <div class="card">
                 <div class="row" style="justify-content:space-between;margin-bottom:8px">
                     <h2 style="margin:0">Vencord</h2>
                     ${vencord.present ? html`<span class="badge ok"><span class="dot"></span>v${vencord.version ?? "?"}</span>` : html`<span class="badge danger"><span class="dot"></span>Not built</span>`}
                 </div>
-                ${vencord.present
-                    ? html`<div class="list">
-                          ${item("Built", html`${fmtDate(vencord.built_at)} <span class="muted">(${fmtAgo(vencord.built_at)})</span>`)}
-                          ${item("Commit", vencord.commit ? html`<code>${vencord.commit.slice(0, 10)}</code>` : "—")}
-                          ${item("Bundle size", fmtBytes(vencord.size))}
-                          ${item("Fosscord plugins", html`<span class="badges" style="justify-content:flex-end">${vencord.plugins.map((p) => html`<span class="badge accent">${p.replace(/^fosscord/, "")}</span>`)}</span>`)}
-                      </div>`
-                    : html`<p class="muted" style="margin:0">The client runs without its mods. Run <code>npm run build:vencord</code> on the server.</p>`}
+                ${
+                    vencord.present
+                        ? html`<div class="list">
+                              ${item("Built", html`${fmtDate(vencord.built_at)} <span class="muted">(${fmtAgo(vencord.built_at)})</span>`)}
+                              ${item("Commit", vencord.commit ? html`<code>${vencord.commit.slice(0, 10)}</code>` : "—")} ${item("Bundle size", fmtBytes(vencord.size))}
+                              ${item("Fosscord plugins", html`<span class="badges" style="justify-content:flex-end">${vencord.plugins.map((p) => html`<span class="badge accent">${p.replace(/^fosscord/, "")}</span>`)}</span>`)}
+                          </div>`
+                        : html`<p class="muted" style="margin:0">The client runs without its mods. Run <code>npm run build:vencord</code> on the server.</p>`
+                }
             </div>
             <div class="card">
                 <div class="row" style="justify-content:space-between;margin-bottom:8px">
                     <h2 style="margin:0">Patch check</h2>
-                    ${!check
-                        ? html`<span class="badge"><span class="dot"></span>Never run</span>`
-                        : check.outcome !== "done"
-                          ? html`<span class="badge danger"><span class="dot"></span>Didn't finish (${check.outcome})</span>`
-                          : problems
-                            ? html`<span class="badge danger"><span class="dot"></span>${fmtNumber(problems)} ${problems === 1 ? "problem" : "problems"}</span>`
-                            : html`<span class="badge ok"><span class="dot"></span>Passing</span>`}
+                    ${
+                        !check
+                            ? html`<span class="badge"><span class="dot"></span>Never run</span>`
+                            : check.outcome !== "done"
+                              ? html`<span class="badge danger"><span class="dot"></span>Didn't finish (${check.outcome})</span>`
+                              : problems
+                                ? html`<span class="badge danger"><span class="dot"></span>${fmtNumber(problems)} ${problems === 1 ? "problem" : "problems"}</span>`
+                                : html`<span class="badge ok"><span class="dot"></span>Passing</span>`
+                    }
                 </div>
-                ${check
-                    ? html`<div class="list">
-                              ${item("Checked", html`${fmtDate(check.checked_at)} <span class="muted">(${fmtAgo(check.checked_at)}, took ${check.seconds}s)</span>`)}
-                              ${item(
-                                  "Against build",
-                                  html`${check.build_number ?? "unknown"}${stale ? html` <span class="badge warn">The client is now ${client.build_number}</span>` : ""}`,
-                              )}
-                              ${outdated ? item("Vencord", html`<span class="badge warn">Rebuilt since this check</span>`) : ""}
-                              ${check.errors.length ? item("Page errors", html`<span class="badge danger">${fmtNumber(check.errors.length)}</span>`) : ""}
-                          </div>
-                          <div class="stack" style="margin-top:14px;gap:12px">
-                              ${groups.map(
-                                  (g) => html`<div class="stack" style="gap:6px">
-                                      <div class="row"><strong class="grow">${g.label}</strong>${g.items.length ? html`<span class="badge ${g.tone}">${fmtNumber(g.items.length)}</span>` : html`<span class="badge ok">OK</span>`}</div>
-                                      ${g.items.length
-                                          ? html`<div class="list">
-                                                ${g.items.map(
-                                                    (i) => html`<div class="list-item" style="align-items:flex-start">
-                                                        <div class="grow" style="min-width:0">
-                                                            <strong>${i.plugin}</strong> <span class="muted">${i.text}</span>
-                                                            <pre class="file-list" style="margin:4px 0 0">${i.detail}</pre>
-                                                        </div>
-                                                    </div>`,
-                                                )}
+                ${
+                    check
+                        ? html`<div class="list">
+                                  ${item("Checked", html`${fmtDate(check.checked_at)} <span class="muted">(${fmtAgo(check.checked_at)}, took ${check.seconds}s)</span>`)}
+                                  ${item(
+                                      "Against build",
+                                      html`${check.build_number ?? "unknown"}${stale ? html` <span class="badge warn">The client is now ${client.build_number}</span>` : ""}`,
+                                  )}
+                                  ${outdated ? item("Vencord", html`<span class="badge warn">Rebuilt since this check</span>`) : ""}
+                                  ${check.errors.length ? item("Page errors", html`<span class="badge danger">${fmtNumber(check.errors.length)}</span>`) : ""}
+                              </div>
+                              <div class="stack" style="margin-top:14px;gap:12px">
+                                  ${groups.map(
+                                      (g) =>
+                                          html`<div class="stack" style="gap:6px">
+                                              <div class="row">
+                                                  <strong class="grow">${g.label}</strong
+                                                  >${g.items.length ? html`<span class="badge ${g.tone}">${fmtNumber(g.items.length)}</span>` : html`<span class="badge ok">OK</span>`}
+                                              </div>
+                                              ${
+                                                  g.items.length
+                                                      ? html`<div class="list">
+                                                            ${g.items.map(
+                                                                (i) =>
+                                                                    html`<div class="list-item" style="align-items:flex-start">
+                                                                        <div class="grow" style="min-width:0">
+                                                                            <strong>${i.plugin}</strong> <span class="muted">${i.text}</span>
+                                                                            <pre class="file-list" style="margin:4px 0 0">${i.detail}</pre>
+                                                                        </div>
+                                                                    </div>`,
+                                                            )}
+                                                        </div>`
+                                                      : ""
+                                              }
+                                          </div>`,
+                                  )}
+                                  ${
+                                      check.errors.length
+                                          ? html`<div>
+                                                <strong>Page errors</strong>
+                                                <pre class="file-list">${check.errors.join("\n")}</pre>
                                             </div>`
-                                          : ""}
-                                  </div>`,
-                              )}
-                              ${check.errors.length ? html`<div><strong>Page errors</strong><pre class="file-list">${check.errors.join("\n")}</pre></div>` : ""}
-                          </div>`
-                    : ""}
+                                          : ""
+                                  }
+                              </div>`
+                        : ""
+                }
                 <p class="muted" style="margin:12px 0 0">Run <code>npm run check:client</code> on the server after updating the client or the plugins to refresh this.</p>
             </div>
         `,
@@ -2848,54 +3594,80 @@ function renderVoiceStatus(v) {
         html`
             <div class="row" style="justify-content:space-between">
                 <h2 style="margin:0">Voice</h2>
-                ${!server
-                    ? html`<span class="badge"><span class="dot"></span>Runs in another process</span>`
-                    : !server.enabled
-                      ? html`<span class="badge danger"><span class="dot"></span>Off</span>`
-                      : healthy
-                        ? html`<span class="badge ok"><span class="dot"></span>Healthy</span>`
-                        : html`<span class="badge danger"><span class="dot"></span>Unhealthy</span>`}
+                ${
+                    !server
+                        ? html`<span class="badge"><span class="dot"></span>Runs in another process</span>`
+                        : !server.enabled
+                          ? html`<span class="badge danger"><span class="dot"></span>Off</span>`
+                          : healthy
+                            ? html`<span class="badge ok"><span class="dot"></span>Healthy</span>`
+                            : html`<span class="badge danger"><span class="dot"></span>Unhealthy</span>`
+                }
             </div>
-            ${!server
-                ? html`<p class="muted" style="margin:0">The voice server doesn't run in the same process as the API, so only the database numbers below are available here.</p>`
-                : !server.enabled
-                  ? html`<p class="form-error">${server.reason ?? "Voice is disabled."}</p>`
-                  : html`<div class="list">
-                        ${item("Media server", server.library === "pion" ? "Built-in pion SFU" : (server.library ?? "—"))}
-                        ${item("Voice gateway", server.listen ?? "—")}
-                        ${item("Running since", html`${fmtDate(server.started_at)} <span class="muted">(${fmtAgo(server.started_at)})</span>`)}
-                        ${server.reason ? item("Problem", html`<span class="form-error">${server.reason}</span>`) : ""}
-                        ${sfu
-                            ? html`
-                                  ${item(
-                                      "SFU connection",
-                                      sfu.connected
-                                          ? html`<span class="badge ok">Connected</span> <span class="muted">${sfu.ping_ms !== null ? `${sfu.ping_ms} ms ping` : sfu.ping_error}</span>`
-                                          : html`<span class="badge danger">Disconnected</span>`,
-                                  )}
-                                  ${item("SFU process", sfu.managed ? (sfu.pid ? html`Started by the server, pid <code>${sfu.pid}</code>` : "Started by the server, not running") : "Runs on its own")}
-                                  ${item("Media address", html`<code>${sfu.public_ip}:${sfu.udp_port}</code> <span class="muted">UDP</span>`)}
-                                  ${item("Restarts", sfu.restarts ? html`<span class="badge warn">${fmtNumber(sfu.restarts)}</span>${sfu.last_exit_at ? html` <span class="muted">last exit code ${sfu.last_exit_code ?? "?"}, ${fmtAgo(sfu.last_exit_at)}</span>` : ""}` : "None")}
-                                  ${item("Connected media clients", `${fmtNumber(sfu.connected ? server.connected_clients : 0)} of ${fmtNumber(server.clients)} in ${fmtNumber(server.rooms)} ${server.rooms === 1 ? "room" : "rooms"}`)}
-                              `
-                            : ""}
-                        ${item("DAVE sessions", fmtNumber(server.dave_sessions ?? 0))}
-                    </div>`}
+            ${
+                !server
+                    ? html`<p class="muted" style="margin:0">
+                          The voice server doesn't run in the same process as the API, so only the database numbers below are available here.
+                      </p>`
+                    : !server.enabled
+                      ? html`<p class="form-error">${server.reason ?? "Voice is disabled."}</p>`
+                      : html`<div class="list">
+                            ${item("Media server", server.library === "pion" ? "Built-in pion SFU" : (server.library ?? "—"))} ${item("Voice gateway", server.listen ?? "—")}
+                            ${item("Running since", html`${fmtDate(server.started_at)} <span class="muted">(${fmtAgo(server.started_at)})</span>`)}
+                            ${server.reason ? item("Problem", html`<span class="form-error">${server.reason}</span>`) : ""}
+                            ${
+                                sfu
+                                    ? html`
+                                          ${item(
+                                              "SFU connection",
+                                              sfu.connected
+                                                  ? html`<span class="badge ok">Connected</span>
+                                                        <span class="muted">${sfu.ping_ms !== null ? `${sfu.ping_ms} ms ping` : sfu.ping_error}</span>`
+                                                  : html`<span class="badge danger">Disconnected</span>`,
+                                          )}
+                                          ${item("SFU process", sfu.managed ? (sfu.pid ? html`Started by the server, pid <code>${sfu.pid}</code>` : "Started by the server, not running") : "Runs on its own")}
+                                          ${item("Media address", html`<code>${sfu.public_ip}:${sfu.udp_port}</code> <span class="muted">UDP</span>`)}
+                                          ${item("Restarts", sfu.restarts ? html`<span class="badge warn">${fmtNumber(sfu.restarts)}</span>${sfu.last_exit_at ? html` <span class="muted">last exit code ${sfu.last_exit_code ?? "?"}, ${fmtAgo(sfu.last_exit_at)}</span>` : ""}` : "None")}
+                                          ${item("Connected media clients", `${fmtNumber(sfu.connected ? server.connected_clients : 0)} of ${fmtNumber(server.clients)} in ${fmtNumber(server.rooms)} ${server.rooms === 1 ? "room" : "rooms"}`)}
+                                      `
+                                    : ""
+                            }
+                            ${item("DAVE sessions", fmtNumber(server.dave_sessions ?? 0))}
+                        </div>`
+            }
             <div class="stats">
-                <div class="card stat"><div class="muted">In voice</div><div class="value">${fmtNumber(v.voice_states.users)}</div></div>
-                <div class="card stat"><div class="muted">Active channels</div><div class="value">${fmtNumber(v.voice_states.channels)}</div></div>
-                <div class="card stat"><div class="muted">DM calls</div><div class="value">${fmtNumber(v.voice_states.dm_calls)}</div></div>
-                <div class="card stat"><div class="muted">Cameras on</div><div class="value">${fmtNumber(v.voice_states.video)}</div></div>
-                <div class="card stat"><div class="muted">Go Live streams</div><div class="value">${fmtNumber(v.voice_states.streams)}</div></div>
+                <div class="card stat">
+                    <div class="muted">In voice</div>
+                    <div class="value">${fmtNumber(v.voice_states.users)}</div>
+                </div>
+                <div class="card stat">
+                    <div class="muted">Active channels</div>
+                    <div class="value">${fmtNumber(v.voice_states.channels)}</div>
+                </div>
+                <div class="card stat">
+                    <div class="muted">DM calls</div>
+                    <div class="value">${fmtNumber(v.voice_states.dm_calls)}</div>
+                </div>
+                <div class="card stat">
+                    <div class="muted">Cameras on</div>
+                    <div class="value">${fmtNumber(v.voice_states.video)}</div>
+                </div>
+                <div class="card stat">
+                    <div class="muted">Go Live streams</div>
+                    <div class="value">${fmtNumber(v.voice_states.streams)}</div>
+                </div>
             </div>
             <div class="stack" style="gap:6px">
                 <strong>Voice regions</strong>
                 <div class="list">
                     ${v.regions.available.map(
-                        (r) => html`<div class="list-item">
-                            <span class="grow">${r.name}${r.id === v.regions.default ? html` <span class="badge accent">Default</span>` : ""}${r.deprecated ? html` <span class="badge">Deprecated</span>` : ""}</span>
-                            <code>${r.endpoint ?? "—"}</code>
-                        </div>`,
+                        (r) =>
+                            html`<div class="list-item">
+                                <span class="grow"
+                                    >${r.name}${r.id === v.regions.default ? html` <span class="badge accent">Default</span>` : ""}${r.deprecated ? html` <span class="badge">Deprecated</span>` : ""}</span
+                                >
+                                <code>${r.endpoint ?? "—"}</code>
+                            </div>`,
                     )}
                 </div>
             </div>
@@ -2907,7 +3679,12 @@ function renderCollectiblesStatus(c) {
     const el = $("#system-collectibles");
     if (!el) return;
     const source = (label, s) =>
-        item(label, s.updated_at ? html`${fmtDate(s.updated_at)} <span class="muted">(${fmtAgo(s.updated_at)}, ${fmtBytes(s.size)})</span>` : html`<span class="badge warn">Not downloaded</span>`);
+        item(
+            label,
+            s.updated_at
+                ? html`${fmtDate(s.updated_at)} <span class="muted">(${fmtAgo(s.updated_at)}, ${fmtBytes(s.size)})</span>`
+                : html`<span class="badge warn">Not downloaded</span>`,
+        );
     mount(
         el,
         html`
@@ -2922,16 +3699,20 @@ function renderCollectiblesStatus(c) {
                 ${source("Catalogue", c.catalog)} ${source("Profile effects", c.effects)}
                 ${item(
                     "Loaded in the Shop",
-                    c.loaded ? `${fmtNumber(c.loaded.categories)} categories, ${fmtNumber(c.loaded.products)} products, ${fmtNumber(c.loaded.items)} items` : html`<span class="muted">Loads the first time someone opens the Shop</span>`,
+                    c.loaded
+                        ? `${fmtNumber(c.loaded.categories)} categories, ${fmtNumber(c.loaded.products)} products, ${fmtNumber(c.loaded.items)} items`
+                        : html`<span class="muted">Loads the first time someone opens the Shop</span>`,
                 )}
-                ${c.last_refresh
-                    ? item(
-                          "Last refresh",
-                          c.last_refresh.ok
-                              ? html`<span class="badge ok">OK</span> <span class="muted">${fmtAgo(c.last_refresh.at)}</span>`
-                              : html`<span class="badge danger">Failed</span> <span class="muted">${fmtAgo(c.last_refresh.at)}</span>`,
-                      )
-                    : ""}
+                ${
+                    c.last_refresh
+                        ? item(
+                              "Last refresh",
+                              c.last_refresh.ok
+                                  ? html`<span class="badge ok">OK</span> <span class="muted">${fmtAgo(c.last_refresh.at)}</span>`
+                                  : html`<span class="badge danger">Failed</span> <span class="muted">${fmtAgo(c.last_refresh.at)}</span>`,
+                          )
+                        : ""
+                }
                 ${c.last_refresh?.error ? item("Problem", html`<span class="form-error">${c.last_refresh.error}</span>`) : ""}
             </div>
         `,
@@ -2939,7 +3720,10 @@ function renderCollectiblesStatus(c) {
     $("#collectibles-refresh", el).addEventListener("click", async (e) => {
         const next = await act(e.currentTarget, () => api("/admin/system/collectibles/refresh", { method: "POST" }));
         if (!next) return;
-        toast(next.last_refresh?.ok ? `Catalogue refreshed: ${fmtNumber(next.last_refresh.products)} products` : "Couldn't refresh the catalogue", next.last_refresh?.ok ? "ok" : "error");
+        toast(
+            next.last_refresh?.ok ? `Catalogue refreshed: ${fmtNumber(next.last_refresh.products)} products` : "Couldn't refresh the catalogue",
+            next.last_refresh?.ok ? "ok" : "error",
+        );
         renderCollectiblesStatus(next);
     });
 }
@@ -2980,21 +3764,25 @@ async function renderStatus(view) {
                         <h2>Components</h2>
                     </div>
                     <div class="list" id="component-list">
-                        ${components.length
-                            ? components.map(
-                                  (c) => html`
-                                      <div class="list-item" data-component="${c.id}">
-                                          <div class="grow">
-                                              <strong>${c.name}</strong>
-                                              ${c.description ? html`<div class="muted">${c.description}</div>` : ""}
+                        ${
+                            components.length
+                                ? components.map(
+                                      (c) => html`
+                                          <div class="list-item" data-component="${c.id}">
+                                              <div class="grow">
+                                                  <strong>${c.name}</strong>
+                                                  ${c.description ? html`<div class="muted">${c.description}</div>` : ""}
+                                              </div>
+                                              <select data-status style="width:auto">
+                                                  ${options(COMPONENT_STATUSES, c.status)}
+                                              </select>
+                                              <button class="btn small ghost" data-edit type="button">Edit</button>
+                                              <button class="btn small ghost" data-delete type="button" aria-label="Delete ${c.name}">Delete</button>
                                           </div>
-                                          <select data-status style="width:auto">${options(COMPONENT_STATUSES, c.status)}</select>
-                                          <button class="btn small ghost" data-edit type="button">Edit</button>
-                                          <button class="btn small ghost" data-delete type="button" aria-label="Delete ${c.name}">Delete</button>
-                                      </div>
-                                  `,
-                              )
-                            : html`<p class="muted">No components yet. Add the parts of your service people care about, like "API", "Gateway" or "Media".</p>`}
+                                      `,
+                                  )
+                                : html`<p class="muted">No components yet. Add the parts of your service people care about, like "API", "Gateway" or "Media".</p>`
+                        }
                     </div>
                     <form id="component-add" class="row" style="margin-top:12px">
                         <input name="name" placeholder="Component name, e.g. Gateway" required maxlength="100" class="grow" style="min-width:180px" />
@@ -3036,7 +3824,11 @@ async function renderStatus(view) {
         const id = row.dataset.component;
         const component = components.find((c) => c.id === id);
         $("[data-status]", row).addEventListener("change", async (e) => {
-            const done = await act(e.target, () => api(`/admin/status/components/${id}`, { method: "PATCH", body: { status: e.target.value } }), `${component.name}: ${componentStatus(e.target.value)[1]}`);
+            const done = await act(
+                e.target,
+                () => api(`/admin/status/components/${id}`, { method: "PATCH", body: { status: e.target.value } }),
+                `${component.name}: ${componentStatus(e.target.value)[1]}`,
+            );
             if (done) refresh();
         });
         $("[data-edit]", row).addEventListener("click", () => {
@@ -3049,12 +3841,17 @@ async function renderStatus(view) {
                     <div class="form-actions"><button class="btn primary" type="submit">Save component</button></div>
                 </form>`,
             );
+            if (!body) return;
             $("#component-edit", body).addEventListener("submit", async (ev) => {
                 ev.preventDefault();
                 const f = ev.currentTarget;
                 const done = await act(
                     $("button", f),
-                    () => api(`/admin/status/components/${id}`, { method: "PATCH", body: { name: f.name.value, description: f.description.value || null, position: Number(f.position.value) || 0 } }),
+                    () =>
+                        api(`/admin/status/components/${id}`, {
+                            method: "PATCH",
+                            body: { name: f.name.value, description: f.description.value || null, position: Number(f.position.value) || 0 },
+                        }),
                     "Component saved",
                 );
                 if (done) refresh();
@@ -3072,7 +3869,11 @@ async function renderStatus(view) {
         $("[data-update-form]", card)?.addEventListener("submit", async (e) => {
             e.preventDefault();
             const f = e.currentTarget;
-            const done = await act($("button[type=submit]", f), () => api(`/admin/status/incidents/${incident.id}/updates`, { method: "POST", body: { status: f.status.value, body: f.body.value } }), "Update posted");
+            const done = await act(
+                $("button[type=submit]", f),
+                () => api(`/admin/status/incidents/${incident.id}/updates`, { method: "POST", body: { status: f.status.value, body: f.body.value } }),
+                "Update posted",
+            );
             if (done) refresh();
         });
         $("[data-edit]", card)?.addEventListener("click", () => openIncidentForm(components, incident.impact === "maintenance", refresh, incident));
@@ -3094,33 +3895,37 @@ function incidentCard(i, isOpen) {
                 ${impactBadge(i)} ${stateBadge(i.status)}
             </div>
             <div class="muted">
-                ${isMaintenance && i.scheduled_for ? html`Window: ${fmtDate(i.scheduled_for)} → ${fmtDate(i.scheduled_until)} · ` : ""}Opened ${fmtDate(i.created_at)}${i.resolved_at
-                    ? html` · ${isMaintenance ? "Completed" : "Resolved"} ${fmtDate(i.resolved_at)}`
-                    : ""}
+                ${isMaintenance && i.scheduled_for ? html`Window: ${fmtDate(i.scheduled_for)} → ${fmtDate(i.scheduled_until)} · ` : ""}Opened
+                ${fmtDate(i.created_at)}${i.resolved_at ? html` · ${isMaintenance ? "Completed" : "Resolved"} ${fmtDate(i.resolved_at)}` : ""}
             </div>
             ${i.components.length ? html`<div class="badges">${i.components.map((c) => html`<span class="badge">${c.name}</span>`)}</div>` : ""}
             <div class="timeline">
                 ${i.incident_updates.map(
-                    (u) => html`<div class="timeline-item">
-                        <div class="row"><strong>${stateLabel(u.status)}</strong><span class="muted">${fmtDate(u.created_at)}</span></div>
-                        <p>${u.body}</p>
-                    </div>`,
+                    (u) =>
+                        html`<div class="timeline-item">
+                            <div class="row"><strong>${stateLabel(u.status)}</strong><span class="muted">${fmtDate(u.created_at)}</span></div>
+                            <p>${u.body}</p>
+                        </div>`,
                 )}
             </div>
-            ${isOpen
-                ? html`<form data-update-form class="stack">
-                      <div class="row">
-                          <select name="status" style="width:auto">${options(states, states[Math.min(states.findIndex(([k]) => k === i.status) + 1, states.length - 1)][0])}</select>
-                          <span class="muted">Posting an update moves the ${isMaintenance ? "maintenance" : "incident"} to this state.</span>
-                      </div>
-                      <textarea name="body" placeholder="What's the latest?" required></textarea>
-                      <div class="row" style="justify-content:flex-end">
-                          <button class="btn ghost small" data-edit type="button">Edit details</button>
-                          <button class="btn ghost small" data-delete type="button">Delete</button>
-                          <button class="btn primary small" type="submit">Post update</button>
-                      </div>
-                  </form>`
-                : html`<div class="row" style="justify-content:flex-end"><button class="btn ghost small" data-delete type="button">Delete</button></div>`}
+            ${
+                isOpen
+                    ? html`<form data-update-form class="stack">
+                          <div class="row">
+                              <select name="status" style="width:auto">
+                                  ${options(states, states[Math.min(states.findIndex(([k]) => k === i.status) + 1, states.length - 1)][0])}
+                              </select>
+                              <span class="muted">Posting an update moves the ${isMaintenance ? "maintenance" : "incident"} to this state.</span>
+                          </div>
+                          <textarea name="body" placeholder="What's the latest?" required></textarea>
+                          <div class="row" style="justify-content:flex-end">
+                              <button class="btn ghost small" data-edit type="button">Edit details</button>
+                              <button class="btn ghost small" data-delete type="button">Delete</button>
+                              <button class="btn primary small" type="submit">Post update</button>
+                          </div>
+                      </form>`
+                    : html`<div class="row" style="justify-content:flex-end"><button class="btn ghost small" data-delete type="button">Delete</button></div>`
+            }
         </div>
     `;
 }
@@ -3132,46 +3937,77 @@ function openIncidentForm(components, isMaintenance, refresh, existing) {
         title,
         html`
             <form id="incident-form" class="stack">
-                <label>Title<input name="name" required maxlength="200" value="${existing?.name ?? ""}" placeholder="${isMaintenance ? "Database upgrade" : "Messages failing to send"}" /></label>
-                ${isMaintenance
-                    ? html`<div class="form-grid">
-                          <label>Starts<input name="scheduled_for" type="datetime-local" required value="${toLocalInput(existing?.scheduled_for)}" /></label>
-                          <label>Ends<input name="scheduled_until" type="datetime-local" required value="${toLocalInput(existing?.scheduled_until)}" /></label>
-                      </div>`
-                    : html`<label>Impact<select name="impact">${options(IMPACTS, existing?.impact ?? "minor")}</select></label>`}
-                ${!editing
-                    ? html`<label
-                              >Status<select name="status">
-                                  ${options(isMaintenance ? MAINTENANCE_STATES.filter(([k]) => k !== "completed") : INCIDENT_STATES.filter(([k]) => k !== "resolved"), isMaintenance ? "scheduled" : "investigating")}
-                              </select></label
-                          >
-                          <label>Message<span class="hint">The first entry in the public timeline.</span><textarea name="body" required placeholder="${isMaintenance ? "We'll be upgrading…" : "We're looking into reports of…"}"></textarea></label>`
-                    : ""}
-                <div class="stack">
-                    <h3>Affected components</h3>
-                    ${components.length
-                        ? html`<div class="checks">
-                              ${components.map(
-                                  (c) => html`<label class="toggle"><input type="checkbox" name="component" value="${c.id}" ${existing?.components.some((x) => x.id === c.id) ? raw("checked") : ""} /><span>${c.name}</span></label>`,
-                              )}
+                <label
+                    >Title<input
+                        name="name"
+                        required
+                        maxlength="200"
+                        value="${existing?.name ?? ""}"
+                        placeholder="${isMaintenance ? "Database upgrade" : "Messages failing to send"}"
+                /></label>
+                ${
+                    isMaintenance
+                        ? html`<div class="form-grid">
+                              <label>Starts<input name="scheduled_for" type="datetime-local" required value="${toLocalInput(existing?.scheduled_for)}" /></label>
+                              <label>Ends<input name="scheduled_until" type="datetime-local" required value="${toLocalInput(existing?.scheduled_until)}" /></label>
                           </div>`
-                        : html`<p class="muted">No components yet. Add some on the status page tab.</p>`}
-                    ${!editing && !isMaintenance && components.length
-                        ? html`<label
-                              >Set affected components to<select name="component_status">
-                                  ${options(
-                                      COMPONENT_STATUSES.filter(([k]) => k !== "operational" && k !== "under_maintenance"),
-                                      "partial_outage",
-                                  )}
+                        : html`<label
+                              >Impact<select name="impact">
+                                  ${options(IMPACTS, existing?.impact ?? "minor")}
                               </select></label
                           >`
-                        : ""}
+                }
+                ${
+                    !editing
+                        ? html`<label
+                                  >Status<select name="status">
+                                      ${options(isMaintenance ? MAINTENANCE_STATES.filter(([k]) => k !== "completed") : INCIDENT_STATES.filter(([k]) => k !== "resolved"), isMaintenance ? "scheduled" : "investigating")}
+                                  </select></label
+                              >
+                              <label
+                                  >Message<span class="hint">The first entry in the public timeline.</span
+                                  ><textarea name="body" required placeholder="${isMaintenance ? "We'll be upgrading…" : "We're looking into reports of…"}"></textarea>
+                              </label>`
+                        : ""
+                }
+                <div class="stack">
+                    <h3>Affected components</h3>
+                    ${
+                        components.length
+                            ? html`<div class="checks">
+                                  ${components.map(
+                                      (c) =>
+                                          html`<label class="toggle"
+                                              ><input
+                                                  type="checkbox"
+                                                  name="component"
+                                                  value="${c.id}"
+                                                  ${existing?.components.some((x) => x.id === c.id) ? raw("checked") : ""}
+                                              /><span>${c.name}</span></label
+                                          >`,
+                                  )}
+                              </div>`
+                            : html`<p class="muted">No components yet. Add some on the status page tab.</p>`
+                    }
+                    ${
+                        !editing && !isMaintenance && components.length
+                            ? html`<label
+                                  >Set affected components to<select name="component_status">
+                                      ${options(
+                                          COMPONENT_STATUSES.filter(([k]) => k !== "operational" && k !== "under_maintenance"),
+                                          "partial_outage",
+                                      )}
+                                  </select></label
+                              >`
+                            : ""
+                    }
                     ${isMaintenance && !editing ? html`<p class="muted">Components switch to "Under maintenance" when you mark the maintenance in progress.</p>` : ""}
                 </div>
                 <div class="form-actions"><button class="btn primary" type="submit">${editing ? "Save changes" : isMaintenance ? "Schedule" : "Publish incident"}</button></div>
             </form>
         `,
     );
+    if (!body) return;
 
     $("#incident-form", body).addEventListener("submit", async (e) => {
         e.preventDefault();
@@ -3189,7 +4025,11 @@ function openIncidentForm(components, isMaintenance, refresh, existing) {
         else {
             Object.assign(payload, { status: f.status.value, body: f.body.value, impact: isMaintenance ? "maintenance" : payload.impact });
             if (f.component_status && component_ids.length) payload.component_status = f.component_status.value;
-            done = await act($("button[type=submit]", f), () => api("/admin/status/incidents", { method: "POST", body: payload }), isMaintenance ? "Maintenance scheduled" : "Incident published");
+            done = await act(
+                $("button[type=submit]", f),
+                () => api("/admin/status/incidents", { method: "POST", body: payload }),
+                isMaintenance ? "Maintenance scheduled" : "Incident published",
+            );
         }
         if (done) {
             closeDrawer();
@@ -3199,3 +4039,153 @@ function openIncidentForm(components, isMaintenance, refresh, existing) {
 }
 
 boot();
+
+async function renderPerformance(view) {
+    const data = await api("/admin/system/performance");
+    const bytes = (n) => `${(Number(n) / 1048576).toFixed(1)} MB`;
+    const ms = (n) => `${Number(n).toFixed(1)} ms`;
+    mount(
+        view,
+        html` <div class="page-head">
+                <div>
+                    <h1>Performance</h1>
+                    <p class="muted">${data.scope}. Sampled ${fmtDate(data.sampled_at)}.</p>
+                </div>
+                <button class="btn" id="performance-refresh" type="button">Refresh measurements</button>
+            </div>
+            <div class="stack">
+                <div class="stats">
+                    <div class="card stat">
+                        <span class="muted">Requests</span>
+                        <div class="value">${fmtNumber(data.requests)}</div>
+                    </div>
+                    <div class="card stat">
+                        <span class="muted">Server errors</span>
+                        <div class="value">${fmtNumber(data.errors)}</div>
+                    </div>
+                    <div class="card stat">
+                        <span class="muted">Rate limited</span>
+                        <div class="value">${fmtNumber(data.rate_limited)}</div>
+                    </div>
+                    <div class="card stat">
+                        <span class="muted">Process memory</span>
+                        <div class="value">${bytes(data.memory.rss)}</div>
+                    </div>
+                </div>
+                <div class="card">
+                    <h2>Runtime health</h2>
+                    <div class="list">
+                        ${item("Database", data.database.connected ? html`<span class="badge ok">Connected · ${ms(data.database.round_trip_ms)}</span>` : html`<span class="badge danger">Unavailable</span>`)}
+                        ${item("Node.js", data.node)}${item("Uptime", fmtDuration(data.uptime_seconds))}
+                        ${item("Heap used / allocated", `${bytes(data.memory.heapUsed)} / ${bytes(data.memory.heapTotal)}`)}
+                        ${item("Event loop delay, p95 / p99", `${ms(data.event_loop.p95_ms)} / ${ms(data.event_loop.p99_ms)}`)}
+                        ${item("Maximum event loop delay", ms(data.event_loop.max_ms))}
+                    </div>
+                    <p class="muted">Event loop sampling uses a 20 ms interval. Timings include authentication and database work.</p>
+                </div>
+                <div class="card">
+                    <h2>Slowest routes</h2>
+                    <p class="muted">Average completed request time since startup. Use the load benchmark for p50, p95 and p99 under concurrency.</p>
+                    <div class="table-wrap performance-routes">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Route</th>
+                                    <th>Requests</th>
+                                    <th>Mean</th>
+                                    <th>Server errors</th>
+                                    <th>Rate limited</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${data.routes.map(
+                                    (row) =>
+                                        html`<tr>
+                                            <td>${row.method} ${row.path}</td>
+                                            <td>${fmtNumber(row.requests)}</td>
+                                            <td>${ms(row.mean_ms)}</td>
+                                            <td>${fmtNumber(row.errors)}</td>
+                                            <td>${fmtNumber(row.limited)}</td>
+                                        </tr>`,
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                    ${data.routes.length ? "" : html`<p class="muted">No completed requests yet. Refresh after using the app.</p>`}
+                </div>
+            </div>`,
+    );
+    $("#performance-refresh", view).addEventListener("click", (e) => act(e.currentTarget, () => renderPerformance(view)));
+}
+
+function openAdminChannel(guildId, channel, channels) {
+    const body = openDrawer(
+        `Edit ${channel.name}`,
+        html`<form class="stack" id="admin-channel-form">
+            <label>Name<input name="name" value="${channel.name}" required maxlength="100" /></label>
+            <label>Topic<textarea name="topic" maxlength="4096">${channel.topic ?? ""}</textarea></label>
+            <label
+                >Category<select name="parent_id">
+                    ${options([["", "No category"], ...channels.filter((item) => item.type === 4 && item.id !== channel.id).map((item) => [item.id, item.name])], channel.parent_id ?? "")}
+                </select></label
+            >
+            <label>Slowmode in seconds<input name="rate_limit_per_user" type="number" min="0" max="21600" step="1" value="${channel.rate_limit_per_user ?? 0}" /></label>
+            <label class="toggle"><input name="nsfw" type="checkbox" ${channel.nsfw ? raw("checked") : ""} /><span>Age restricted channel</span></label>
+            <div class="form-actions">
+                <button class="btn primary" type="submit">Save channel</button><button class="btn" type="button" data-return-server>Back to server</button>
+            </div>
+        </form>`,
+    );
+    if (!body) return;
+    $("[data-return-server]", body).addEventListener("click", () => openGuild(guildId));
+    $("form", body).addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const form = event.currentTarget;
+        const patch = {
+            name: form.name.value,
+            topic: form.topic.value || null,
+            parent_id: form.parent_id.value || null,
+            rate_limit_per_user: Number(form.rate_limit_per_user.value),
+            nsfw: form.nsfw.checked,
+        };
+        const result = await act($("button[type=submit]", form), () => api(`/admin/guilds/${guildId}/channels/${channel.id}`, { method: "PATCH", body: patch }), "Channel saved");
+        if (result) openGuild(guildId);
+    });
+}
+function openAdminRole(guildId, role, permissions) {
+    const body = openDrawer(
+        `Edit ${role.name}`,
+        html`<form class="stack" id="admin-role-form">
+            <label>Name<input name="name" value="${role.name}" required maxlength="100" /></label>
+            <label>Color<input name="color" type="color" value="${hexColor(role.color)}" /></label>
+            <label class="toggle"><input name="hoist" type="checkbox" ${role.hoist ? raw("checked") : ""} /><span>Display members separately</span></label>
+            <label class="toggle"><input name="mentionable" type="checkbox" ${role.mentionable ? raw("checked") : ""} /><span>Allow anyone to mention this role</span></label>
+            <h3>Permissions</h3>
+            <p class="muted">Administrator grants every server permission. Existing unknown permissions are preserved.</p>
+            <div class="checks">
+                ${permissions.map((permission) => html`<label class="toggle"><input type="checkbox" data-permission="${permission.value}" ${(BigInt(role.permissions) & BigInt(permission.value)) === BigInt(permission.value) ? raw("checked") : ""} /><span>${permission.name.toLowerCase().replaceAll("_", " ")}</span></label>`)}
+            </div>
+            <div class="form-actions"><button class="btn primary" type="submit">Save role</button><button class="btn" type="button" data-return-server>Back to server</button></div>
+        </form>`,
+    );
+    if (!body) return;
+    $("[data-return-server]", body).addEventListener("click", () => openGuild(guildId));
+    $("form", body).addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const form = event.currentTarget;
+        let bits = BigInt(role.permissions);
+        for (const checkbox of $$("[data-permission]", form)) {
+            const bit = BigInt(checkbox.dataset.permission);
+            bits = checkbox.checked ? bits | bit : bits & ~bit;
+        }
+        const patch = {
+            name: form.name.value,
+            color: parseInt(form.color.value.slice(1), 16),
+            hoist: form.hoist.checked,
+            mentionable: form.mentionable.checked,
+            permissions: bits.toString(),
+        };
+        const result = await act($("button[type=submit]", form), () => api(`/admin/guilds/${guildId}/roles/${role.id}`, { method: "PATCH", body: patch }), "Role saved");
+        if (result) openGuild(guildId);
+    });
+}

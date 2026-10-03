@@ -144,6 +144,7 @@ router.delete(
                         emitEvent({
                             event: "CHANNEL_UPDATE",
                             data: c.toJSON(),
+                            guild_id: c.guild_id ?? undefined,
                             channel_id: c.id,
                         } satisfies ChannelUpdateEvent),
                     ]);
@@ -164,6 +165,7 @@ router.delete(
             await emitEvent({
                 event: "CHANNEL_DELETE",
                 data: channel.toJSON(),
+                guild_id: channel.guild_id ?? undefined,
                 channel_id,
             } satisfies ChannelDeleteEvent);
         }
@@ -384,6 +386,7 @@ router.patch(
         await emitEvent({
             event: "CHANNEL_UPDATE",
             data: channel.toJSON(),
+            guild_id: channel.guild_id ?? undefined,
             channel_id,
         } satisfies ChannelUpdateEvent);
 

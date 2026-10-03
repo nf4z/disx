@@ -327,6 +327,7 @@ export class Message extends BaseClass {
                 where: {
                     id: In([...neededIds]),
                 },
+                relationLoadStrategy: "query",
                 relations: { author: true, mentions: true, mention_roles: true, mention_channels: true },
             });
             newMessages.forEach((msg) => curMs.set(msg.id, msg));

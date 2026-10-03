@@ -24,7 +24,7 @@ import jwt from "jsonwebtoken";
 import { HTTPError } from "lambert-server/HTTPError";
 import { MoreThan } from "typeorm";
 import { InstanceBan, OAuth2Token, Session, User } from "@spacebar/database";
-import { Random, sleep, Stopwatch, TimeSpan } from "@spacebar/extensions";
+import { Random, sleep, Stopwatch } from "@spacebar/extensions";
 import { Config } from "./Config";
 import { OrmUtils } from "@spacebar/util";
 import { clearInterval, setInterval } from "node:timers";
@@ -49,6 +49,8 @@ export type UserTokenData = {
         did?: string;
         // OAuth scopes
         scopes?: string[];
+        exp?: number;
+        nbf?: number;
     };
     oauth2?: { token_id: string; application_id: string; scopes: string[]; expires_at: Date };
 };
@@ -81,7 +83,7 @@ export const checkToken = (
 
         let legacyVersion: number | undefined = undefined;
 
-        const validateUser: jwt.VerifyCallback = async (err, out) => {
+        const validateUser = async (err: jwt.VerifyErrors | null, out: jwt.JwtPayload | string | undefined) => {
             const decoded = out as UserTokenData["decoded"] & { typ?: unknown };
             if (!err && (typeof decoded?.id !== "string" || decoded.typ !== undefined)) err = new jwt.JsonWebTokenError("not a user token");
             if (err || !decoded) {
@@ -134,14 +136,16 @@ export const checkToken = (
                 return rejectAndLog(reject, 418, "Invalid Token");
             }
 
-            if (session && TimeSpan.fromDates(session.last_seen?.getTime() ?? 0, new Date().getTime()).totalSeconds >= 15) {
-                session.last_seen = new Date();
-                let updateIpInfoPromise;
-                if (opts?.ipAddress && opts?.ipAddress !== session.last_seen_ip) {
-                    session.last_seen_ip = opts.ipAddress;
-                    updateIpInfoPromise = session.updateIpInfo();
-                }
-                await Promise.all([session.save(), updateIpInfoPromise]);
+            const now = new Date();
+            if (session && (session.last_seen?.getTime() ?? 0) <= now.getTime() - 15_000) {
+                const activity = { last_seen: now, ...(opts?.ipAddress ? { last_seen_ip: opts.ipAddress } : {}) };
+                await Session.createQueryBuilder()
+                    .update(Session)
+                    .set(activity)
+                    .where("session_id = :sessionId AND user_id = :userId", { sessionId: session.session_id, userId: user.id })
+                    .andWhere("(last_seen IS NULL OR last_seen <= :cutoff)", { cutoff: new Date(now.getTime() - 15_000) })
+                    .execute();
+                Object.assign(session, activity);
             }
 
             const result: UserTokenData = {
@@ -154,7 +158,7 @@ export const checkToken = (
 
             if (process.env.LOG_TOKEN_VERSION) console.log("User", user.id, "logged in with token version", result.tokenVersion);
 
-            logAuth("validateUser success: " + JSON.stringify(result));
+            logAuth("validateUser success for user " + user.id);
             return resolve(result);
         };
 
@@ -166,7 +170,7 @@ export const checkToken = (
             }
         })();
         if (!dec) return void rejectAndLog(reject, 401, "Failed to decode token");
-        logAuth("Decoded token: " + JSON.stringify(dec));
+        logAuth("Decoded token header using " + dec.header.alg);
 
         let key: string | Buffer | KeyObject;
         if (dec.header.alg == "HS256" && dec.header.kid === "c") key = compactTokenSecret();
@@ -177,13 +181,20 @@ export const checkToken = (
         else return void rejectAndLog(reject, 401, "Unsupported token algorithm: " + dec.header.alg);
 
         const verified = verifiedTokens.get(token);
-        if (verified?.key === key) return void validateUser(null, verified.decoded);
+        const nowSeconds = Math.floor(Date.now() / 1000);
+        if (
+            verified?.key === key &&
+            (verified.decoded.exp === undefined || nowSeconds < verified.decoded.exp) &&
+            (verified.decoded.nbf === undefined || nowSeconds >= verified.decoded.nbf)
+        )
+            return void validateUser(null, verified.decoded).catch(reject);
+        verifiedTokens.delete(token);
         jwt.verify(token, key, { algorithms: [dec.header.alg] }, (err, out) => {
             if (!err && out && typeof out === "object") {
                 if (verifiedTokens.size >= VERIFIED_TOKEN_CACHE_SIZE) verifiedTokens.delete(verifiedTokens.keys().next().value!);
                 verifiedTokens.set(token, { key, decoded: out as UserTokenData["decoded"] });
             }
-            return validateUser(err, out);
+            void validateUser(err, out).catch(reject);
         });
     });
 
@@ -210,12 +221,20 @@ export async function checkOAuth2Token(authorization: string, opts?: { ipAddress
     };
 }
 
-const compactTokenSecret = () =>
-    crypto
-        .createHash("sha256")
-        .update("compact-token")
-        .update(JwtKeypairManager.keypair.privateKey.export({ format: "pem", type: "sec1" }))
-        .digest();
+let compactSecretKeypair: KeyObject | undefined;
+let compactSecret: Buffer;
+const compactTokenSecret = () => {
+    const privateKey = JwtKeypairManager.keypair.privateKey;
+    if (compactSecretKeypair !== privateKey) {
+        compactSecret = crypto
+            .createHash("sha256")
+            .update("compact-token")
+            .update(privateKey.export({ format: "pem", type: "sec1" }))
+            .digest();
+        compactSecretKeypair = privateKey;
+    }
+    return compactSecret;
+};
 
 export async function generateCompactToken(id: string): Promise<string> {
     const session = Session.create({

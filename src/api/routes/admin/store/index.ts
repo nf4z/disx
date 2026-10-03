@@ -20,7 +20,7 @@ import { Request, Response, Router } from "express";
 import { route } from "@spacebar/api/middlewares";
 import { StoreHiddenPack, StoreItem, StorePack } from "@spacebar/database";
 import { Collectibles, CollectibleItemType } from "@spacebar/util";
-import { EFFECT_HEIGHT, EFFECT_WIDTH, FRAME_INNER_WIDTH, FRAME_OVERFLOW_HORIZONTAL, NAMEPLATE_PALETTES, serializeStorePack } from "@spacebar/api/util";
+import { EFFECT_HEIGHT, EFFECT_WIDTH, FRAME_INNER_WIDTH, FRAME_OVERFLOW_HORIZONTAL, NAMEPLATE_PALETTES, groupStoreItems, serializeStorePack } from "@spacebar/api/util";
 
 const router = Router({ mergeParams: true });
 
@@ -31,9 +31,10 @@ router.get(
     route({ right: "OPERATOR", spacebarOnly: true, description: "The store's own packs and items, and the mirrored discord packs with whether each is in the shop" }),
     async (req: Request, res: Response) => {
         const [packs, items, hidden, builtin] = await Promise.all([StorePack.find(), StoreItem.find(), StoreHiddenPack.find(), Collectibles.builtinCategories()]);
+        const grouped = groupStoreItems(items);
         const hiddenSkus = new Set(hidden.map((x) => x.sku_id));
         res.json({
-            packs: packs.sort((a, b) => a.position - b.position || +a.created_at - +b.created_at).map((pack) => serializeStorePack(pack, items)),
+            packs: packs.sort((a, b) => a.position - b.position || +a.created_at - +b.created_at).map((pack) => serializeStorePack(pack, grouped)),
             builtin: builtin
                 .filter((category) => category.products.length)
                 .map((category) => ({

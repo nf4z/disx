@@ -1,0 +1,29 @@
+/** Runtime network policy. Local files, database records and cached assets remain usable. */
+export class ExternalRequestConfiguration {
+    discordDecorations: boolean = true;
+    discordAssetFallback: boolean = false;
+    discordClientAssets: boolean = false;
+    discordGames: boolean = false;
+    discordTemplates: boolean = false;
+    discordStickerPacks: boolean = false;
+    discordBadDomains: boolean = false;
+    thirdParty: boolean = false;
+}
+
+/** Only Discord's existing decoration art is exempt from the local-first default. */
+export function isDiscordDecorationAsset(pathname: string): boolean {
+    return ["/avatar-decoration-presets/", "/assets/collectibles/", "/assets/profile_effects/", "/media/v1/collectibles-shop/"].some(
+        (prefix) => pathname.startsWith(prefix) && pathname.length > prefix.length,
+    );
+}
+
+export function allowsCdnUpstream(policy: ExternalRequestConfiguration, raw: string): boolean {
+    try {
+        const url = new URL(raw);
+        if (url.protocol !== "https:" || url.username || url.password || url.port || /%2f|%5c/i.test(url.pathname)) return false;
+        if (url.hostname !== "cdn.discordapp.com") return policy.thirdParty;
+        return isDiscordDecorationAsset(url.pathname) ? policy.discordDecorations : policy.discordAssetFallback;
+    } catch {
+        return false;
+    }
+}

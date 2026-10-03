@@ -27,7 +27,7 @@ const router = Router({ mergeParams: true });
 const pickRate = ({ count, window }: { count: number; window: number }) => ({ count, window });
 
 const pickSettings = () => {
-    const { general, client, register, login, passwordReset, security, limits } = Config.get();
+    const { general, client, register, login, passwordReset, security, limits, guild, externalRequests } = Config.get();
     const { captcha } = security;
     return {
         general: {
@@ -84,7 +84,10 @@ const pickSettings = () => {
             login: pickRate(limits.rate.routes.auth.login),
             register: pickRate(limits.rate.routes.auth.register),
         },
+        externalRequests: { ...externalRequests },
         e2ee: { ...limits.e2ee },
+        limits: { user: { ...limits.user }, guild: { ...limits.guild }, message: { ...limits.message }, channel: { ...limits.channel } },
+        guild: { defaultFeatures: guild.defaultFeatures, publicThreadsInvitable: guild.publicThreadsInvitable },
     };
 };
 
@@ -138,14 +141,21 @@ router.patch(
         const { blacklistedUsernames, ...register } = body.register ?? {};
         if (blacklistedUsernames) Config.get().register.blacklistedUsernames = [...new Set(blacklistedUsernames.map((name) => name.trim().toLowerCase()).filter(Boolean))];
 
+        if (body.guild?.defaultFeatures) Config.get().guild.defaultFeatures = [...new Set(body.guild.defaultFeatures.map((value) => value.trim().toUpperCase()).filter(Boolean))];
         await Config.set({
             general,
             client,
+            externalRequests: body.externalRequests ?? {},
+            guild: body.guild?.publicThreadsInvitable === undefined ? {} : { publicThreadsInvitable: body.guild.publicThreadsInvitable },
             register,
             login: body.login ?? {},
             passwordReset: body.passwordReset ?? {},
             security: { captcha },
-            limits: { rate: { ...rate, routes: { auth: { ...(login ? { login } : {}), ...(registerRate ? { register: registerRate } : {}) } } }, e2ee: body.e2ee ?? {} },
+            limits: {
+                ...body.limits,
+                rate: { ...rate, routes: { auth: { ...(login ? { login } : {}), ...(registerRate ? { register: registerRate } : {}) } } },
+                e2ee: body.e2ee ?? {},
+            },
         } as unknown as Parameters<typeof Config.set>[0]);
         res.json(pickSettings());
     },

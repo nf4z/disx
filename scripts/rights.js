@@ -20,7 +20,7 @@
 	Calculates a discord.com-like rights value.
 */
 
-require("module-alias/register");
+require("./register-paths.cjs");
 const { Rights } = require("..");
 
 const allRights = new Rights(1).bitfield;

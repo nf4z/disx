@@ -25,7 +25,7 @@
 	it doesn't break the below, thus we're left with this :sob:
 */
 
-require("module-alias/register");
+require("./register-paths.cjs");
 require("dotenv").config({ quiet: true });
 const { initDatabase } = require("..");
 

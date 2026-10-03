@@ -39,13 +39,16 @@ const DISCORD_TEMPLATE_TTL = 10 * 60 * 1000;
 
 async function fetchDiscordTemplate(code: string): Promise<Template> {
     const cached = discordTemplates.get(code);
-    if (cached && Date.now() - cached.at < DISCORD_TEMPLATE_TTL) return cached.template;
+    const allowRemote = Config.get().externalRequests.discordTemplates;
+    if (cached && (!allowRemote || Date.now() - cached.at < DISCORD_TEMPLATE_TTL)) return cached.template;
+    if (!allowRemote) throw DiscordApiErrors.UNKNOWN_GUILD_TEMPLATE;
 
     let response: Response;
     try {
         response = await fetch(`https://discord.com/api/v9/guilds/templates/${encodeURIComponent(code)}`, {
             headers: { Accept: "application/json" },
             signal: AbortSignal.timeout(10000),
+            redirect: "error",
         });
     } catch {
         throw new HTTPError("Couldn't reach Discord to load this template. Try again in a bit.", 502);

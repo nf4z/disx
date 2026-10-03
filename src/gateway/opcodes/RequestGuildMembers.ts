@@ -16,7 +16,7 @@
 	along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-import { FindManyOptions, ILike, In } from "typeorm";
+import { In } from "typeorm";
 import { getDatabase, Member } from "@spacebar/database";
 import { WebSocket, Payload, OPCODES, Send, handleOffloadedGatewayRequest } from "@spacebar/gateway";
 import { PublicUser, RequestGuildMembersSchema } from "@spacebar/schemas";
@@ -80,87 +80,44 @@ export async function onRequestGuildMembers(this: WebSocket, { d }: Payload) {
         this.fullMemberRequests[guild_id] = now;
     }
 
-    const memberCount = await Member.count({
-        where: {
-            guild_id,
-        },
-    });
+    const db = getDatabase();
+    if (!db) throw new Error("Database not initialized");
 
-    const memberFind: FindManyOptions = {
-        where: {
-            guild_id,
-        },
-        relations: { user: true, roles: true },
-    };
-    if (limit) memberFind.take = Math.abs(Number(limit || 100));
-
-    let members: Member[] = [];
-
-    if (memberCount > 75000) {
-        // since we dont have voice channels yet, just return the connecting users member object
-        members = await Member.find({
-            ...memberFind,
-            where: {
-                ...memberFind.where,
-                user: {
-                    id: this.user_id,
-                },
-            },
+    const selection = db.getRepository(Member).createQueryBuilder("member").where("member.guild_id = :guild_id", { guild_id });
+    if (query) {
+        selection.leftJoin("member.user", "user").andWhere("(user.username ILIKE :query OR user.global_name ILIKE :query OR member.nick ILIKE :query)", {
+            query: `${query}%`,
         });
-    } else if (memberCount > this.large_threshold) {
-        // find all members who are online, have a role, have a nickname, or are in a voice channel, as well as respecting the query and user_ids
-        const db = getDatabase();
-        if (!db) throw new Error("Database not initialized");
-        const repo = db.getRepository(Member);
-        const q = repo
-            .createQueryBuilder("member")
-            .where("member.guild_id = :guild_id", { guild_id })
-            .leftJoinAndSelect("member.roles", "role")
-            .leftJoinAndSelect("member.user", "user")
-            .leftJoinAndSelect("user.sessions", "session")
-            .andWhere("',' || member.roles || ',' NOT LIKE :everyoneRoleIdList", { everyoneRoleIdList: "%," + guild_id + ",%" })
-            .addOrderBy("user.username", "ASC")
-            .limit(memberFind.take);
-
-        if (query && query != "") {
-            q.andWhere(`user.username ILIKE :query`, {
-                query: `${query}%`,
-            });
-        } else if (user_ids) {
-            q.andWhere(`user.id IN (:...user_ids)`, { user_ids });
-        }
-
-        members = await q.getMany();
-    } else {
-        if (query) {
-            memberFind.where = [
-                { guild_id, user: { username: ILike(`${query}%`) } },
-                { guild_id, user: { global_name: ILike(`${query}%`) } },
-                { guild_id, nick: ILike(`${query}%`) },
-            ];
-        } else if (user_ids && user_ids.length > 0) {
-            // @ts-expect-error memberFind.where is still very much defined
-            memberFind.where.id = In(user_ids);
-        }
-
-        members = await Member.find(memberFind);
+    } else if (user_ids?.length) {
+        selection.andWhere("member.id IN (:...user_ids)", { user_ids });
     }
+
+    const memberCount = await selection.getCount();
+    const memberResultCount = limit ? Math.min(memberCount, Math.abs(Number(limit))) : memberCount;
 
     const baseData = {
         guild_id,
         nonce,
     };
 
-    const memberResultCount = members.length;
     const chunkSize = 1000;
-    const chunkCount = Math.ceil(members.length / chunkSize);
+    const chunkCount = Math.ceil(memberResultCount / chunkSize);
     let sentChunkCount = 0;
 
     let notFound: string[] = [];
-    if (user_ids && user_ids.length > 0) notFound = user_ids.filter((id) => !members.some((member) => member.id == id));
-
-    while (members.length > 0) {
-        const chunk: Member[] = members.splice(0, chunkSize);
+    let cursor: string | undefined;
+    let remaining = memberResultCount;
+    while (remaining > 0) {
+        const page = selection.clone().select("member.id", "id").orderBy("member.id", "ASC").limit(Math.min(chunkSize, remaining));
+        if (cursor) page.andWhere("member.id > :cursor", { cursor });
+        const ids = (await page.getRawMany<{ id: string }>()).map((row) => row.id);
+        if (!ids.length) break;
+        cursor = ids[ids.length - 1];
+        remaining -= ids.length;
+        const hydrated = await Member.find({ where: { guild_id, id: In(ids) }, relations: { user: true, roles: true } });
+        const byId = new Map(hydrated.map((member) => [member.id, member]));
+        const chunk = ids.map((id) => byId.get(id)).filter((member): member is Member => !!member);
+        if (user_ids?.length) notFound = user_ids.filter((id) => !byId.has(id));
 
         let presenceList: Presence[] = [];
         if (presences) {
@@ -200,7 +157,7 @@ export async function onRequestGuildMembers(this: WebSocket, { d }: Payload) {
                 presences: presences ? [] : undefined,
                 chunk_index: 0,
                 chunk_count: 1,
-                not_found: notFound,
+                not_found: user_ids?.length ? user_ids : notFound,
             } satisfies GuildMembersChunkEvent["data"],
         });
 

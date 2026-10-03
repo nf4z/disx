@@ -19,7 +19,7 @@
 import { HTTPError } from "lambert-server/HTTPError";
 import { Brackets, In } from "typeorm";
 import { Channel, Message, Recipient, ThreadMember } from "@spacebar/database";
-import { FieldErrors, getPermission } from "@spacebar/util";
+import { FieldErrors, getPermission, MessageFlags } from "@spacebar/util";
 import { MessageType } from "@spacebar/schemas";
 
 export type MessageSearchQuery = Record<string, unknown>;
@@ -70,7 +70,8 @@ export async function getSearchableChannels(userId: string, guildId: string | un
 export async function searchMessages(userId: string, channels: Channel[], query: MessageSearchQuery) {
     const limit = Number(query.limit ?? 25);
     if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new HTTPError("limit must be between 1 and 100", 422);
-    const offset = Math.max(0, Number(query.offset ?? 0) || 0);
+    const offset = Number(query.offset ?? 0);
+    if (!Number.isSafeInteger(offset) || offset < 0 || offset > 5000) throw new HTTPError("offset must be an integer between 0 and 5000", 422);
     const sortOrder = `${query.sort_order ?? "desc"}`.toLowerCase();
     if (sortOrder !== "desc" && sortOrder !== "asc") throw FieldErrors({ sort_order: { message: "Value must be one of ('desc', 'asc').", code: "BASE_TYPE_CHOICES" } });
 
@@ -81,7 +82,8 @@ export async function searchMessages(userId: string, channels: Channel[], query:
     const qb = Message.createQueryBuilder("m")
         .select("m.id", "id")
         .where("m.channel_id IN (:...channelIds)", { channelIds })
-        .andWhere("m.type IN (:...types)", { types: SEARCHABLE_TYPES });
+        .andWhere("m.type IN (:...types)", { types: SEARCHABLE_TYPES })
+        .andWhere("(m.flags & :ephemeral) != :ephemeral", { ephemeral: MessageFlags.FLAGS.EPHEMERAL });
 
     const words = `${query.content ?? ""}`
         .trim()
@@ -139,11 +141,13 @@ export async function searchMessages(userId: string, channels: Channel[], query:
     const found = ids.length
         ? await Message.find({
               where: { id: In(ids) },
+              relationLoadStrategy: "query",
               relations: { author: true, webhook: true, application: true, mentions: true, mention_roles: true, mention_channels: true, sticker_items: true, attachments: true },
           })
         : [];
     await Message.fillReplies(found);
-    const messages = ids.map((id) => found.find((message) => message.id === id)).filter((message): message is Message => !!message);
+    const byId = new Map(found.map((message) => [message.id, message]));
+    const messages = ids.map((id) => byId.get(id)).filter((message): message is Message => !!message);
     return { messages, total_results };
 }
 
@@ -159,8 +163,10 @@ export function searchResponse(userId: string, result: { messages: Message[]; to
 }
 
 export async function searchTabs(userId: string, channels: Channel[], body: { tabs?: Record<string, MessageSearchQuery>; include_nsfw?: boolean }) {
+    const entries = Object.entries(body.tabs ?? {});
+    if (entries.length > 10) throw new HTTPError("search must contain at most 10 tabs", 422);
     const tabs: Record<string, unknown> = {};
-    for (const [name, query] of Object.entries(body.tabs ?? {})) {
+    for (const [name, query] of entries) {
         const result = await searchMessages(userId, channels, { include_nsfw: body.include_nsfw, ...query });
         const response = searchResponse(userId, result);
         tabs[name] = { ...response, cursor: null };

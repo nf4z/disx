@@ -10060,6 +10060,54 @@
     "AdminSettingsUpdateSchema": {
         "type": "object",
         "properties": {
+            "externalRequests": {
+                "type": "object",
+                "properties": {
+                    "discordDecorations": {
+                        "type": "boolean"
+                    },
+                    "discordAssetFallback": {
+                        "type": "boolean"
+                    },
+                    "discordClientAssets": {
+                        "type": "boolean"
+                    },
+                    "discordGames": {
+                        "type": "boolean"
+                    },
+                    "discordTemplates": {
+                        "type": "boolean"
+                    },
+                    "discordStickerPacks": {
+                        "type": "boolean"
+                    },
+                    "discordBadDomains": {
+                        "type": "boolean"
+                    },
+                    "thirdParty": {
+                        "type": "boolean"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "limits": {
+                "$ref": "#/definitions/AdminResourceLimitsSchema"
+            },
+            "guild": {
+                "type": "object",
+                "properties": {
+                    "defaultFeatures": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "publicThreadsInvitable": {
+                        "type": "boolean"
+                    }
+                },
+                "additionalProperties": false
+            },
             "general": {
                 "type": "object",
                 "properties": {
@@ -10372,6 +10420,75 @@
     "AdminUserUpdateSchema": {
         "type": "object",
         "properties": {
+            "avatar_decoration_sku_id": {
+                "type": [
+                    "null",
+                    "string"
+                ]
+            },
+            "nameplate_sku_id": {
+                "type": [
+                    "null",
+                    "string"
+                ]
+            },
+            "collectibles_sku_ids": {
+                "anyOf": [
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "type": "null"
+                    }
+                ]
+            },
+            "username": {
+                "minLength": 2,
+                "maxLength": 32,
+                "type": "string"
+            },
+            "pronouns": {
+                "maxLength": 40,
+                "type": "string"
+            },
+            "avatar": {
+                "pattern": "^data:image/",
+                "type": [
+                    "null",
+                    "string"
+                ]
+            },
+            "banner": {
+                "pattern": "^data:image/",
+                "type": [
+                    "null",
+                    "string"
+                ]
+            },
+            "accent_color": {
+                "minimum": 0,
+                "maximum": 16777215,
+                "type": [
+                    "null",
+                    "integer"
+                ]
+            },
+            "theme_colors": {
+                "anyOf": [
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "type": "null"
+                    }
+                ]
+            },
             "global_name": {
                 "maxLength": 32,
                 "type": [
@@ -10582,6 +10699,70 @@
     "AdminGuildUpdateSchema": {
         "type": "object",
         "properties": {
+            "icon": {
+                "pattern": "^data:image/",
+                "type": [
+                    "null",
+                    "string"
+                ]
+            },
+            "banner": {
+                "pattern": "^data:image/",
+                "type": [
+                    "null",
+                    "string"
+                ]
+            },
+            "splash": {
+                "pattern": "^data:image/",
+                "type": [
+                    "null",
+                    "string"
+                ]
+            },
+            "discovery_splash": {
+                "pattern": "^data:image/",
+                "type": [
+                    "null",
+                    "string"
+                ]
+            },
+            "verification_level": {
+                "minimum": 0,
+                "maximum": 4,
+                "type": "integer"
+            },
+            "explicit_content_filter": {
+                "minimum": 0,
+                "maximum": 2,
+                "type": "integer"
+            },
+            "default_message_notifications": {
+                "minimum": 0,
+                "maximum": 1,
+                "type": "integer"
+            },
+            "premium_tier": {
+                "minimum": 0,
+                "maximum": 3,
+                "type": "integer"
+            },
+            "nsfw": {
+                "type": "boolean"
+            },
+            "preferred_locale": {
+                "type": "string"
+            },
+            "afk_timeout": {
+                "enum": [
+                    1800,
+                    300,
+                    3600,
+                    60,
+                    900
+                ],
+                "type": "number"
+            },
             "name": {
                 "minLength": 2,
                 "maxLength": 100,
@@ -11163,6 +11344,232 @@
         "additionalProperties": false,
         "$schema": "http://json-schema.org/draft-07/schema#"
     },
+    "AdminResourceLimitsSchema": {
+        "type": "object",
+        "properties": {
+            "user": {
+                "type": "object",
+                "properties": {
+                    "maxGuilds": {
+                        "minimum": 1,
+                        "maximum": 2147483647,
+                        "type": "integer"
+                    },
+                    "maxUsername": {
+                        "minimum": 1,
+                        "maximum": 2147483647,
+                        "type": "integer"
+                    },
+                    "maxFriends": {
+                        "minimum": 1,
+                        "maximum": 2147483647,
+                        "type": "integer"
+                    },
+                    "maxBio": {
+                        "minimum": 1,
+                        "maximum": 2147483647,
+                        "type": "integer"
+                    },
+                    "maxPronouns": {
+                        "minimum": 1,
+                        "maximum": 2147483647,
+                        "type": "integer"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "guild": {
+                "type": "object",
+                "properties": {
+                    "maxRoles": {
+                        "minimum": 1,
+                        "maximum": 2147483647,
+                        "type": "integer"
+                    },
+                    "maxEmojis": {
+                        "minimum": 1,
+                        "maximum": 2147483647,
+                        "type": "integer"
+                    },
+                    "maxStickers": {
+                        "minimum": 1,
+                        "maximum": 2147483647,
+                        "type": "integer"
+                    },
+                    "maxMembers": {
+                        "minimum": 1,
+                        "maximum": 2147483647,
+                        "type": "integer"
+                    },
+                    "maxChannels": {
+                        "minimum": 1,
+                        "maximum": 2147483647,
+                        "type": "integer"
+                    },
+                    "maxBulkBanUsers": {
+                        "minimum": 1,
+                        "maximum": 2147483647,
+                        "type": "integer"
+                    },
+                    "maxChannelsInCategory": {
+                        "minimum": 1,
+                        "maximum": 2147483647,
+                        "type": "integer"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "message": {
+                "type": "object",
+                "properties": {
+                    "maxCharacters": {
+                        "minimum": 1,
+                        "maximum": 2147483647,
+                        "type": "integer"
+                    },
+                    "maxTTSCharacters": {
+                        "minimum": 1,
+                        "maximum": 2147483647,
+                        "type": "integer"
+                    },
+                    "maxReactions": {
+                        "minimum": 1,
+                        "maximum": 2147483647,
+                        "type": "integer"
+                    },
+                    "maxAttachments": {
+                        "minimum": 1,
+                        "maximum": 2147483647,
+                        "type": "integer"
+                    },
+                    "maxAttachmentSize": {
+                        "minimum": 1,
+                        "maximum": 2147483647,
+                        "type": "integer"
+                    },
+                    "maxBulkDelete": {
+                        "minimum": 1,
+                        "maximum": 2147483647,
+                        "type": "integer"
+                    },
+                    "maxEmbedDownloadSize": {
+                        "minimum": 1,
+                        "maximum": 2147483647,
+                        "type": "integer"
+                    },
+                    "maxPreloadCount": {
+                        "minimum": 1,
+                        "maximum": 2147483647,
+                        "type": "integer"
+                    },
+                    "maxEmbeds": {
+                        "minimum": 1,
+                        "maximum": 2147483647,
+                        "type": "integer"
+                    },
+                    "maxEmbedCharacters": {
+                        "minimum": 1,
+                        "maximum": 2147483647,
+                        "type": "integer"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "channel": {
+                "type": "object",
+                "properties": {
+                    "maxPins": {
+                        "minimum": 1,
+                        "maximum": 2147483647,
+                        "type": "integer"
+                    },
+                    "maxTopic": {
+                        "minimum": 1,
+                        "maximum": 2147483647,
+                        "type": "integer"
+                    },
+                    "maxWebhooks": {
+                        "minimum": 1,
+                        "maximum": 2147483647,
+                        "type": "integer"
+                    },
+                    "maxName": {
+                        "minimum": 1,
+                        "maximum": 2147483647,
+                        "type": "integer"
+                    },
+                    "maxGroupDmRecipients": {
+                        "minimum": 1,
+                        "maximum": 2147483647,
+                        "type": "integer"
+                    }
+                },
+                "additionalProperties": false
+            }
+        },
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "AdminChannelUpdateSchema": {
+        "type": "object",
+        "properties": {
+            "name": {
+                "minLength": 1,
+                "maxLength": 100,
+                "type": "string"
+            },
+            "topic": {
+                "maxLength": 4096,
+                "type": [
+                    "null",
+                    "string"
+                ]
+            },
+            "nsfw": {
+                "type": "boolean"
+            },
+            "rate_limit_per_user": {
+                "minimum": 0,
+                "maximum": 21600,
+                "type": "integer"
+            },
+            "parent_id": {
+                "type": [
+                    "null",
+                    "string"
+                ]
+            }
+        },
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "AdminRoleUpdateSchema": {
+        "type": "object",
+        "properties": {
+            "name": {
+                "minLength": 1,
+                "maxLength": 100,
+                "type": "string"
+            },
+            "color": {
+                "minimum": 0,
+                "maximum": 16777215,
+                "type": "integer"
+            },
+            "permissions": {
+                "pattern": "^[0-9]{1,20}$",
+                "type": "string"
+            },
+            "hoist": {
+                "type": "boolean"
+            },
+            "mentionable": {
+                "type": "boolean"
+            }
+        },
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+    },
     "AttachmentListResponse": {
         "type": "object",
         "properties": {
@@ -11602,9 +12009,7 @@
                 "additionalProperties": false
             },
             "intents": {
-                "type": "number",
-                "properties": {},
-                "additionalProperties": false
+                "type": "bigint"
             },
             "presence": {
                 "$ref": "#/definitions/ActivitySchema"
@@ -11623,9 +12028,7 @@
                 "maxItems": 2,
                 "type": "array",
                 "items": {
-                    "type": "number",
-                    "properties": {},
-                    "additionalProperties": false
+                    "type": "bigint"
                 }
             },
             "guild_subscriptions": {

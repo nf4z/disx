@@ -162,18 +162,22 @@ export async function listenEvent(event: string, callback: (event: EventOpts) =>
         }
         return await listener.listen(event, callback);
     } else if (process.env.EVENT_TRANSMISSION === "process") {
+        let cancelled = false;
         const cancel = async () => {
+            if (cancelled) return;
+            cancelled = true;
             process.removeListener("message", listener);
-            process.setMaxListeners(process.getMaxListeners() - 1);
+            process.setMaxListeners(Math.max(0, process.getMaxListeners() - 1));
         };
 
-        const listener = (msg: ProcessEvent) => {
+        const listener = (message: unknown) => {
+            const msg = message as ProcessEvent;
             // eslint-disable-next-line @typescript-eslint/no-unused-expressions
-            msg.type === "event" && msg.id === event && callback({ ...msg.event, cancel });
+            msg?.type === "event" && msg.id === event && callback({ ...msg.event, cancel });
         };
 
         // TODO: assert the type is correct?
-        process.addListener("message", (msg) => listener(msg as ProcessEvent));
+        process.addListener("message", listener);
         process.setMaxListeners(process.getMaxListeners() + 1);
 
         return cancel;
@@ -190,9 +194,12 @@ export async function listenEvent(event: string, callback: (event: EventOpts) =>
         });
     } else {
         const listener = (opts: EventOpts) => callback({ ...opts, cancel });
+        let cancelled = false;
         const cancel = async () => {
+            if (cancelled) return;
+            cancelled = true;
             events.removeListener(event, listener);
-            events.setMaxListeners(events.getMaxListeners() - 1);
+            events.setMaxListeners(Math.max(0, events.getMaxListeners() - 1));
         };
         events.setMaxListeners(events.getMaxListeners() + 1);
         events.addListener(event, listener);

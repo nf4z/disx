@@ -16,7 +16,7 @@
 	along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-import { Connection } from "@spacebar/util";
+import { Config, Connection } from "@spacebar/util";
 import fs from "node:fs";
 import path from "node:path";
 import { ConnectionConfig } from "./ConnectionConfig";
@@ -24,7 +24,7 @@ import { ConnectionStore } from "./ConnectionStore";
 import { greenBright, redBright } from "picocolors";
 
 const root = path.join(__dirname, "..", "..", "connections");
-const connectionsLoaded = false;
+let connectionsLoaded = false;
 
 export class ConnectionLoader {
     public static async loadConnections() {
@@ -55,6 +55,7 @@ export class ConnectionLoader {
                 }
             }
         });
+        connectionsLoaded = true;
     }
 
     public static getConnectionConfig<T>(id: string, defaults?: unknown): T {
@@ -71,6 +72,14 @@ export class ConnectionLoader {
         // 	console.log(
         // 		`[ConnectionConfig/WARN] Getting connection settings for '${id}' returned null! (Did you forget to add settings?)`,
         // 	);
+        if (cfg && typeof cfg === "object") {
+            return new Proxy(cfg, {
+                get(target, property, receiver) {
+                    if (property === "enabled" && !Config.get().externalRequests.thirdParty) return false;
+                    return Reflect.get(target, property, receiver);
+                },
+            }) as T;
+        }
         return cfg;
     }
 
@@ -78,7 +87,7 @@ export class ConnectionLoader {
         if (!config) console.warn(`[Connections/WARN] ${id} tried to set config=null!`);
 
         await ConnectionConfig.set({
-            [id]: Object.assign(config, ConnectionLoader.getConnectionConfig(id) || {}),
+            [id]: Object.assign({}, ConnectionConfig.get()[id] || {}, config),
         });
     }
 }

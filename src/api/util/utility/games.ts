@@ -18,7 +18,7 @@
 
 import fs from "node:fs/promises";
 import path from "node:path";
-import { ASSETS_FOLDER } from "@spacebar/util";
+import { ASSETS_FOLDER, Config } from "@spacebar/util";
 import { CustomGame } from "@spacebar/database";
 
 export interface DetectableGame {
@@ -50,6 +50,8 @@ let loaded: GameIndex | undefined;
 let pending: Promise<GameIndex> | undefined;
 // games the admins added, kept until one of them changes; listed before discord's
 let custom: DetectableGame[] | undefined;
+let pendingCustom: Promise<DetectableGame[]> | undefined;
+let customRevision = 0;
 let merged: { remote: GameIndex; custom: DetectableGame[]; index: GameIndex } | undefined;
 
 const index = (games: DetectableGame[], expires: number) => ({ games, byId: new Map(games.map((x) => [x.id, x])), expires });
@@ -79,19 +81,31 @@ export const customGameToDetectable = (game: CustomGame): DetectableGame => ({
 });
 
 async function fetchList() {
-    const res = await fetch(SOURCE, { signal: AbortSignal.timeout(20000) }).catch(() => undefined);
+    if (!Config.get().externalRequests.discordGames) return undefined;
+    const res = await fetch(SOURCE, { signal: AbortSignal.timeout(20000), redirect: "error" }).catch(() => undefined);
     if (!res?.ok) return undefined;
     const text = await res.text();
     const games = JSON.parse(text) as DetectableGame[];
-    if (!Array.isArray(games)) return undefined;
+    if (!Array.isArray(games) || games.some((game) => typeof game.id !== "string" || typeof game.name !== "string")) return undefined;
     await fs.writeFile(CACHE_FILE, text).catch(() => undefined);
     return games;
 }
 
 export const DetectableGames = {
-    async load() {
+    async load(): Promise<GameIndex> {
         const remote = await this.loadRemote();
-        custom ??= (await CustomGame.find({ order: { name: "ASC" } })).map(customGameToDetectable);
+        if (!custom) {
+            const revision = customRevision;
+            const task = (pendingCustom ??= CustomGame.find({ order: { name: "ASC" } }).then((games) => games.map(customGameToDetectable)));
+            let games: DetectableGame[];
+            try {
+                games = await task;
+            } finally {
+                if (pendingCustom === task) pendingCustom = undefined;
+            }
+            if (revision !== customRevision) return this.load();
+            custom ??= games;
+        }
         if (merged?.remote !== remote || merged.custom !== custom) merged = { remote, custom, index: index([...custom, ...remote.games], remote.expires) };
         return merged.index;
     },
@@ -99,6 +113,8 @@ export const DetectableGames = {
     /** Call after adding, changing or removing a custom game. */
     invalidateCustom() {
         custom = undefined;
+        pendingCustom = undefined;
+        customRevision++;
     },
 
     async loadRemote() {
@@ -106,7 +122,23 @@ export const DetectableGames = {
         pending ??= (async () => {
             const stat = await fs.stat(CACHE_FILE).catch(() => undefined);
             const fresh = stat && Date.now() - stat.mtimeMs < TTL;
-            const games = (!fresh && (await fetchList().catch(() => undefined))) || (stat ? (JSON.parse(await fs.readFile(CACHE_FILE, "utf8")) as DetectableGame[]) : []);
+            const local = stat
+                ? await fs
+                      .readFile(CACHE_FILE, "utf8")
+                      .then((text) => JSON.parse(text) as DetectableGame[])
+                      .catch(() => [])
+                : [];
+            const games =
+                Array.isArray(local) && local.length && local.every((game) => game && typeof game.id === "string" && typeof game.name === "string")
+                    ? local
+                    : ((await fetchList().catch(() => undefined)) ?? []);
+            if (!fresh && games === local && Config.get().externalRequests.discordGames) {
+                void fetchList()
+                    .then((updated) => {
+                        if (updated) loaded = index(updated, Date.now() + TTL);
+                    })
+                    .catch(() => undefined);
+            }
             loaded = index(games, Date.now() + (games.length ? TTL : 60_000));
             return loaded;
         })().finally(() => (pending = undefined));

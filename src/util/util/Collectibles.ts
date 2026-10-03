@@ -71,18 +71,22 @@ type Catalog = { categories: CollectibleCategory[]; products: Map<string, Collec
 
 const SOURCES = {
     catalog: {
-        url: process.env.COLLECTIBLES_CATALOG_URL || "https://raw.githubusercontent.com/aamiaa/discord-api-diff/main/collectibles.json",
+        url: process.env.COLLECTIBLES_CATALOG_URL,
         file: path.join(ASSETS_FOLDER, "collectibles.json"),
     },
     effects: {
-        url: process.env.PROFILE_EFFECTS_CATALOG_URL || "https://raw.githubusercontent.com/aamiaa/discord-api-diff/main/profile-effects.json",
+        url: process.env.PROFILE_EFFECTS_CATALOG_URL,
         file: path.join(ASSETS_FOLDER, "profile-effects.json"),
     },
 };
 type Source = (typeof SOURCES)[keyof typeof SOURCES];
-const REFRESH_MS = Number(process.env.COLLECTIBLES_REFRESH_HOURS || 12) * 3_600_000;
+const EXTERNAL_REFRESH = process.env.COLLECTIBLES_EXTERNAL_REFRESH === "true";
+const refreshHours = Number(process.env.COLLECTIBLES_REFRESH_HOURS || 12);
+const REFRESH_MS = (Number.isFinite(refreshHours) && refreshHours > 0 ? Math.max(refreshHours, 1 / 60) : 12) * 3_600_000;
+const DOWNLOAD_TIMEOUT_MS = 5000;
 
 let catalog: Promise<Catalog> | undefined;
+let catalogGeneration = 0;
 let refreshTimer: NodeJS.Timeout | undefined;
 
 // the admin panel's own packs, and the mirrored packs it took out of the shop. The api registers this, since the
@@ -174,38 +178,59 @@ const parse = (raw: string, effectsRaw?: string): Catalog => {
 };
 
 const download = async ({ url, file }: Source) => {
-    const res = await fetch(url).catch(() => undefined);
+    if (!EXTERNAL_REFRESH || !url) return undefined;
+    const res = await fetch(url, { signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS) }).catch(() => undefined);
     if (!res?.ok) {
         console.error(`[Collectibles] could not fetch ${url}: ${res?.status ?? "network error"}`);
         return undefined;
     }
-    const raw = await res.text();
+    const raw = await res.text().catch(() => undefined);
+    if (!raw) return undefined;
     try {
         if (!Array.isArray(JSON.parse(raw))) throw new Error("not an array");
     } catch (e) {
         console.error(`[Collectibles] ${url} is invalid`, e);
         return undefined;
     }
-    await fs.writeFile(file, raw).catch((e) => console.error(`[Collectibles] could not cache ${file}`, e));
     return raw;
 };
 
 const read = async (source: Source) => {
     const stat = await fs.stat(source.file).catch(() => undefined);
-    if (!stat) return { raw: await download(source), stale: false };
-    return { raw: await fs.readFile(source.file, "utf8"), stale: Date.now() - stat.mtimeMs > REFRESH_MS };
+    return { raw: stat ? await fs.readFile(source.file, "utf8").catch(() => undefined) : undefined, stale: !stat || Date.now() - stat.mtimeMs > REFRESH_MS };
 };
 
-let lastRefresh: { at: string; ok: boolean; categories?: number; products?: number; error?: string } | null = null;
+type RefreshStatus = { at: string; ok: boolean; categories?: number; products?: number; error?: string };
+let lastRefresh: RefreshStatus | null = null;
 
-const refresh = async () => {
+let refreshing: Promise<RefreshStatus> | undefined;
+const refreshOnce = async () => {
+    const generation = catalogGeneration;
+    if (!EXTERNAL_REFRESH || !SOURCES.catalog.url) {
+        const next = await load(false);
+        if (generation === catalogGeneration) catalog = Promise.resolve(next);
+        lastRefresh = { at: new Date().toISOString(), ok: true, categories: next.categories.length, products: next.products.size };
+        return lastRefresh;
+    }
     const [raw, effectsRaw] = await Promise.all([download(SOURCES.catalog), download(SOURCES.effects)]);
     if (!raw) {
         lastRefresh = { at: new Date().toISOString(), ok: false, error: `Could not download ${SOURCES.catalog.url}` };
         return lastRefresh;
     }
     const next = await withCustom(parse(raw, effectsRaw ?? (await fs.readFile(SOURCES.effects.file, "utf8").catch(() => undefined))));
-    catalog = Promise.resolve(next);
+    const save = async (source: Source, data: string | undefined) => {
+        if (!data) return;
+        const temporary = `${source.file}.${process.pid}.tmp`;
+        try {
+            await fs.writeFile(temporary, data);
+            await fs.rename(temporary, source.file);
+        } catch (error) {
+            await fs.unlink(temporary).catch(() => undefined);
+            console.error(`[Collectibles] could not cache ${path.basename(source.file)}`, error);
+        }
+    };
+    await Promise.all([save(SOURCES.catalog, raw), save(SOURCES.effects, effectsRaw)]);
+    if (generation === catalogGeneration) catalog = Promise.resolve(next);
     console.log(`[Collectibles] refreshed catalog: ${next.categories.length} categories, ${next.products.size} products`);
     lastRefresh = {
         at: new Date().toISOString(),
@@ -217,20 +242,39 @@ const refresh = async () => {
     return lastRefresh;
 };
 
+const refresh = () =>
+    (refreshing ??= refreshOnce()
+        .catch((error) => {
+            lastRefresh = { at: new Date().toISOString(), ok: false, error: error instanceof Error ? error.message : "Could not refresh catalog" };
+            return lastRefresh;
+        })
+        .finally(() => {
+            refreshing = undefined;
+        }));
+
 const sourceStatus = async ({ url, file }: Source) => {
     const stat = await fs.stat(file).catch(() => undefined);
-    return { url, file: path.basename(file), size: stat?.size ?? null, updated_at: stat?.mtime.toISOString() ?? null };
+    return {
+        url: url ?? null,
+        external_refresh_enabled: EXTERNAL_REFRESH && !!url,
+        file: path.basename(file),
+        size: stat?.size ?? null,
+        updated_at: stat?.mtime.toISOString() ?? null,
+    };
 };
 
-const load = async (): Promise<Catalog> => {
-    refreshTimer ??= setInterval(() => void refresh(), REFRESH_MS).unref();
+const load = async (backgroundRefresh = true): Promise<Catalog> => {
+    if (backgroundRefresh && EXTERNAL_REFRESH && SOURCES.catalog.url) refreshTimer ??= setInterval(() => void refresh(), REFRESH_MS).unref();
     const [catalogFile, effectsFile] = await Promise.all([read(SOURCES.catalog), read(SOURCES.effects)]);
-    if (!catalogFile.raw) {
-        catalog = undefined;
-        return withCustom({ categories: [], products: new Map(), items: new Map() });
+    if (backgroundRefresh && EXTERNAL_REFRESH && SOURCES.catalog.url && (catalogFile.stale || effectsFile.stale)) void refresh();
+    if (catalogFile.raw) {
+        try {
+            return withCustom(parse(catalogFile.raw, effectsFile.raw));
+        } catch (error) {
+            console.error("[Collectibles] could not parse local snapshots", error);
+        }
     }
-    if (catalogFile.stale || effectsFile.stale) void refresh();
-    return withCustom(parse(catalogFile.raw, effectsFile.raw));
+    return withCustom({ categories: [], products: new Map(), items: new Map() });
 };
 
 const listedSkus = (category: CollectibleCategory) => category.products.map((x) => x.sku_id);
@@ -273,11 +317,13 @@ export const Collectibles = {
 
     setCustomSource(source: () => Promise<CustomCollectibles>) {
         customSource = source;
+        catalogGeneration++;
         catalog = undefined;
     },
 
     /** Rebuilds the catalog from the cached files, for when the custom packs change. */
     reload() {
+        catalogGeneration++;
         catalog = undefined;
     },
 

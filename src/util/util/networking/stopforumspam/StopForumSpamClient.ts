@@ -16,6 +16,7 @@
 	along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+import { Config } from "@spacebar/util";
 import { DateBuilder } from "@spacebar/extensions";
 
 // https://www.stopforumspam.com/usage
@@ -43,6 +44,7 @@ export class StopForumSpamClient {
     > = new Map();
 
     public static async checkAsync(email?: string, ipAddress?: string, username?: string): Promise<StopForumSpamResponse> {
+        if (!Config.get().externalRequests.thirdParty) return { success: 1 };
         const params = new URLSearchParams();
         const cachedResults: StopForumSpamResponse = { success: 1 };
         if (email) {
@@ -63,23 +65,22 @@ export class StopForumSpamClient {
 
         if (params.toString() === "") {
             // We don't need to fetch anything...
-            console.log("[StopForumSpamClient] Using cached results for all parameters:", { email, ipAddress, username });
             return cachedResults;
         }
 
         const response = await fetch(`https://api.stopforumspam.org/api?${params.toString()}&json&confidence`, {
             method: "GET",
+            signal: AbortSignal.timeout(10_000),
         });
 
         if (!response.ok) {
             console.error(`StopForumSpam API request failed with status ${response.status}`);
-            console.error(await response.text());
             throw new Error(`StopForumSpam API request failed with status ${response.status}`);
         }
 
         const data = (await response.json()) as StopForumSpamResponse;
         if (data.success !== 1) {
-            console.error("StopForumSpam API request was not successful", data);
+            console.error("StopForumSpam API request was not successful");
             throw new Error("StopForumSpam API request was not successful");
         }
 

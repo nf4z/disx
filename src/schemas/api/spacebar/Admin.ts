@@ -17,6 +17,20 @@
 */
 
 export interface AdminSettingsUpdateSchema {
+    externalRequests?: {
+        discordDecorations?: boolean;
+        discordAssetFallback?: boolean;
+        discordClientAssets?: boolean;
+        discordGames?: boolean;
+        discordTemplates?: boolean;
+        discordStickerPacks?: boolean;
+        discordBadDomains?: boolean;
+        thirdParty?: boolean;
+    };
+
+    limits?: AdminResourceLimitsSchema;
+    guild?: { defaultFeatures?: string[]; publicThreadsInvitable?: boolean };
+
     general?: {
         instanceName?: string;
         instanceDescription?: string | null;
@@ -143,6 +157,23 @@ export interface AdminRateLimitSchema {
 }
 
 export interface AdminUserUpdateSchema {
+    avatar_decoration_sku_id?: string | null;
+    nameplate_sku_id?: string | null;
+    collectibles_sku_ids?: string[] | null;
+
+    /** @minLength 2
+     * @maxLength 32 */
+    username?: string;
+    /** @maxLength 40 */
+    pronouns?: string;
+    /** @pattern ^data:image/ */
+    avatar?: string | null;
+    /** @pattern ^data:image/ */
+    banner?: string | null;
+    /** @minimum 0
+     * @maximum 16777215 */
+    accent_color?: number | null;
+    theme_colors?: number[] | null;
     /**
      * @maxLength 32
      */
@@ -250,6 +281,29 @@ export interface AdminBadgeUpdateSchema {
 }
 
 export interface AdminGuildUpdateSchema {
+    /** @pattern ^data:image/ */
+    icon?: string | null;
+    /** @pattern ^data:image/ */
+    banner?: string | null;
+    /** @pattern ^data:image/ */
+    splash?: string | null;
+    /** @pattern ^data:image/ */
+    discovery_splash?: string | null;
+    /** @minimum 0
+     * @maximum 4 */
+    verification_level?: number;
+    /** @minimum 0
+     * @maximum 2 */
+    explicit_content_filter?: number;
+    /** @minimum 0
+     * @maximum 1 */
+    default_message_notifications?: number;
+    /** @minimum 0
+     * @maximum 3 */
+    premium_tier?: number;
+    nsfw?: boolean;
+    preferred_locale?: string;
+    afk_timeout?: 60 | 300 | 900 | 1800 | 3600;
     /**
      * @minLength 2
      * @maxLength 100
@@ -584,4 +638,150 @@ export interface AdminSessionsRevokeSchema {
      * The sessions to end; omit to end all of them
      */
     session_ids?: string[];
+}
+
+export interface AdminResourceLimitsSchema {
+    user?: {
+        /** @minimum 1
+         * @maximum 2147483647
+         * @TJS-type integer */
+        maxGuilds?: number;
+        /** @minimum 1
+         * @maximum 2147483647
+         * @TJS-type integer */
+        maxUsername?: number;
+        /** @minimum 1
+         * @maximum 2147483647
+         * @TJS-type integer */
+        maxFriends?: number;
+        /** @minimum 1
+         * @maximum 2147483647
+         * @TJS-type integer */
+        maxBio?: number;
+        /** @minimum 1
+         * @maximum 2147483647
+         * @TJS-type integer */
+        maxPronouns?: number;
+    };
+    guild?: {
+        /** @minimum 1
+         * @maximum 2147483647
+         * @TJS-type integer */
+        maxRoles?: number;
+        /** @minimum 1
+         * @maximum 2147483647
+         * @TJS-type integer */
+        maxEmojis?: number;
+        /** @minimum 1
+         * @maximum 2147483647
+         * @TJS-type integer */
+        maxStickers?: number;
+        /** @minimum 1
+         * @maximum 2147483647
+         * @TJS-type integer */
+        maxMembers?: number;
+        /** @minimum 1
+         * @maximum 2147483647
+         * @TJS-type integer */
+        maxChannels?: number;
+        /** @minimum 1
+         * @maximum 2147483647
+         * @TJS-type integer */
+        maxBulkBanUsers?: number;
+        /** @minimum 1
+         * @maximum 2147483647
+         * @TJS-type integer */
+        maxChannelsInCategory?: number;
+    };
+    message?: {
+        /** @minimum 1
+         * @maximum 2147483647
+         * @TJS-type integer */
+        maxCharacters?: number;
+        /** @minimum 1
+         * @maximum 2147483647
+         * @TJS-type integer */
+        maxTTSCharacters?: number;
+        /** @minimum 1
+         * @maximum 2147483647
+         * @TJS-type integer */
+        maxReactions?: number;
+        /** @minimum 1
+         * @maximum 2147483647
+         * @TJS-type integer */
+        maxAttachments?: number;
+        /** @minimum 1
+         * @maximum 2147483647
+         * @TJS-type integer */
+        maxAttachmentSize?: number;
+        /** @minimum 1
+         * @maximum 2147483647
+         * @TJS-type integer */
+        maxBulkDelete?: number;
+        /** @minimum 1
+         * @maximum 2147483647
+         * @TJS-type integer */
+        maxEmbedDownloadSize?: number;
+        /** @minimum 1
+         * @maximum 2147483647
+         * @TJS-type integer */
+        maxPreloadCount?: number;
+        /** @minimum 1
+         * @maximum 2147483647
+         * @TJS-type integer */
+        maxEmbeds?: number;
+        /** @minimum 1
+         * @maximum 2147483647
+         * @TJS-type integer */
+        maxEmbedCharacters?: number;
+    };
+    channel?: {
+        /** @minimum 1
+         * @maximum 2147483647
+         * @TJS-type integer */
+        maxPins?: number;
+        /** @minimum 1
+         * @maximum 2147483647
+         * @TJS-type integer */
+        maxTopic?: number;
+        /** @minimum 1
+         * @maximum 2147483647
+         * @TJS-type integer */
+        maxWebhooks?: number;
+        /** @minimum 1
+         * @maximum 2147483647
+         * @TJS-type integer */
+        maxName?: number;
+        /** @minimum 1
+         * @maximum 2147483647
+         * @TJS-type integer */
+        maxGroupDmRecipients?: number;
+    };
+}
+
+export interface AdminChannelUpdateSchema {
+    /** @minLength 1
+     * @maxLength 100 */
+    name?: string;
+    /** @maxLength 4096 */
+    topic?: string | null;
+    nsfw?: boolean;
+    /** @minimum 0
+     * @maximum 21600
+     * @TJS-type integer */
+    rate_limit_per_user?: number;
+    parent_id?: string | null;
+}
+export interface AdminRoleUpdateSchema {
+    /** @minLength 1
+     * @maxLength 100 */
+    name?: string;
+    /** @minimum 0
+     * @maximum 16777215
+     * @TJS-type integer */
+    color?: number;
+    /** @pattern ^[0-9]{1,20}$ */
+    permissions?: string;
+    hoist?: boolean;
+    mentionable?: boolean;
 }
