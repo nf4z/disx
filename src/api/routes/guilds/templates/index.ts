@@ -17,17 +17,20 @@
 */
 
 import { Request, Response, Router } from "express";
-import { HTTPError } from "lambert-server/HTTPError";
 import { route } from "@spacebar/api/middlewares";
-import { Guild, Member, Tag, Template } from "@spacebar/database";
+import { applyTemplateSettings, resolveGuildTemplate } from "@spacebar/api/util";
+import { Guild, Member, Template } from "@spacebar/database";
 import { Config, DiscordApiErrors } from "@spacebar/util";
-import { ChannelType, GuildTemplateCreateSchema } from "@spacebar/schemas";
+import { GuildTemplateCreateSchema } from "@spacebar/schemas";
 
 const router: Router = Router({ mergeParams: true });
 
+// the code can also be a template link (discord.new/<code>); codes this instance doesn't know are looked up on discord
 router.get(
     "/:template_code",
     route({
+        // the /template/<code> page shows the template before anyone logs in
+        authentication: "optional",
         responses: {
             200: {
                 body: "Template",
@@ -43,7 +46,7 @@ router.get(
     async (req: Request, res: Response) => {
         const { template_code } = req.params as { [key: string]: string };
 
-        const template = await getTemplate(template_code);
+        const template = await resolveGuildTemplate(template_code);
 
         res.json(template);
     },
@@ -58,7 +61,7 @@ router.post("/:template_code", route({ requestBody: "GuildTemplateCreateSchema" 
     const guild_count = await Member.count({ where: { id: req.user_id } });
     if (guild_count >= maxGuilds) throw DiscordApiErrors.MAXIMUM_GUILDS.withParams(maxGuilds);
 
-    const template = (await getTemplate(template_code)) as Template;
+    const template = await resolveGuildTemplate(template_code);
 
     const guild = await Guild.createGuild({
         ...template.serialized_source_guild,
@@ -67,64 +70,12 @@ router.post("/:template_code", route({ requestBody: "GuildTemplateCreateSchema" 
         owner_id: req.user_id,
         source_guild_id: template.source_guild_id,
     });
+    await applyTemplateSettings(guild.id, template.serialized_source_guild);
 
     await Member.addToGuild(req.user_id, guild.id);
     if (template instanceof Template) await Template.update({ code: template.code }, { usage_count: (template.usage_count ?? 0) + 1 });
 
     res.status(201).json(await Guild.findOneOrFail({ where: { id: guild.id }, relations: { roles: true, channels: true } }));
 });
-
-async function getTemplate(code: string) {
-    const { allowDiscordTemplates, allowRaws, enabled } = Config.get().templates;
-
-    if (!enabled) throw new HTTPError("Template creation & usage is disabled on this instance.", 403);
-
-    if (code.startsWith("discord:")) {
-        if (!allowDiscordTemplates) throw new HTTPError("Discord templates cannot be used on this instance.", 403);
-
-        const discordTemplateID = code.split("discord:", 2)[1];
-
-        const discordTemplateData = await fetch(`https://discord.com/api/v9/guilds/templates/${discordTemplateID}`, {
-            method: "get",
-            headers: { "Content-Type": "application/json" },
-        });
-
-        const templateData = (await discordTemplateData.json()) as Template;
-
-        // Role ID is position in new Discord template schema. Do a little converting.
-        templateData.serialized_source_guild.roles.forEach((role) => {
-            role.position = role.id as unknown as number;
-        });
-
-        templateData.serialized_source_guild.channels.forEach((channel) => {
-            if (channel.type === ChannelType.GUILD_FORUM) {
-                channel.available_tags =
-                    channel.available_tags?.map((tag) =>
-                        Tag.create({
-                            name: tag.name,
-                            emoji_id: tag.emoji_id,
-                            emoji_name: tag.emoji_name,
-                            moderated: tag.moderated,
-                        }),
-                    ) ?? [];
-            }
-        });
-
-        return templateData;
-    }
-
-    if (code.startsWith("external:")) {
-        if (!allowRaws) throw new HTTPError("Importing raws is disabled on this instance.", 403);
-
-        return code.split("external:", 2)[1];
-    }
-
-    const template = await Template.findOne({
-        where: { code: code },
-        relations: { creator: true },
-    });
-    if (!template) throw DiscordApiErrors.UNKNOWN_GUILD_TEMPLATE;
-    return template;
-}
 
 export default router;

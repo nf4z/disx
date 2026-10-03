@@ -88,6 +88,13 @@ router.patch(
             relations: { emojis: true, roles: true, stickers: true },
         });
 
+        if (body.owner_id !== undefined) {
+            if (guild.owner_id !== req.user_id) throw DiscordApiErrors.MISSING_PERMISSIONS;
+            const member = await Member.findOne({ where: { guild_id, id: body.owner_id }, relations: { user: true } });
+            if (!member) throw DiscordApiErrors.UNKNOWN_MEMBER;
+            if (member.user.bot) throw FieldErrors({ owner_id: { code: "BASE_TYPE_INVALID", message: "Cannot transfer ownership to a bot." } });
+        }
+
         // trying to `select` this fails
         guild.channel_ordering = (
             await Guild.findOneOrFail({
@@ -243,6 +250,27 @@ router.patch(
             });
         }
 
+        await Guild.getRepository().manager.transaction(async (manager) => {
+            const current = await manager.findOneOrFail(Guild, {
+                where: { id: guild_id },
+                select: { id: true, owner_id: true },
+                lock: { mode: "pessimistic_write" },
+            });
+            if (body.owner_id !== undefined && current.owner_id !== req.user_id) throw DiscordApiErrors.MISSING_PERMISSIONS;
+            if (body.owner_id !== undefined) {
+                const member = await manager.findOne(Member, {
+                    where: { guild_id, id: body.owner_id },
+                    select: { id: true },
+                    lock: { mode: "pessimistic_read" },
+                });
+                if (!member) throw DiscordApiErrors.UNKNOWN_MEMBER;
+            }
+            // A concurrent settings edit must not restore the previous owner.
+            guild.owner_id = body.owner_id ?? current.owner_id;
+            auditBefore.owner_id = current.owner_id;
+            await manager.save(guild);
+        });
+
         const changes = AuditLog.diff(auditBefore, guild, auditKeys);
         if (changes.length)
             await AuditLog.log({
@@ -260,7 +288,6 @@ router.patch(
         // delete data.vanity_url_code;
         delete data.template_id;
 
-        await guild.save();
         await emitEvent({
             event: "GUILD_UPDATE",
             data: {

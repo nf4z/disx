@@ -52,6 +52,7 @@ export * from "./utility/bans";
 export * from "./utility/detectableGames";
 export * from "./utility/staffBadge";
 export * from "./utility/guildTag";
+export * from "./utility/guildTemplates";
 export * from "./utility/accountStanding";
 export * from "./utility/systemAccounts";
 export * from "./utility/announcements";

@@ -2148,6 +2148,10 @@
             "GuildUpdateSchema": {
                 "type": "object",
                 "properties": {
+                    "owner_id": {
+                        "pattern": "^[0-9]{1,20}$",
+                        "type": "string"
+                    },
                     "banner": {
                         "type": "string",
                         "nullable": true
@@ -3769,6 +3773,9 @@
                     "icon": {
                         "type": "string"
                     },
+                    "owner_id": {
+                        "type": "string"
+                    },
                     "splash": {
                         "type": "string"
                     },
@@ -3879,9 +3886,6 @@
                     },
                     "mfa_level": {
                         "type": "integer"
-                    },
-                    "owner_id": {
-                        "type": "string"
                     },
                     "premium_subscription_count": {
                         "type": "integer"
@@ -30491,7 +30495,8 @@
                 "security": [
                     {
                         "bearer": []
-                    }
+                    },
+                    {}
                 ],
                 "responses": {
                     "200": {
