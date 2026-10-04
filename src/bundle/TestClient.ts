@@ -235,6 +235,8 @@ const buildHtml = () => {
         MIGRATION_DESTINATION_ORIGIN: location.origin,
         WEBAUTHN_ORIGIN: location.hostname,
         ACTIVITY_APPLICATION_HOST: ${json(client.activityApplicationHost ?? "")} || \`//\${host}\`,
+        LOADING_TIPS: ${json(client.loadingTips)},
+        LOADING_SVG: ${json(client.loadingSvg)},
         INSTANCE_NAME: ${json(client.instanceName)},
         INSTANCE_ICON: ${json(images.icon)},
         INSTANCE_LOGO: ${json(images.logo)},
@@ -327,7 +329,15 @@ const renderPage = () => {
 export default function TestClient(app: Application) {
     if (!Config.get().client.useTestClient || !fs.existsSync(path.join(CACHE_PATH, "index.html"))) return;
 
-    const brandStamp = () => JSON.stringify([Config.get().client.instanceName, brandImageUrls(), helpUrl(), Config.get().limits.channel.maxGroupDmRecipients]);
+    const brandStamp = () =>
+        JSON.stringify([
+            Config.get().client,
+            brandImageUrls(),
+            helpUrl(),
+            Config.get().limits.channel.maxGroupDmRecipients,
+            Config.get().limits.channel.allowSlowmodeBypass,
+            Config.get().limits.e2ee.trustServerByDefault,
+        ]);
     let brand = brandStamp();
     let page = renderPage();
     let roots = clientRoots();

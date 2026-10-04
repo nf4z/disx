@@ -16,6 +16,8 @@
 	along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+require("../register-paths.cjs");
+
 const assert = require("node:assert/strict");
 const { test } = require("node:test");
 const fs = require("node:fs");
@@ -51,6 +53,7 @@ function fixture() {
                 },
             }),
         },
+        "@spacebar/util/util/LoadingScreen": require("../../dist/util/util/LoadingScreen.js"),
         "@spacebar/api/middlewares": { route: () => () => {} },
         "@spacebar/api/util": { captchaEnabled: () => false },
         "@spacebar/util": { Config: { get: () => cfg, set: async (value) => writes.push(value) } },
@@ -132,4 +135,19 @@ test("generated admin schema accepts Cap mode and slowmode booleans while reject
     assert.equal(validate({ limits: { channel: { allowSlowmodeBypass: "false" } } }), false);
     assert.equal(validate({ captcha: { capMode: "invalid" } }), false);
     assert.equal(validate({ limits: { channel: { unknownSetting: true } } }), false);
+});
+
+test("loading settings validate before persistence and replace custom tips", async () => {
+    const { patch, writes, cfg } = fixture();
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg"><circle r="10"/></svg>';
+    await patch({ client: { loadingTips: ["first", "second"], loadingSvg: svg } });
+    assert.deepEqual(Array.from(writes[0].client.loadingTips), ["first", "second"]);
+    assert.equal(writes[0].client.loadingSvg, svg);
+    await patch({ client: { loadingTips: ["replacement"] } });
+    assert.deepEqual(Array.from(cfg.client.loadingTips), ["replacement"]);
+    await assert.rejects(patch({ client: { loadingSvg: '<svg onload="alert(1)"/>' } }), (error) => error.code === 400);
+    assert.equal(writes.length, 2);
+    await patch({ client: { loadingTips: [], loadingSvg: "" } });
+    assert.equal(writes[2].client.loadingSvg, null);
+    assert.equal(writes[2].client.loadingTips, null);
 });

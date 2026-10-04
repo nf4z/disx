@@ -253,13 +253,6 @@ const hasRight = (rights, bit) => {
     }
 };
 
-const PREMIUM_TYPES = [
-    [0, "None"],
-    [1, "Nitro Classic"],
-    [2, "Nitro"],
-    [3, "Nitro Basic"],
-];
-
 const GUILD_FEATURES = [
     "VERIFIED",
     "PARTNERED",
@@ -903,6 +896,14 @@ async function renderSettings(view) {
                     </div>
                 </div>
                 <div class="card">
+                    <h2 id="settings-loading">Loading screen</h2>
+                    <p class="muted">Customize the loading screen for everyone on this instance. Changes appear after reload.</p>
+                    <label>Did you know? tips<span class="hint">One tip per line, up to 100 tips of 500 characters each. Leave empty to use the built-in tips.</span><textarea id="loading-tips" name="client.loadingTips" data-lines rows="5">${(s.client.loadingTips ?? []).join("\n")}</textarea></label>
+                    <label style="margin-top:16px">Loading animation SVG<span class="hint">Paste a self-contained SVG under 64 KB. Scripts, external images and embedded HTML are blocked. Leave empty for the built-in animation.</span><textarea id="loading-svg" name="client.loadingSvg" rows="8" spellcheck="false">${s.client.loadingSvg ?? ""}</textarea></label>
+                    <div class="row" style="margin-top:16px"><button class="btn" type="button" id="loading-preview-button">Preview</button><button class="btn" type="button" id="loading-reset">Restore defaults</button></div>
+                    <div id="loading-preview" class="stack" style="margin-top:16px;padding:24px;text-align:center;align-items:center" aria-live="polite"><p class="muted">Preview your loading screen before saving.</p></div>
+                </div>
+                <div class="card">
                     <h2 id="settings-registration">Registration</h2>
                     <div class="stack">
                         ${toggle("register.disabled", "Disable registration entirely", "Nobody can create an account, including with an invite.")}
@@ -1047,6 +1048,28 @@ ${(s.register.blacklistedUsernames ?? []).join("\n")}</textarea>
             event.preventDefault();
             document.getElementById(link.dataset.settingsTarget)?.scrollIntoView({ block: "start" });
         });
+    $("#loading-preview-button", view).addEventListener("click", () => {
+        const preview = $("#loading-preview", view);
+        preview.replaceChildren();
+        const svg = $("#loading-svg", view).value.trim();
+        if (svg) {
+            const image = document.createElement("img");
+            image.alt = "Loading animation preview";
+            image.style.cssText = "width:144px;height:144px;object-fit:contain";
+            image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+            preview.append(image);
+        }
+        const heading = document.createElement("strong");
+        heading.textContent = "Did you know?";
+        const tip = document.createElement("p");
+        tip.textContent = $("#loading-tips", view).value.split("\n").map((line) => line.trim()).find(Boolean) || "Built-in loading tips will be used.";
+        preview.append(heading, tip);
+    });
+    $("#loading-reset", view).addEventListener("click", () => {
+        $("#loading-tips", view).value = "";
+        $("#loading-svg", view).value = "";
+        $("#loading-preview", view).textContent = "Built-in tips and animation will be restored when you save settings.";
+    });
     $("#settings-form").addEventListener("submit", async (e) => {
         e.preventDefault();
         const form = e.currentTarget;
@@ -1233,7 +1256,6 @@ function userBadges(u) {
     if (u.deleted) badges.push(html`<span class="badge danger">Deleted</span>`);
     if (u.bot) badges.push(html`<span class="badge info">Bot</span>`);
     if (u.tag && u.tag !== "none") badges.push(nameTag(u.tag, u.bot));
-    if (u.premium_type) badges.push(html`<span class="badge">${PREMIUM_TYPES.find(([k]) => k === u.premium_type)?.[1] ?? "Premium"}</span>`);
     if (!u.verified && !u.bot) badges.push(html`<span class="badge warn">Unverified</span>`);
     return html`<div class="badges">${badges}</div>`;
 }
@@ -1361,11 +1383,6 @@ async function openUser(id, reload) {
                     ${cosmeticField(2, "nameplate_sku_id", "Nameplate", u.nameplate_sku_id)} ${cosmeticField(1, "profile_effect_sku_id", "Profile effect", cosmeticOf(1))}
                     ${cosmeticField(3, "profile_frame_sku_id", "Profile frame", cosmeticOf(3))}
                 </div>
-                <label
-                    >Premium<select name="premium_type">
-                        ${options(PREMIUM_TYPES, u.premium_type ?? 0)}
-                    </select></label
-                >
                 <div class="stack">
                     <h3>Name tag</h3>
                     <div class="row">
@@ -1397,12 +1414,6 @@ async function openUser(id, reload) {
                               </div>`
                             : html`<p class="muted" style="margin:0">No badges yet.${isOperator ? html` <a href="#/badges">Create one</a>.` : ""}</p>`
                     }
-                    <label class="toggle"
-                        ><input type="checkbox" name="hide_premium_badge" ${u.hide_premium_badge ? raw("checked") : ""} /><span
-                            ><span class="row" style="gap:8px"><img class="badge-icon" src="/badge-icons/2ba85e8026a8614b640c2837bcdfe21b.png" alt="" />Hide the Nitro badge</span
-                            ><span class="hint">Their Nitro and its perks stay; the badge just isn't shown on their profile.</span></span
-                        ></label
-                    >
                 </div>
                 <label class="toggle"><input type="checkbox" name="verified" ${u.verified ? raw("checked") : ""} /><span>Email verified</span></label>
                 <label class="toggle"
@@ -1500,10 +1511,8 @@ async function openUser(id, reload) {
             theme_colors: form.theme_default.checked ? null : [form.theme_primary, form.theme_secondary].map((input) => parseInt(input.value.slice(1), 16)),
             global_name: form.global_name.value,
             bio: form.bio.value,
-            premium_type: Number(form.premium_type.value),
             verified: form.verified.checked,
             tag: form.tag.value,
-            hide_premium_badge: form.hide_premium_badge.checked,
         };
         // keep the order badges were originally given in, appending new ones
         for (const field of ["avatar_decoration_sku_id", "nameplate_sku_id"]) {

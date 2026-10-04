@@ -23,6 +23,8 @@ import { Config } from "@spacebar/util";
 import { HTTPError } from "lambert-server/HTTPError";
 import { AdminSettingsUpdateSchema } from "@spacebar/schemas";
 
+import { validateLoadingSvg, validateLoadingTips } from "@spacebar/util/util/LoadingScreen";
+
 const router = Router({ mergeParams: true });
 
 const pickRate = ({ count, window }: { count: number; window: number }) => ({ count, window });
@@ -48,6 +50,8 @@ const pickSettings = () => {
             logo: client.logo,
             helpUrl: client.helpUrl,
             activityApplicationHost: client.activityApplicationHost,
+            loadingTips: client.loadingTips,
+            loadingSvg: client.loadingSvg,
         },
         register: {
             disabled: register.disabled,
@@ -130,6 +134,9 @@ router.patch(
             else delete client.instanceName;
         }
 
+        if (body.client?.loadingSvg !== undefined) client.loadingSvg = validateLoadingSvg(body.client.loadingSvg);
+        if (body.client?.loadingTips !== undefined) client.loadingTips = validateLoadingTips(body.client.loadingTips);
+
         const captcha: Record<string, unknown> = nullBlanks(body.captcha, ["secret"]);
         if (typeof captcha.secret === "string") {
             if (captcha.secret.trim()) captcha.secret = captcha.secret.trim();
@@ -158,6 +165,7 @@ router.patch(
         if (blacklistedUsernames) Config.get().register.blacklistedUsernames = [...new Set(blacklistedUsernames.map((name) => name.trim().toLowerCase()).filter(Boolean))];
 
         if (body.guild?.defaultFeatures) Config.get().guild.defaultFeatures = [...new Set(body.guild.defaultFeatures.map((value) => value.trim().toUpperCase()).filter(Boolean))];
+        if (body.client?.loadingTips !== undefined) Config.get().client.loadingTips = client.loadingTips as string[] | null;
         await Config.set({
             general,
             client,

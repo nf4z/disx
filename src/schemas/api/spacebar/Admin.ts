@@ -51,6 +51,8 @@ export interface AdminSettingsUpdateSchema {
         logo?: string | null;
         helpUrl?: string | null;
         activityApplicationHost?: string | null;
+        loadingTips?: string[] | null;
+        loadingSvg?: string | null;
     };
     register?: {
         disabled?: boolean;

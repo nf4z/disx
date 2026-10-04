@@ -23,5 +23,7 @@ export class ClientConfiguration {
     logo: string | null = null;
     helpUrl: string | null = null;
     activityApplicationHost: string | null = null;
+    loadingTips: string[] | null = null;
+    loadingSvg: string | null = null;
     experiments: Record<string, number> = {};
 }
