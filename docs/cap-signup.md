@@ -16,7 +16,7 @@ Selecting Standalone also applies to required signup verification when the optio
 
 The Cap mode regression suite covers core ignoring stored standalone credentials, local token consumption without outbound requests, standalone required signup when optional captcha is off, fail-closed incomplete configuration, safe URL validation and masked-secret preservation. A real browser check also confirms that stored input payloads cannot inject HTML attributes or elements.
 
-The refreshed admin dashboard passed a full settings form save with HTTP 200, including the slowmode bypass field; readback kept bypass off, required signup enabled and the core endpoint local. An incomplete standalone save returned HTTP 400. Both mode layouts were inspected: [core](qa/admin-cap-core.png) and [standalone](qa/admin-cap-standalone.png).
+The refreshed admin dashboard passed a full settings form save with HTTP 200, including the slowmode bypass field; readback kept bypass off, required signup enabled and the core endpoint local. An incomplete standalone save returned HTTP 400. Both mode layouts were inspected: [core](qa/cap-admin/core.png) and [standalone](qa/cap-admin/standalone.png).
 
 Seven real PostgreSQL tests cover production challenge settings, nonce and token replay, expiry, malformed proofs, required signup and invitation bypass prevention. The native browser smoke checks missing verification, successful signup, reset, replay rejection, load failure/retry and absence of external requests. The client patch checker passed on Discord build 627798. The compatibility probe passed 151 checks with one optional integration skipped.
 

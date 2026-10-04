@@ -1,0 +1,11 @@
+{
+  "status": "passed",
+  "fixture": "isolated localhost guild owned by instance admin",
+  "requests": 16,
+  "accepted": 1,
+  "slowmodeRejected": 15,
+  "code": 20016,
+  "retryAfterHeaders": true,
+  "typingCooldown": true,
+  "persisted": 1
+}

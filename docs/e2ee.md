@@ -176,3 +176,9 @@ Password mode trades some of that protection for convenience. Whoever holds a co
 3. Key backup with password and recovery-code modes, device approval and history on new devices. Done.
 4. Hardening: React-level UI patches, bundle hash pinning, analytics audit, fuzzing, a cross-browser test matrix.
 5. MLS for group DMs, then opt-in encrypted guild channels.
+
+## Latest verification
+
+The final native browser suite passed every check without retries in 405.3 seconds: encrypted sends/edits, opaque attachments, history, identity rotation, password rewrap, strict recovery, manual approval, default automatic linking, required-password rejection/unlock with retained draft, and broken-crypto refusal. Eight targeted client/cryptographic tests and seven real PostgreSQL private-channel checks also passed. The client checker passed all plugin groups on build 627798.
+
+The suite captured no message-create or message-edit requests from the locked browser; acknowledgment requests are tracked separately. [Required password prompt](qa/e2ee/required-password.png), [muted header and message layout](qa/e2ee/quiet-header.png).

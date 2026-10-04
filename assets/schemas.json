@@ -9264,6 +9264,9 @@
     "E2eeStateResponse": {
         "type": "object",
         "properties": {
+            "private_by_default": {
+                "type": "boolean"
+            },
             "identity_key": {
                 "type": [
                     "null",
@@ -9313,7 +9316,8 @@
         "required": [
             "channels",
             "devices",
-            "identity_key"
+            "identity_key",
+            "private_by_default"
         ],
         "$schema": "http://json-schema.org/draft-07/schema#"
     },
@@ -10324,6 +10328,13 @@
             "captcha": {
                 "type": "object",
                 "properties": {
+                    "capMode": {
+                        "enum": [
+                            "core",
+                            "standalone"
+                        ],
+                        "type": "string"
+                    },
                     "enabled": {
                         "type": "boolean"
                     },
@@ -10392,6 +10403,9 @@
             "e2ee": {
                 "type": "object",
                 "properties": {
+                    "trustServerByDefault": {
+                        "type": "boolean"
+                    },
                     "maxEnvelopeBytes": {
                         "minimum": 1024,
                         "type": "integer"
@@ -11540,6 +11554,9 @@
             "channel": {
                 "type": "object",
                 "properties": {
+                    "allowSlowmodeBypass": {
+                        "type": "boolean"
+                    },
                     "maxPins": {
                         "minimum": 1,
                         "maximum": 2147483647,
@@ -22674,6 +22691,12 @@
     "DmChannelDTO": {
         "type": "object",
         "properties": {
+            "e2ee_enabled_at": {
+                "type": [
+                    "null",
+                    "string"
+                ]
+            },
             "flags": {
                 "type": "integer"
             },
@@ -22719,6 +22742,7 @@
         },
         "additionalProperties": false,
         "required": [
+            "e2ee_enabled_at",
             "flags",
             "icon",
             "id",
@@ -22913,6 +22937,10 @@
     "ChannelLimits": {
         "type": "object",
         "properties": {
+            "allowSlowmodeBypass": {
+                "type": "boolean",
+                "default": false
+            },
             "maxPins": {
                 "type": "integer",
                 "default": 500
@@ -22936,6 +22964,7 @@
         },
         "additionalProperties": false,
         "required": [
+            "allowSlowmodeBypass",
             "maxGroupDmRecipients",
             "maxName",
             "maxPins",
@@ -23145,6 +23174,10 @@
     "E2eeLimits": {
         "type": "object",
         "properties": {
+            "trustServerByDefault": {
+                "type": "boolean",
+                "default": true
+            },
             "maxEnvelopeBytes": {
                 "type": "integer"
             },
@@ -23175,7 +23208,8 @@
             "keyQueriesPerMinute",
             "maxEnvelopeBytes",
             "maxEnvelopeDevices",
-            "pendingDeviceTtlHours"
+            "pendingDeviceTtlHours",
+            "trustServerByDefault"
         ],
         "$schema": "http://json-schema.org/draft-07/schema#"
     },
@@ -24069,6 +24103,7 @@
     "AuditLogEvents": {
         "type": "number",
         "enum": [
+            2000,
             1,
             10,
             11,

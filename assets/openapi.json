@@ -8478,6 +8478,9 @@
             "E2eeStateResponse": {
                 "type": "object",
                 "properties": {
+                    "private_by_default": {
+                        "type": "boolean"
+                    },
                     "identity_key": {
                         "type": "string",
                         "nullable": true
@@ -8522,7 +8525,8 @@
                 "required": [
                     "channels",
                     "devices",
-                    "identity_key"
+                    "identity_key",
+                    "private_by_default"
                 ]
             },
             "ChannelE2eeResponse": {
@@ -9458,6 +9462,13 @@
                     "captcha": {
                         "type": "object",
                         "properties": {
+                            "capMode": {
+                                "enum": [
+                                    "core",
+                                    "standalone"
+                                ],
+                                "type": "string"
+                            },
                             "enabled": {
                                 "type": "boolean"
                             },
@@ -9526,6 +9537,9 @@
                     "e2ee": {
                         "type": "object",
                         "properties": {
+                            "trustServerByDefault": {
+                                "type": "boolean"
+                            },
                             "maxEnvelopeBytes": {
                                 "minimum": 1024,
                                 "type": "integer"
@@ -10556,6 +10570,9 @@
                     "channel": {
                         "type": "object",
                         "properties": {
+                            "allowSlowmodeBypass": {
+                                "type": "boolean"
+                            },
                             "maxPins": {
                                 "minimum": 1,
                                 "maximum": 2147483647,
@@ -20940,6 +20957,10 @@
             "DmChannelDTO": {
                 "type": "object",
                 "properties": {
+                    "e2ee_enabled_at": {
+                        "type": "string",
+                        "nullable": true
+                    },
                     "flags": {
                         "type": "integer"
                     },
@@ -20976,6 +20997,7 @@
                     }
                 },
                 "required": [
+                    "e2ee_enabled_at",
                     "flags",
                     "icon",
                     "id",
@@ -21159,6 +21181,10 @@
             "ChannelLimits": {
                 "type": "object",
                 "properties": {
+                    "allowSlowmodeBypass": {
+                        "type": "boolean",
+                        "default": false
+                    },
                     "maxPins": {
                         "type": "integer",
                         "default": 500
@@ -21181,6 +21207,7 @@
                     }
                 },
                 "required": [
+                    "allowSlowmodeBypass",
                     "maxGroupDmRecipients",
                     "maxName",
                     "maxPins",
@@ -21377,6 +21404,10 @@
             "E2eeLimits": {
                 "type": "object",
                 "properties": {
+                    "trustServerByDefault": {
+                        "type": "boolean",
+                        "default": true
+                    },
                     "maxEnvelopeBytes": {
                         "type": "integer"
                     },
@@ -21406,7 +21437,8 @@
                     "keyQueriesPerMinute",
                     "maxEnvelopeBytes",
                     "maxEnvelopeDevices",
-                    "pendingDeviceTtlHours"
+                    "pendingDeviceTtlHours",
+                    "trustServerByDefault"
                 ]
             },
             "ProfileEffect": {
@@ -22207,6 +22239,7 @@
             "AuditLogEvents": {
                 "type": "number",
                 "enum": [
+                    2000,
                     1,
                     10,
                     11,
@@ -22810,6 +22843,34 @@
                         "description": "No description available"
                     }
                 },
+                "tags": [
+                    "api"
+                ]
+            }
+        },
+        "/api/widget-configs/{kind}/": {
+            "get": {
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "responses": {
+                    "default": {
+                        "description": "No description available"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "kind",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "kind"
+                    }
+                ],
                 "tags": [
                     "api"
                 ]
@@ -38721,6 +38782,23 @@
                 ]
             }
         },
+        "/api/gifs/providers/": {
+            "get": {
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "responses": {
+                    "default": {
+                        "description": "No description available"
+                    }
+                },
+                "tags": [
+                    "api"
+                ]
+            }
+        },
         "/api/gateway/": {
             "get": {
                 "security": [
@@ -46784,6 +46862,74 @@
                 ]
             }
         },
+        "/api/admin/users/{user_id}/widgets/": {
+            "get": {
+                "x-right-required": "MANAGE_USERS",
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "responses": {
+                    "default": {
+                        "description": "No description available"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "user_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "user_id"
+                    }
+                ],
+                "tags": [
+                    "api"
+                ],
+                "x-badges": [
+                    {
+                        "label": "Spacebar-only",
+                        "color": "red"
+                    }
+                ]
+            },
+            "put": {
+                "x-right-required": "MANAGE_USERS",
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "responses": {
+                    "default": {
+                        "description": "No description available"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "user_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "user_id"
+                    }
+                ],
+                "tags": [
+                    "api"
+                ],
+                "x-badges": [
+                    {
+                        "label": "Spacebar-only",
+                        "color": "red"
+                    }
+                ]
+            }
+        },
         "/api/admin/users/{user_id}/violations/": {
             "get": {
                 "x-right-required": "MANAGE_USERS",
@@ -46962,6 +47108,84 @@
                 ]
             }
         },
+        "/api/admin/users/{user_id}/settings/": {
+            "get": {
+                "x-right-required": "MANAGE_USERS",
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "responses": {
+                    "default": {
+                        "description": "No description available"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "user_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "user_id"
+                    }
+                ],
+                "tags": [
+                    "api"
+                ],
+                "x-badges": [
+                    {
+                        "label": "Spacebar-only",
+                        "color": "red"
+                    }
+                ]
+            },
+            "patch": {
+                "x-right-required": "MANAGE_USERS",
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UserSettingsUpdateSchema"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "default": {
+                        "description": "No description available"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "user_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "user_id"
+                    }
+                ],
+                "tags": [
+                    "api"
+                ],
+                "x-badges": [
+                    {
+                        "label": "Spacebar-only",
+                        "color": "red"
+                    }
+                ]
+            }
+        },
         "/api/admin/users/{user_id}/sessions/": {
             "get": {
                 "x-right-required": "MANAGE_USERS",
@@ -47019,6 +47243,84 @@
                 },
                 "responses": {
                     "204": {
+                        "description": "No description available"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "user_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "user_id"
+                    }
+                ],
+                "tags": [
+                    "api"
+                ],
+                "x-badges": [
+                    {
+                        "label": "Spacebar-only",
+                        "color": "red"
+                    }
+                ]
+            }
+        },
+        "/api/admin/users/{user_id}/pride-badges/": {
+            "get": {
+                "x-right-required": "MANAGE_USERS",
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "responses": {
+                    "default": {
+                        "description": "No description available"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "user_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "user_id"
+                    }
+                ],
+                "tags": [
+                    "api"
+                ],
+                "x-badges": [
+                    {
+                        "label": "Spacebar-only",
+                        "color": "red"
+                    }
+                ]
+            },
+            "patch": {
+                "x-right-required": "MANAGE_USERS",
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/PrideBadgesSchema"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "default": {
                         "description": "No description available"
                     }
                 },
@@ -47213,6 +47515,41 @@
                         }
                     }
                 },
+                "responses": {
+                    "default": {
+                        "description": "No description available"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "user_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "user_id"
+                    }
+                ],
+                "tags": [
+                    "api"
+                ],
+                "x-badges": [
+                    {
+                        "label": "Spacebar-only",
+                        "color": "red"
+                    }
+                ]
+            }
+        },
+        "/api/admin/users/{user_id}/customization-audit/": {
+            "get": {
+                "x-right-required": "MANAGE_USERS",
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
                 "responses": {
                     "default": {
                         "description": "No description available"
@@ -48748,6 +49085,52 @@
                         "description": "channel_id"
                     }
                 ],
+                "tags": [
+                    "api"
+                ],
+                "x-badges": [
+                    {
+                        "label": "Spacebar-only",
+                        "color": "red"
+                    }
+                ]
+            }
+        },
+        "/api/admin/gifs/": {
+            "get": {
+                "x-right-required": "OPERATOR",
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "responses": {
+                    "default": {
+                        "description": "No description available"
+                    }
+                },
+                "tags": [
+                    "api"
+                ],
+                "x-badges": [
+                    {
+                        "label": "Spacebar-only",
+                        "color": "red"
+                    }
+                ]
+            },
+            "patch": {
+                "x-right-required": "OPERATOR",
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "responses": {
+                    "default": {
+                        "description": "No description available"
+                    }
+                },
                 "tags": [
                     "api"
                 ],

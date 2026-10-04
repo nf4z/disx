@@ -119,3 +119,17 @@ test("Cap configuration input templates escape stored attribute payloads", () =>
     assert.equal(rendered.includes("<img"), false);
     assert.equal(rendered.includes('value="" autofocus'), false);
 });
+
+test("generated admin schema accepts Cap mode and slowmode booleans while rejecting invalid values", () => {
+    const Ajv = require("ajv");
+    const schemas = JSON.parse(fs.readFileSync("assets/schemas.json", "utf8"));
+    const validate = new Ajv({ strict: false }).compile({ ...schemas.AdminSettingsUpdateSchema, definitions: schemas });
+    assert.equal(
+        validate({ captcha: { capMode: "core", service: "cap" }, limits: { channel: { allowSlowmodeBypass: false } }, e2ee: { trustServerByDefault: true } }),
+        true,
+        JSON.stringify(validate.errors),
+    );
+    assert.equal(validate({ limits: { channel: { allowSlowmodeBypass: "false" } } }), false);
+    assert.equal(validate({ captcha: { capMode: "invalid" } }), false);
+    assert.equal(validate({ limits: { channel: { unknownSetting: true } } }), false);
+});
