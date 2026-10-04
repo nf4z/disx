@@ -22,7 +22,7 @@ const api = `http://localhost:${port}/api/v9`;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const accounts = Object.fromEntries(
-    readFileSync(new URL("./.test-account", import.meta.url), "utf8")
+    readFileSync(process.env.TEST_ACCOUNT_FILE || new URL("./.test-account", import.meta.url), "utf8")
         .trim()
         .split("\n")
         .map((l) => l.split("=")),
@@ -49,7 +49,12 @@ const browser = await chromium.launch({
     args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream", "--autoplay-policy=no-user-gesture-required"],
 });
 
+let closingBrowser = false;
+browser.on("disconnected", () => {
+    if (!closingBrowser) console.log(JSON.stringify({ label: "unexpected-browser-disconnect" }));
+});
 const pages = {};
+const workerRouteHits = new Map();
 try {
     for (const [name, token] of Object.entries(tokens)) {
         const context = await browser.newContext({ permissions: ["microphone", "camera"] });
@@ -57,6 +62,42 @@ try {
             localStorage.setItem("token", JSON.stringify(value));
             window.__pcs = [];
             window.__voiceSockets = [];
+            window.__workerMessages = [];
+            window.__workerDiagnostics = [];
+            window.__workers = [];
+            const NativeWorker = window.Worker;
+            window.Worker = new Proxy(NativeWorker, {
+                construct(target, args) {
+                    const worker = new target(...args);
+                    const path = String(args[0]).startsWith("blob:") ? "blob:" : new URL(String(args[0]), location.href).pathname;
+                    window.__workers.push({ path, name: args[1]?.name });
+                    worker.addEventListener("error", (event) => {
+                        if (window.__workerDiagnostics.length < 300) window.__workerDiagnostics.push({ event: "worker-error", path, message: event.message?.slice(0, 300) });
+                    });
+                    worker.addEventListener("message", (event) => {
+                        if (event.data?.fosscordVoiceDiagnostic && window.__workerDiagnostics.length < 300)
+                            window.__workerDiagnostics.push({ path, ...event.data.fosscordVoiceDiagnostic });
+                    });
+                    const send = worker.postMessage.bind(worker);
+                    worker.postMessage = (data, ...rest) => {
+                        if (data && [0, 2, 3, 4].includes(data.type) && window.__workerMessages.length < 128)
+                            window.__workerMessages.push({
+                                path,
+                                type: data.type,
+                                userId: data.userId,
+                                operation: data.operation,
+                                protocolVersion: data.protocolVersion,
+                                keyRatchet: !!data.keyRatchet,
+                                audioSsrc: data.audioSsrc,
+                                videoSsrcs: data.videoSsrcs,
+                                audioCodec: data.audioCodec,
+                                videoCodec: data.videoCodec,
+                            });
+                        return send(data, ...rest);
+                    };
+                    return worker;
+                },
+            });
             const Native = window.RTCPeerConnection;
             const setLocalDescription = Native.prototype.setLocalDescription;
             Native.prototype.setLocalDescription = function (...args) {
@@ -87,7 +128,48 @@ try {
             });
         }, token);
         await context.route(/^https:\/\/([a-z0-9-]+\.)*(discord|discordapp)\.(com|net|media|gg)\//, (route) => route.abort());
+        if (has("diagnostics"))
+            await context.route("**/assets/5aab2b617a1a39cd.js", async (route) => {
+                workerRouteHits.set(name, (workerRouteHits.get(name) ?? 0) + 1);
+                let source = readFileSync(new URL("../../assets/cache/5aab2b617a1a39cd.js", import.meta.url), "utf8");
+                const replace = (needle, replacement) => {
+                    assert.ok(source.includes(needle), `Worker instrumentation anchor missing: ${needle}`);
+                    source = source.replace(needle, replacement);
+                };
+                replace(
+                    "let o=t.Encrypt(i,r,u,e.data.byteLength,s);",
+                    "let o=t.Encrypt(i,r,u,e.data.byteLength,s);self.__voiceFrames=(self.__voiceFrames||0)+1;if(self.__voiceFrames%100===1)postMessage({fosscordVoiceDiagnostic:{event:'encrypt',frames:self.__voiceFrames,result:o,size:e.data.byteLength,ssrc:r}});",
+                );
+                replace(
+                    "r.pipeThrough(n).pipeTo(t)",
+                    "r.pipeThrough(n).pipeTo(t).catch(error=>postMessage({fosscordVoiceDiagnostic:{event:'pipeline-error',error:String(error)}}))",
+                );
+                replace(
+                    "function v(e,r){try{",
+                    "function v(e,r){self.__voiceEntries=(self.__voiceEntries||0)+1;if(self.__voiceEntries%100===1)postMessage({fosscordVoiceDiagnostic:{event:'frame-entry',frames:self.__voiceEntries,size:e.data.byteLength,ssrc:e.getMetadata().synchronizationSource}});try{",
+                );
+                replace("self.onmessage=e=>{O(e)}", 'postMessage({fosscordVoiceDiagnostic:{event:"handler-installed"}});self.onmessage=e=>{O(e)}');
+                replace('b="initialized",w)', 'b="initialized",postMessage({fosscordVoiceDiagnostic:{event:"wasm-ready"}}),w)');
+                source =
+                    'postMessage({fosscordVoiceDiagnostic:{event:"worker-start"}});self.addEventListener("unhandledrejection",event=>postMessage({fosscordVoiceDiagnostic:{event:"worker-rejection",message:String(event.reason).slice(0,300)}}));self.addEventListener("rtctransform",()=>postMessage({fosscordVoiceDiagnostic:{event:"rtctransform"}}));' +
+                    source;
+                await route.fulfill({ status: 200, contentType: "text/javascript", body: source });
+            });
         const page = await context.newPage();
+        page.on("crash", () => console.log(JSON.stringify({ label: "page-crash", user: name })));
+        page.on("close", () => {
+            if (!closingBrowser) console.log(JSON.stringify({ label: "unexpected-page-close", user: name }));
+        });
+        if (has("diagnostics")) {
+            page.on("console", (message) => {
+                if (/no ssrc found|no userId found|no user found|no cryptor found|error transforming frame|Failed to.*wasm/i.test(message.text()))
+                    console.log(JSON.stringify({ label: "worker-warning", user: name, message: message.text().slice(0, 300) }));
+            });
+            page.on("requestfailed", (request) => {
+                const pathname = new URL(request.url()).pathname;
+                if (/\.(js|wasm)$/.test(pathname)) console.log(JSON.stringify({ label: "failed-worker-asset", user: name, path: pathname }));
+            });
+        }
         await page.goto(`${origin}/channels/@me`);
         pages[name] = page;
     }
@@ -178,6 +260,61 @@ try {
     if (video) await invoke(pages.tester, "setVideoEnabled(e){", "setVideoEnabled", true);
     await sleep(wait);
     await report("connected");
+    if (has("diagnostics"))
+        for (const [name, page] of Object.entries(pages)) {
+            console.log(
+                JSON.stringify({
+                    label: "worker-overlay",
+                    user: name,
+                    routeHits: workerRouteHits.get(name) ?? 0,
+                    data: await page.evaluate(() => ({ workers: window.__workers, diagnostics: window.__workerDiagnostics })).catch(() => ({ closed: true })),
+                }),
+            );
+            assert.ok(workerRouteHits.get(name) > 0, `${name} encryption worker overlay intercepted`);
+        }
+    if (has("diagnostics"))
+        for (const [name, page] of Object.entries(pages))
+            console.log(
+                JSON.stringify({
+                    label: "diagnostics",
+                    user: name,
+                    data: await page.evaluate(async () => ({
+                        workers: window.__workers,
+                        workerMessages: window.__workerMessages,
+                        workerDiagnostics: window.__workerDiagnostics,
+                        sockets: window.__voiceSockets.map((entry) => ({ closed: entry.closed, ops: entry.ops })),
+                        connections: await Promise.all(
+                            window.__pcs.map(async (pc) => ({
+                                state: pc.connectionState,
+                                transceivers: pc.getTransceivers().map((t) => ({
+                                    mid: t.mid,
+                                    direction: t.direction,
+                                    currentDirection: t.currentDirection,
+                                    track: t.sender.track
+                                        ? { kind: t.sender.track.kind, enabled: t.sender.track.enabled, state: t.sender.track.readyState, muted: t.sender.track.muted }
+                                        : null,
+                                    encodings: t.sender.getParameters().encodings,
+                                    dtls: t.sender.transport?.state,
+                                    transform: !!t.sender.transform,
+                                })),
+                                stats: [...(await pc.getStats()).values()]
+                                    .filter((r) => ["outbound-rtp", "inbound-rtp", "media-source"].includes(r.type))
+                                    .map((r) => ({
+                                        type: r.type,
+                                        kind: r.kind,
+                                        ssrc: r.ssrc,
+                                        bytesSent: r.bytesSent,
+                                        packetsSent: r.packetsSent,
+                                        bytesReceived: r.bytesReceived,
+                                        packetsReceived: r.packetsReceived,
+                                        audioLevel: r.audioLevel,
+                                        totalSamplesDuration: r.totalSamplesDuration,
+                                    })),
+                            })),
+                        ),
+                    })),
+                }),
+            );
     for (const [name, page] of Object.entries(pages)) {
         const media = await stats(page);
         assert.ok(
@@ -190,7 +327,24 @@ try {
         );
     }
 
+    const requireMedia = (name, media, kind, dir, before = []) => {
+        assert.ok(
+            media.some(
+                (row) =>
+                    row.kind === kind &&
+                    row.dir === dir &&
+                    row.packets > (before.find((previous) => previous.kind === kind && previous.dir === dir && previous.ssrc === row.ssrc)?.packets ?? 0),
+            ),
+            `${name} ${dir === "in" ? "received" : "sent"} fresh ${kind} packets`,
+        );
+    };
+    if (video) {
+        requireMedia("tester", await stats(pages.tester), "video", "out");
+        requireMedia("friend", await stats(pages.friend), "video", "in");
+    }
+
     if (dropVoice) {
+        const beforeMedia = Object.fromEntries(await Promise.all(Object.entries(pages).map(async ([name, page]) => [name, await stats(page)])));
         const before = await sockets(pages.tester);
         await pages.tester.evaluate(() => window.__voiceSockets.at(-1).socket.close(4000));
         const friendVideo = has("video-during-drop") && (await invoke(pages.friend, "setVideoEnabled(e){", "setVideoEnabled", true));
@@ -214,18 +368,36 @@ try {
         );
         await sleep(wait);
         await report("after-resume");
+        assert.ok(resumedSocket?.ops.includes(9), "tester resumed the voice websocket");
+        for (const [name, page] of Object.entries(pages)) {
+            const current = await stats(page);
+            requireMedia(name, current, "audio", "in", beforeMedia[name]);
+            requireMedia(name, current, "audio", "out", beforeMedia[name]);
+        }
+        if (video) {
+            requireMedia("tester", await stats(pages.tester), "video", "out", beforeMedia.tester);
+            requireMedia("friend", await stats(pages.friend), "video", "in", beforeMedia.friend);
+        }
+        if (friendVideo) {
+            requireMedia("friend", await stats(pages.friend), "video", "out", beforeMedia.friend);
+            requireMedia("tester", await stats(pages.tester), "video", "in", beforeMedia.tester);
+        }
     }
 
     if (has("leave")) {
+        const disconnectCount = (sockets) => sockets.voiceSockets.reduce((total, entry) => total + entry.ops.filter((op) => op === 13).length, 0);
+        const previousDisconnects = disconnectCount(await sockets(pages.friend));
         const startedAt = Date.now();
         await invoke(pages.tester, "selectVoiceChannel(e){", "selectVoiceChannel", null);
         let seenAfter = null;
         while (Date.now() - startedAt < 10000 && seenAfter === null) {
-            if ((await sockets(pages.friend)).voiceSockets.some((entry) => entry.ops.includes(13))) seenAfter = Date.now() - startedAt;
+            if (disconnectCount(await sockets(pages.friend)) > previousDisconnects) seenAfter = Date.now() - startedAt;
             else await sleep(100);
         }
         console.log(JSON.stringify({ label: "leave", friendSawDisconnectAfterMs: seenAfter }));
+        assert.notEqual(seenAfter, null, "friend observed tester leave the voice channel");
     }
 } finally {
+    closingBrowser = true;
     await browser.close();
 }

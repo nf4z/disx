@@ -1,0 +1,182 @@
+{
+    "checked_on": "2026-10-04",
+    "browser": "Brave",
+    "mode": "normal client, no diagnostic worker overlay; video, forced voice websocket drop, resume, leave",
+    "status": "passed; process exit 0",
+    "results": [
+        {
+            "label": "connected",
+            "user": "tester",
+            "channel": "General",
+            "media": [
+                {
+                    "dir": "in",
+                    "kind": "audio",
+                    "ssrc": 1137175606,
+                    "bytes": 69230,
+                    "packets": 536,
+                    "lost": 0,
+                    "nacksSent": 0
+                },
+                {
+                    "dir": "out",
+                    "kind": "audio",
+                    "ssrc": 2416359707,
+                    "bytes": 70272,
+                    "packets": 551,
+                    "nacksReceived": 0,
+                    "retransmitted": 0,
+                    "targetBitrate": 64000
+                },
+                {
+                    "dir": "out",
+                    "kind": "video",
+                    "ssrc": 10350921,
+                    "bytes": 498872,
+                    "packets": 534,
+                    "nacksReceived": 0,
+                    "retransmitted": 0,
+                    "targetBitrate": 2500000,
+                    "width": 1280
+                }
+            ]
+        },
+        {
+            "label": "connected",
+            "user": "friend",
+            "channel": "General",
+            "media": [
+                {
+                    "dir": "in",
+                    "kind": "audio",
+                    "ssrc": 2416359707,
+                    "bytes": 70227,
+                    "packets": 548,
+                    "lost": 0,
+                    "nacksSent": 0
+                },
+                {
+                    "dir": "in",
+                    "kind": "video",
+                    "ssrc": 10350921,
+                    "bytes": 485650,
+                    "packets": 495,
+                    "lost": 0,
+                    "nacksSent": 0,
+                    "framesDecoded": 158,
+                    "keyFrames": 2,
+                    "plisSent": 0,
+                    "fps": 20,
+                    "freezes": 0,
+                    "freezeSeconds": 0,
+                    "width": 1280
+                },
+                {
+                    "dir": "out",
+                    "kind": "audio",
+                    "ssrc": 1137175606,
+                    "bytes": 69245,
+                    "packets": 537,
+                    "nacksReceived": 0,
+                    "retransmitted": 0,
+                    "targetBitrate": 64000
+                }
+            ]
+        },
+        {
+            "label": "voice-drop",
+            "peerConnectionsBefore": ["connected"],
+            "peerConnectionsAfter": ["connected"],
+            "socketsBefore": 1,
+            "socketsAfter": 2,
+            "resumedSocketOps": [8, 9, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5],
+            "gotResumed": true,
+            "reidentified": false,
+            "friendSawDisconnect": false,
+            "friendVideo": false
+        },
+        {
+            "label": "after-resume",
+            "user": "tester",
+            "channel": "General",
+            "media": [
+                {
+                    "dir": "in",
+                    "kind": "audio",
+                    "ssrc": 1137175606,
+                    "bytes": 174988,
+                    "packets": 1331,
+                    "lost": 0,
+                    "nacksSent": 0
+                },
+                {
+                    "dir": "out",
+                    "kind": "audio",
+                    "ssrc": 2416359707,
+                    "bytes": 174868,
+                    "packets": 1353,
+                    "nacksReceived": 0,
+                    "retransmitted": 0,
+                    "targetBitrate": 64000
+                },
+                {
+                    "dir": "out",
+                    "kind": "video",
+                    "ssrc": 10350921,
+                    "bytes": 1452008,
+                    "packets": 1497,
+                    "nacksReceived": 0,
+                    "retransmitted": 0,
+                    "targetBitrate": 2500000,
+                    "width": 1280
+                }
+            ]
+        },
+        {
+            "label": "after-resume",
+            "user": "friend",
+            "channel": "General",
+            "media": [
+                {
+                    "dir": "in",
+                    "kind": "audio",
+                    "ssrc": 2416359707,
+                    "bytes": 174823,
+                    "packets": 1350,
+                    "lost": 0,
+                    "nacksSent": 0
+                },
+                {
+                    "dir": "in",
+                    "kind": "video",
+                    "ssrc": 10350921,
+                    "bytes": 1438786,
+                    "packets": 1458,
+                    "lost": 0,
+                    "nacksSent": 0,
+                    "framesDecoded": 479,
+                    "keyFrames": 2,
+                    "plisSent": 0,
+                    "fps": 20,
+                    "freezes": 0,
+                    "freezeSeconds": 0,
+                    "width": 1280
+                },
+                {
+                    "dir": "out",
+                    "kind": "audio",
+                    "ssrc": 1137175606,
+                    "bytes": 175003,
+                    "packets": 1332,
+                    "nacksReceived": 0,
+                    "retransmitted": 0,
+                    "targetBitrate": 64000
+                }
+            ]
+        },
+        {
+            "label": "leave",
+            "friendSawDisconnectAfterMs": 347
+        }
+    ]
+}
