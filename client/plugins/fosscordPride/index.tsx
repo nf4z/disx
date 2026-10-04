@@ -24,24 +24,36 @@ import managedStyle from "./style.css?managed";
 
 type Badge = { slug: string; id: string; description: string; icon: string };
 type Selection = { flags: string[]; catalog: Badge[] };
-const pending = new Map<string, { signature?: string; next?: string }>();
+const pending = new Map<string, { signature?: string; dirty: boolean; promise: Promise<void> }>();
 
-async function refreshProfile(id: string, signature?: string) {
+function refreshProfile(id: string, signature?: string): Promise<void> {
     const running = pending.get(id);
     if (running) {
-        if (signature !== undefined && signature !== running.signature) running.next = signature;
-        return;
+        if (signature === undefined || signature !== running.signature) {
+            running.signature = signature ?? running.signature;
+            running.dirty = true;
+        }
+        return running.promise;
     }
-    if (pending.size >= 32) return;
-    const state = { signature, next: undefined as string | undefined };
+    if (pending.size >= 32) return Promise.reject(new Error("Profile refresh capacity reached."));
+    const state = { signature, dirty: false, promise: Promise.resolve() };
     pending.set(id, state);
-    try {
-        const { body } = await RestAPI.get({ url: `/users/${id}/profile` });
-        FluxDispatcher.dispatch({ type: "USER_PROFILE_FETCH_SUCCESS", userProfile: body });
-    } finally {
-        pending.delete(id);
-        if (state.next !== undefined) refreshProfile(id, state.next).catch(() => {});
-    }
+    state.promise = (async () => {
+        try {
+            do {
+                state.dirty = false;
+                try {
+                    const { body } = await RestAPI.get({ url: `/users/${id}/profile` });
+                    FluxDispatcher.dispatch({ type: "USER_PROFILE_FETCH_SUCCESS", userProfile: body });
+                } catch (error) {
+                    if (!state.dirty) throw error;
+                }
+            } while (state.dirty);
+        } finally {
+            pending.delete(id);
+        }
+    })();
+    return state.promise;
 }
 
 function profileChanged(event: { user?: { id: string; pride_badges?: string[] }; updates?: { user?: { id: string; pride_badges?: string[] } }[] }) {
@@ -83,14 +95,16 @@ function PridePicker() {
         setBusy(true);
         setError("");
         setMessage("");
+        let persisted = false;
         try {
             const { body } = await RestAPI.patch({ url: "/users/@me/pride-badges", body: { flags: selection } });
             setFlags(body.flags);
             setSaved(body.flags);
+            persisted = true;
             await refreshProfile(UserStore.getCurrentUser().id);
             setMessage(selection.length ? "Pride badges saved." : "Pride badges removed.");
         } catch {
-            setError("Could not save pride badges. Try again.");
+            setError(persisted ? "Pride badges saved, but the preview could not refresh. Reopen your profile." : "Could not save pride badges. Try again.");
         } finally {
             setBusy(false);
         }
