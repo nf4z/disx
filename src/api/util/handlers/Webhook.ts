@@ -22,7 +22,7 @@ import { MoreThan } from "typeorm";
 import { MessageOptionAttachment } from "@spacebar/util/dtos/MessageOptions";
 import { handleMessage, postHandleMessage } from "./Message";
 import { createInteractionMessage, editInteractionMessage, fetchInteractionMessage } from "./Interaction";
-import { Attachment, Channel, Message, Webhook } from "@spacebar/database";
+import { Attachment, Channel, Message, User, Webhook } from "@spacebar/database";
 import {
     Config,
     DiscordApiErrors,
@@ -36,7 +36,7 @@ import {
     ValidateName,
     handleFile,
 } from "@spacebar/util";
-import { InteractionMessage, WebhookExecuteSchema, WebhookResponse, WebhookUpdateSchema } from "@spacebar/schemas";
+import { AccountStandingState, InteractionMessage, WebhookExecuteSchema, WebhookResponse, WebhookUpdateSchema } from "@spacebar/schemas";
 
 export const webhookToJSON = (webhook: Webhook, opts: { withToken?: boolean; withUser?: boolean } = { withToken: true, withUser: true }): WebhookResponse => ({
     id: webhook.id,
@@ -87,6 +87,12 @@ export function applyWebhookComponents(webhook: Webhook, body: WebhookExecuteSch
         throw FieldErrors({ components: { code: "COMPONENT_INTERACTIVE_NOT_ALLOWED", message: "Interactive components can only be sent by application-owned webhooks." } });
 }
 
+export async function assertWebhookOwnerActive(webhook: Webhook) {
+    if (!webhook.user_id) return;
+    const owner = await User.findOne({ where: { id: webhook.user_id }, select: { id: true, disabled: true, deleted: true, account_standing: true } });
+    if (!owner || owner.disabled || owner.deleted || owner.account_standing === AccountStandingState.SUSPENDED) throw new HTTPError("Webhook owner account unavailable", 403);
+}
+
 export const executeWebhook = async (req: Request, res: Response) => {
     const body = req.body as WebhookExecuteSchema;
     const messageId = Snowflake.generate();
@@ -112,6 +118,7 @@ export const executeWebhook = async (req: Request, res: Response) => {
         return res.json(message.toJSON());
     }
     if (webhook.token !== webhook_token) throw DiscordApiErrors.INVALID_WEBHOOK_TOKEN_PROVIDED;
+    await assertWebhookOwnerActive(webhook);
     applyWebhookComponents(webhook, body, req.query.with_components === "true");
 
     if (body.username) {

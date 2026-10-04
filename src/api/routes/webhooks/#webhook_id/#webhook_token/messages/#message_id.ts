@@ -20,7 +20,7 @@ import { Request, Response, Router } from "express";
 import { HTTPError } from "lambert-server/HTTPError";
 import multer from "multer";
 import { handleMessage, postHandleMessage } from "@spacebar/api/util";
-import { applyWebhookComponents } from "@spacebar/api/util/handlers/Webhook";
+import { applyWebhookComponents, assertWebhookOwnerActive } from "@spacebar/api/util/handlers/Webhook";
 import { route } from "@spacebar/api/middlewares";
 import { Channel, Message, Webhook } from "@spacebar/database";
 import { MessageDeleteEvent, MessageUpdateEvent, emitEvent, DiscordApiErrors, getInteractionByToken } from "@spacebar/util";
@@ -46,6 +46,8 @@ async function assertValidWebhookAuth(webhookId: string, webhookToken: string, m
     const webhook = await Webhook.findOne({ where: { id: webhookId } });
     if (!webhook) throw DiscordApiErrors.UNKNOWN_WEBHOOK;
     if (webhook.token != webhookToken) throw DiscordApiErrors.INVALID_WEBHOOK_TOKEN_PROVIDED;
+
+    await assertWebhookOwnerActive(webhook);
 
     // TODO: fix error responses
     if (!/^\d+$/.test(messageId)) throw DiscordApiErrors.UNKNOWN_MESSAGE;

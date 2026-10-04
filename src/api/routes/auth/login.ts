@@ -22,7 +22,7 @@ import { loginMfaResponse, checkCaptcha } from "@spacebar/api/util";
 import { route } from "@spacebar/api/middlewares";
 import { User } from "@spacebar/database";
 import { Config, FieldErrors, generateToken } from "@spacebar/util";
-import { LoginSchema } from "@spacebar/schemas";
+import { AccountStandingState, LoginSchema } from "@spacebar/schemas";
 
 const router: Router = Router({ mergeParams: true });
 
@@ -50,7 +50,18 @@ router.post(
 
         const user = await User.findOneOrFail({
             where: User.loginWhere(login),
-            select: { data: true, id: true, disabled: true, deleted: true, totp_secret: true, mfa_enabled: true, webauthn_enabled: true, security_keys: true, verified: true },
+            select: {
+                data: true,
+                id: true,
+                disabled: true,
+                deleted: true,
+                account_standing: true,
+                totp_secret: true,
+                mfa_enabled: true,
+                webauthn_enabled: true,
+                security_keys: true,
+                verified: true,
+            },
             relations: { security_keys: true, settings: true },
         }).catch(() => {
             throw FieldErrors({
@@ -95,7 +106,7 @@ router.post(
                 message: "This account is scheduled for deletion.",
                 code: 20011,
             });
-        if (!undelete && user.disabled)
+        if (user.account_standing === AccountStandingState.SUSPENDED || (!undelete && user.disabled))
             return res.status(400).json({
                 message: req.t("auth:login.ACCOUNT_DISABLED"),
                 code: 20013,

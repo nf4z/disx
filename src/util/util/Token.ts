@@ -23,6 +23,7 @@ import fs from "node:fs/promises";
 import jwt from "jsonwebtoken";
 import { HTTPError } from "lambert-server/HTTPError";
 import { MoreThan } from "typeorm";
+import { AccountStandingState } from "@spacebar/schemas";
 import { InstanceBan, OAuth2Token, Session, User } from "@spacebar/database";
 import { Random, sleep, Stopwatch } from "@spacebar/extensions";
 import { Config } from "./Config";
@@ -95,7 +96,7 @@ export const checkToken = (
             let [user, session, banned] = await Promise.all([
                 User.findOne({
                     where: { id: decoded.id },
-                    select: OrmUtils.keysToObject([...(opts?.select || []), "id", "bot", "disabled", "deleted", "rights", "data", "flags"]), // TODO: clean up
+                    select: OrmUtils.keysToObject([...(opts?.select || []), "id", "bot", "disabled", "deleted", "account_standing", "rights", "data", "flags"]), // TODO: clean up
                     relations: !opts?.relations ? undefined : OrmUtils.keysToObject(opts.relations), // TODO: clean up
                 }),
                 decoded.did ? Session.findOne({ where: { session_id: decoded.did, user_id: decoded.id } }) : undefined,
@@ -118,7 +119,7 @@ export const checkToken = (
                 return rejectAndLog(reject, 401, "Invalid Token");
             }
 
-            if (user.disabled) {
+            if (user.disabled || user.account_standing === AccountStandingState.SUSPENDED) {
                 logAuth("validateUser rejected: User disabled");
                 return rejectAndLog(reject, 401, "User disabled");
             }
@@ -208,7 +209,7 @@ export async function checkOAuth2Token(authorization: string, opts?: { ipAddress
         relations: { user: true },
     });
     const user = token?.user;
-    if (!token || !user || user.disabled || user.deleted) throw new HTTPError("Invalid Token", 401);
+    if (!token || !user || user.disabled || user.deleted || user.account_standing === AccountStandingState.SUSPENDED) throw new HTTPError("Invalid Token", 401);
     if (await InstanceBan.hasInstanceBans({ userId: user.id, ipAddress: opts?.ipAddress, fingerprint: opts?.fingerprint })) {
         const banReasons = await InstanceBan.findInstanceBans({ userId: user.id, ipAddress: opts?.ipAddress, fingerprint: opts?.fingerprint, propagateBan: true });
         if (banReasons.length > 0) throw new HTTPError("Invalid Token", 418);
@@ -236,7 +237,13 @@ const compactTokenSecret = () => {
     return compactSecret;
 };
 
+async function assertNotSuspended(id: string) {
+    const user = await User.findOneOrFail({ where: { id }, select: { id: true, account_standing: true } });
+    if (user.account_standing === AccountStandingState.SUSPENDED) throw new HTTPError("Account suspended", 403);
+}
+
 export async function generateCompactToken(id: string): Promise<string> {
+    await assertNotSuspended(id);
     const session = Session.create({
         session_id: Random.getString("ABCDEFGHIJKLMNOPQRSTUVWXYZ", 10),
         user_id: id,
@@ -254,6 +261,7 @@ export async function generateCompactToken(id: string): Promise<string> {
 }
 
 export async function generateToken(id: string, isAdminSession: boolean = false, scopes: string[] | undefined = undefined, existingSession?: Session): Promise<string | undefined> {
+    await assertNotSuspended(id);
     const iat = Math.floor(Date.now() / 1000);
     const keyPair = JwtKeypairManager.keypair;
 

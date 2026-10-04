@@ -20,8 +20,8 @@ import { Request, Response, Router } from "express";
 import { HTTPError } from "lambert-server/HTTPError";
 import { route } from "@spacebar/api/middlewares";
 import { Badge, Guild, InstanceBan, Member, Session, User } from "@spacebar/database";
-import { broadcastUserUpdate, Collectibles, CollectibleItemType, emitEvent, handleFile, Rights, UserUpdateEvent } from "@spacebar/util";
-import { AdminUserUpdateSchema, PrivateUserProjection } from "@spacebar/schemas";
+import { broadcastUserUpdate, Collectibles, CollectibleItemType, emitEvent, handleFile, Rights, UserUpdateEvent, Event } from "@spacebar/util";
+import { AccountStandingState, AdminUserUpdateSchema, PrivateUserProjection } from "@spacebar/schemas";
 import { In, Not } from "typeorm";
 import { Pomelo, resolveProfileCollectibles, currentStanding, hasAdminPanelAccess, notifyStandingDrop, syncStaffBadge } from "@spacebar/api/util";
 import { ADMIN_USER_COLUMNS, applyUserTag, pickAdminUser } from "../index";
@@ -100,7 +100,7 @@ router.patch(
         const hadAdminAccess = hasAdminPanelAccess(user.rights);
 
         if (targetIsOperator && !callerIsOperator && !isSelf) throw new HTTPError("Only operators can edit other operators", 403);
-        if (isSelf && body.disabled) throw new HTTPError("You can't disable your own account", 400);
+        if (isSelf && (body.disabled || body.account_standing === AccountStandingState.SUSPENDED)) throw new HTTPError("You can't disable or suspend your own account", 400);
 
         // only some columns are loaded, and the entity has class-level defaults (system, mfa_enabled, ...) for the rest,
         // so save() would write those defaults over the real values. Only the columns this request changes get written
@@ -184,10 +184,13 @@ router.patch(
 
         if (changed.size) await User.update({ id: user.id }, Object.fromEntries([...changed].map((key) => [key, user[key] ?? null])));
 
-        if (standingBefore !== null) await notifyStandingDrop(user.id, standingBefore, await currentStanding(user.id));
+        if (user.disabled || user.account_standing === AccountStandingState.SUSPENDED) {
+            const sessions = await Session.find({ where: { user_id: user.id }, select: { session_id: true } });
+            await Session.delete({ user_id: user.id });
+            await Promise.all(sessions.map((session) => emitEvent({ session_id: session.session_id, event: "SB_SESSION_REMOVE", origin: "Account suspended" } as Event)));
+        }
 
-        // a disabled account must not keep its live sessions
-        if (body.disabled) await Session.delete({ user_id: user.id });
+        if (standingBefore !== null) await notifyStandingDrop(user.id, standingBefore, await currentStanding(user.id));
 
         const updated = await User.findOneOrFail({ where: { id: user.id }, select: Object.fromEntries(PrivateUserProjection.map((i) => [i, true])) });
         await emitEvent({ event: "USER_UPDATE", user_id: user.id, data: updated } satisfies UserUpdateEvent);
