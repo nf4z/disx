@@ -397,10 +397,13 @@ export class Guild extends BaseClass {
         return count;
     }
 
-    async toDiscoverableGuild(): Promise<DiscoverableGuild | null> {
-        if (!this.features.includes("DISCOVERABLE")) {
+    // includeUndiscoverable is for guild.discovery.showAllGuilds, which lists every guild
+    async toDiscoverableGuild(includeUndiscoverable = false): Promise<DiscoverableGuild | null> {
+        if (!includeUndiscoverable && !this.features.includes("DISCOVERABLE")) {
             return null;
         }
+        // a category that no longer exists leaves the card without one instead of failing the whole list
+        const category = this.primary_category_id != null ? await Categories.findOne({ where: { id: this.primary_category_id } }) : null;
 
         return {
             id: this.id,
@@ -432,20 +435,12 @@ export class Guild extends BaseClass {
             stickers: this.stickers?.map((s) => s.toJSON()) ?? undefined,
             sticker_count: this.stickers ? this.stickers.length : undefined,
             auto_removed: false,
-            primary_category_id: this.primary_category_id!,
+            primary_category_id: category ? this.primary_category_id! : 0,
             keywords: [],
             is_published: false,
             reasons_to_join: [],
             created_at: new Date(Snowflake.deconstruct(this.id).timestamp).toISOString(), // TODO: make column
-            primary_category: this.primary_category_id
-                ? (
-                      await Categories.findOneOrFail({
-                          where: {
-                              id: this.primary_category_id!,
-                          },
-                      })
-                  ).toJSON()
-                : undefined,
+            primary_category: category?.toJSON(),
         };
     }
 

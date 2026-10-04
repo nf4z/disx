@@ -20,6 +20,8 @@ import { Request, Response, Router } from "express";
 import { Brackets } from "typeorm";
 import { route } from "@spacebar/api/middlewares";
 import { Guild } from "@spacebar/database";
+import { Config } from "@spacebar/util";
+import { discoveryPage, hiddenDiscoveryGuildIds, toDiscoveryList } from "@spacebar/api/util/handlers/Discovery";
 
 const router = Router({ mergeParams: true });
 
@@ -36,12 +38,14 @@ router.get(
         const term = String(req.query.query ?? "")
             .trim()
             .slice(0, 100);
-        const offset = Math.min(Math.max(Number(req.query.offset) || 0, 0), 2999);
-        const limit = Math.min(Math.max(Number(req.query.limit) || 24, 1), 48);
+        const { offset, limit } = discoveryPage(req.query, 24);
         const categoryId = req.query.category_id ? Number(req.query.category_id) : Number.NaN;
+        const hidden = await hiddenDiscoveryGuildIds(req.user_id);
 
         const base = () => {
-            const qb = Guild.createQueryBuilder("guild").where("guild.discovery_excluded = false").andWhere(":feature = ANY(guild.features)", { feature: "DISCOVERABLE" });
+            const qb = Guild.createQueryBuilder("guild").where("guild.discovery_excluded = false");
+            if (!Config.get().guild.discovery.showAllGuilds) qb.andWhere(":feature = ANY(guild.features)", { feature: "DISCOVERABLE" });
+            if (hidden.length) qb.andWhere("guild.id NOT IN (:...hidden)", { hidden });
             if (!term) return qb;
             return qb.andWhere(
                 new Brackets((b) => b.where("guild.name ILIKE :pattern").orWhere("guild.description ILIKE :pattern").orWhere("guild.vanity_url_code ILIKE :pattern")),
@@ -51,7 +55,13 @@ router.get(
 
         const filtered = base();
         if (!Number.isNaN(categoryId)) filtered.andWhere("guild.primary_category_id = :categoryId", { categoryId });
-        const [guilds, total] = await filtered.orderBy("guild.discovery_weight", "DESC").addOrderBy("guild.member_count", "DESC").skip(offset).take(limit).getManyAndCount();
+        const [guilds, total] = await filtered
+            .orderBy("guild.discovery_weight", "DESC")
+            .addOrderBy("guild.member_count", "DESC")
+            .addOrderBy("guild.id", "ASC")
+            .skip(offset)
+            .take(limit)
+            .getManyAndCount();
 
         const categories =
             req.query.with_counts === "true"
@@ -67,7 +77,7 @@ router.get(
                 : undefined;
 
         res.send({
-            guilds: (await Promise.all(guilds.map((g) => g.toDiscoverableGuild()))).filter((g) => g !== null),
+            guilds: await toDiscoveryList(guilds),
             total_count: total,
             offset,
             limit,

@@ -21,5 +21,6 @@ export class DiscoveryConfiguration {
     useRecommendation: boolean = false; // TODO: Recommendation, privacy concern?
     offset: number = 0;
     limit: number = 24;
-    hideJoinedGuilds: boolean = true;
+    // Discord lists the servers you're in too; hiding them means whoever adds a server never sees it in Discovery
+    hideJoinedGuilds: boolean = false;
 }
