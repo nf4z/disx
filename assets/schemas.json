@@ -11414,9 +11414,20 @@
                 "description": "everyone: every user on the instance; staff: only people with admin panel access",
                 "enum": [
                     "everyone",
+                    "selected",
                     "staff"
                 ],
                 "type": "string"
+            },
+            "recipient_ids": {
+                "description": "Required for selected; numeric user IDs, checked for existence before delivery is queued.",
+                "minItems": 1,
+                "maxItems": 100,
+                "uniqueItems": true,
+                "type": "array",
+                "items": {
+                    "type": "string"
+                }
             }
         },
         "additionalProperties": false,

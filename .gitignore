@@ -53,3 +53,6 @@ assets/vencord
 scripts/dev/.scale-tokens.json
 
 .e2ee-recovery.key*
+
+.e2ee-system/
+.announcement-spool/

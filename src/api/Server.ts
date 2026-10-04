@@ -46,6 +46,7 @@ import { initInstance } from "./util/handlers/Instance";
 import { initEmbeddedActivities } from "./activities";
 import { addPendingPoll, dispatchMessagePush, startMessagePurger, startScheduledMessageSender, startThreadArchiver } from "./util";
 import { route } from "@spacebar/api/middlewares";
+import { startAnnouncementDeliveryWorker } from "./util/utility/announcementDelivery";
 import { GifProviderManager } from "@spacebar/integrations/gifs";
 
 export type SpacebarServerOptions = ServerOptions;
@@ -168,6 +169,7 @@ export class SpacebarServer extends Server {
         startThreadArchiver();
         startScheduledMessageSender();
         startMessagePurger();
+        startAnnouncementDeliveryWorker();
         GuildInsights.startRollups();
         await SystemdLifecycle.setStatus(`Listening on ${this.options.host}:${this.options.port}...`);
         await ProcessLifecycle.Ready();

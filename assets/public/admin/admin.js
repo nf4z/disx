@@ -2275,6 +2275,12 @@ function syncNavCounts() {
 
 /* ---------- announcements ---------- */
 
+function announcementProgress(announcement) {
+    const d = announcement.delivery;
+    if (!d) return "Legacy announcement: delivery progress was not recorded.";
+    return `${fmtNumber(d.delivered)} delivered · ${fmtNumber(d.queued)} queued · ${fmtNumber(d.delivering)} sending · ${fmtNumber(d.failed)} failed`;
+}
+
 async function renderAnnouncements(view) {
     const { official, announcements } = await api("/admin/announcements");
     mount(
@@ -2284,8 +2290,7 @@ async function renderAnnouncements(view) {
                 <div>
                     <h1>Announcements</h1>
                     <p class="muted">
-                        Sent as a plain direct message from <strong>${official.global_name || official.username}</strong>, the instance's official system account. Users can't reply
-                        to it.
+                        Sent as an encrypted direct message from <strong>${official.global_name || official.username}</strong>, the instance's official system account. Recipients without encryption keys wait until their account is ready.
                     </p>
                 </div>
             </div>
@@ -2313,15 +2318,18 @@ async function renderAnnouncements(view) {
                                 [
                                     ["everyone", "Everyone on the instance"],
                                     ["staff", "Staff only (admin panel access)"],
+                                    ["selected", "Selected users"],
                                 ],
                                 "everyone",
                             )}
                         </select></label
                     >
+                    <label id="announce-selected" hidden>Recipient user IDs<span class="hint">1–100 unique user IDs, separated by commas or spaces.</span><textarea name="recipient_ids" rows="2" placeholder="123456789012345678, 234567890123456789"></textarea></label>
+                    <p class="hint">Attachments have a combined 10 MiB limit. Delivery progress is retained across server restarts.</p>
                     <div class="form-actions"><button class="btn primary" type="submit">Send announcement</button></div>
                 </form>
                 <div class="stack">
-                    <h2>Sent</h2>
+                    <h2>Delivery history</h2>
                     ${
                         announcements.length
                             ? announcements.map(
@@ -2329,9 +2337,10 @@ async function renderAnnouncements(view) {
                                       html`<div class="card stack" style="gap:6px" data-id="${a.id}">
                                           <div class="row">
                                               <span class="grow muted">${fmtDate(a.created_at)}</span>
-                                              <span class="badge">${a.audience === "staff" ? "Staff" : "Everyone"} · ${fmtNumber(a.recipient_count)}</span>
+                                              <span class="badge">${a.audience === "staff" ? "Staff" : a.audience === "selected" ? "Selected" : "Everyone"} · ${fmtNumber(a.recipient_count)}</span>
                                               <button class="btn danger small announcement-delete" type="button">Delete</button>
                                           </div>
+                                          <p class="muted announcement-progress" aria-live="polite">${announcementProgress(a)}</p>
                                           ${a.title ? html`<strong>${a.title}</strong>` : ""}
                                           <p style="margin:0;white-space:pre-wrap">${a.body}</p>
                                       </div>`,
@@ -2343,13 +2352,34 @@ async function renderAnnouncements(view) {
         `,
     );
 
+    const currentForm = $("#announce-form", view);
+    const selectedInput = $("#announce-selected", view);
+    currentForm.audience.addEventListener("change", () => {
+        selectedInput.hidden = currentForm.audience.value !== "selected";
+        currentForm.recipient_ids.required = currentForm.audience.value === "selected";
+    });
+    const refreshProgress = async () => {
+        if (!view.isConnected || $("#announce-form", view) !== currentForm) return;
+        try {
+            const result = await api("/admin/announcements");
+            for (const entry of result.announcements) {
+                const status = $(`[data-id="${entry.id}"] .announcement-progress`, view);
+                if (status) status.textContent = announcementProgress(entry);
+            }
+        } catch {}
+        if (view.isConnected && $("#announce-form", view) === currentForm) setTimeout(refreshProgress, 10_000);
+    };
+    setTimeout(refreshProgress, 10_000);
+
     $("#announce-form").addEventListener("submit", async (e) => {
         e.preventDefault();
         const form = e.currentTarget;
         const audience = form.audience.value;
         if (audience === "everyone" && !confirm("Send this announcement to every user on the instance?")) return;
         const payload = { body: form.body.value, audience };
+        if (audience === "selected") payload.recipient_ids = form.recipient_ids.value.trim().split(/[\s,]+/).filter(Boolean);
         const files = [...form.files.files];
+        if (files.reduce((total, file) => total + file.size, 0) > 10 * 1024 * 1024) { toast("Attachments exceed the combined 10 MiB limit", "error"); return; }
         let body = payload;
         if (files.length) {
             body = new FormData();
@@ -2358,7 +2388,7 @@ async function renderAnnouncements(view) {
         }
         const sent = await act($("button[type=submit]", form), () => api("/admin/announcements", { method: "POST", body }));
         if (sent) {
-            toast(`Sending to ${fmtNumber(sent.recipient_count)} ${sent.recipient_count === 1 ? "user" : "users"}`);
+            toast(`Queued for ${fmtNumber(sent.recipient_count)} ${sent.recipient_count === 1 ? "user" : "users"}`);
             renderAnnouncements(view);
         }
     });

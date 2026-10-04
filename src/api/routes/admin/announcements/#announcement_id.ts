@@ -18,9 +18,11 @@
 
 import { Request, Response, Router } from "express";
 import { route } from "@spacebar/api/middlewares";
-import { Announcement, AnnouncementMessage, Message } from "@spacebar/database";
+import { Announcement, AnnouncementMessage, getDatabase, Message } from "@spacebar/database";
 import { Snowflake } from "@spacebar/util";
 import { deleteAnnouncementMessages, getSystemAccount } from "@spacebar/api/util";
+
+import { removeAnnouncementSpool } from "@spacebar/api/util/utility/announcementDelivery";
 
 const router = Router({ mergeParams: true });
 // announcements sent before their dms were recorded: the official account's messages with the same text (plain, or the
@@ -49,12 +51,23 @@ router.delete(
         responses: { 204: {} },
     }),
     async (req: Request, res: Response) => {
-        const announcement = await Announcement.findOneOrFail({ where: { id: req.params.announcement_id as string } });
-        const tracked = await AnnouncementMessage.find({ where: { announcement_id: announcement.id } });
-        const messages = tracked.length ? tracked.map((m) => ({ id: m.message_id, channel_id: m.channel_id })) : await untrackedMessages(announcement);
-
-        // removing the announcement first stops a delivery that's still running
-        await Announcement.delete({ id: announcement.id });
+        const database = getDatabase();
+        if (!database) throw new Error("Database unavailable");
+        const { announcement, messages } = await database.transaction(async (manager) => {
+            const announcement = await manager.getRepository(Announcement).findOneOrFail({
+                where: { id: req.params.announcement_id as string },
+                lock: { mode: "pessimistic_write" },
+            });
+            const tracked = await manager.getRepository(AnnouncementMessage).find({ where: { announcement_id: announcement.id } });
+            const messages = tracked.length
+                ? tracked.map((m) => ({ id: m.message_id, channel_id: m.channel_id }))
+                : announcement.durable
+                  ? []
+                  : await untrackedMessages(announcement);
+            await manager.getRepository(Announcement).delete({ id: announcement.id });
+            return { announcement, messages };
+        });
+        await removeAnnouncementSpool(announcement.id);
         void deleteAnnouncementMessages(messages)
             .then(() => console.log(`[Announcement] User ${req.user_id} deleted announcement ${announcement.id} and its ${messages.length} messages`))
             .catch((e) => console.error(`[Announcement] couldn't delete the messages of ${announcement.id}`, e));

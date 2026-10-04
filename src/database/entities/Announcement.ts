@@ -40,6 +40,12 @@ export class Announcement extends BaseClass {
     @Column({ type: "int", default: 0 })
     recipient_count: number = 0;
 
+    @Column({ type: "int", default: 0 })
+    attachment_count: number = 0;
+
+    @Column({ type: "boolean", default: false })
+    durable: boolean = false;
+
     @Column({ type: "timestamptz", default: () => "now()" })
     created_at: Date = new Date();
 }

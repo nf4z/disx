@@ -631,7 +631,14 @@ export interface AdminAnnouncementCreateSchema {
     /**
      * everyone: every user on the instance; staff: only people with admin panel access
      */
-    audience: "everyone" | "staff";
+    audience: "everyone" | "staff" | "selected";
+    /**
+     * Required for selected; numeric user IDs, checked for existence before delivery is queued.
+     * @minItems 1
+     * @maxItems 100
+     * @uniqueItems true
+     */
+    recipient_ids?: string[];
 }
 
 export interface AdminReportUpdateSchema {
