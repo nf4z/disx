@@ -27,56 +27,66 @@ import { storage, multer, setCacheControl } from "../util";
 import { InternalCdnAttachment } from "@spacebar/util/dtos/MessageOptions";
 
 import { declaredCloudUploadLimit, requireCloudUploadReservation, requireInternalUploadSignature } from "../util/cloudUploads";
+import { bufferedUpload, internalUploadBufferLimit, internalUploadBufferOverhead } from "../util/uploadAdmission";
 
 const router = Router({ mergeParams: true });
 
 const SANITIZED_CONTENT_TYPE = ["text/html", "text/mhtml", "multipart/related", "application/xhtml+xml"];
 
-router.post("/:channel_id/:message_id", requireInternalUploadSignature, multer.single("file"), async (req: Request, res: Response) => {
-    if (req.headers.signature !== Config.get().security.requestSignature) throw new HTTPError("Invalid request signature");
+router.post(
+    "/:channel_id/:message_id",
+    requireInternalUploadSignature,
+    bufferedUpload(
+        internalUploadBufferLimit,
+        multer.single("file"),
+        async (req: Request, res: Response) => {
+            if (req.headers.signature !== Config.get().security.requestSignature) throw new HTTPError("Invalid request signature");
 
-    if (!req.file) throw new HTTPError("file missing");
+            if (!req.file) throw new HTTPError("file missing");
 
-    const { buffer, mimetype, size, originalname } = req.file;
-    const { channel_id, message_id } = req.params as { [key: string]: string };
-    const filename = originalname.replaceAll(" ", "_").replace(/[^a-zA-Z0-9._-]+/g, "");
-    const attachment_id = Snowflake.generate();
-    const path = `attachments/${channel_id}/${attachment_id}/${filename}`;
+            const { buffer, mimetype, size, originalname } = req.file;
+            const { channel_id, message_id } = req.params as { [key: string]: string };
+            const filename = originalname.replaceAll(" ", "_").replace(/[^a-zA-Z0-9._-]+/g, "");
+            const attachment_id = Snowflake.generate();
+            const path = `attachments/${channel_id}/${attachment_id}/${filename}`;
 
-    const endpoint = Config.get()?.cdn.endpointPublic?.replace(/\/+$/, "");
+            const endpoint = Config.get()?.cdn.endpointPublic?.replace(/\/+$/, "");
 
-    await storage.set(path, buffer);
-    let width;
-    let height;
-    if (mimetype.includes("image")) {
-        try {
-            const dimensions = imageSize(buffer);
-            if (dimensions) {
-                width = dimensions.width;
-                height = dimensions.height;
+            await storage.set(path, buffer);
+            let width;
+            let height;
+            if (mimetype.includes("image")) {
+                try {
+                    const dimensions = imageSize(buffer);
+                    if (dimensions) {
+                        width = dimensions.width;
+                        height = dimensions.height;
+                    }
+                } catch (e) {
+                    console.warn("Failed to get image size for attachment of type", mimetype, "because of", e);
+                }
             }
-        } catch (e) {
-            console.warn("Failed to get image size for attachment of type", mimetype, "because of", e);
-        }
-    }
 
-    const finalUrl = `${endpoint}/${path}`;
+            const finalUrl = `${endpoint}/${path}`;
 
-    const file: InternalCdnAttachment = {
-        id: attachment_id,
-        channel_id,
-        message_id,
-        content_type: mimetype,
-        filename: filename,
-        size,
-        url: finalUrl,
-        path,
-        width,
-        height,
-    };
+            const file: InternalCdnAttachment = {
+                id: attachment_id,
+                channel_id,
+                message_id,
+                content_type: mimetype,
+                filename: filename,
+                size,
+                url: finalUrl,
+                path,
+                width,
+                height,
+            };
 
-    return res.json(file);
-});
+            return res.json(file);
+        },
+        internalUploadBufferOverhead,
+    ),
+);
 
 router.get("/:channel_id/:attachment_id/:filename", setCacheControl, async (req: Request, res: Response) => {
     const { channel_id, attachment_id, filename } = req.params as { [key: string]: string };
@@ -164,49 +174,57 @@ function parseCloudUpload(req: Request, res: Response, next: NextFunction) {
     });
 }
 
-router.put("/:channel_id/:batch_id/:attachment_id/:filename", requireCloudUploadReservation, parseCloudUpload, async (req: Request, res: Response) => {
-    const { channel_id, batch_id, attachment_id, filename } = req.params as { [key: string]: string };
-    const buffer = req.file?.buffer ?? req.body ?? (res.locals.cloudAttachment.userFileSize === 0 ? Buffer.alloc(0) : undefined);
-    if (!Buffer.isBuffer(buffer)) throw new HTTPError("file missing", 400);
-    if (buffer.length > Config.get().cdn.maxAttachmentSize) throw new HTTPError("File too large", 413);
+router.put(
+    "/:channel_id/:batch_id/:attachment_id/:filename",
+    requireCloudUploadReservation,
+    bufferedUpload(
+        (_req, res) => declaredCloudUploadLimit(res.locals.cloudAttachment),
+        parseCloudUpload,
+        async (req: Request, res: Response) => {
+            const { channel_id, batch_id, attachment_id, filename } = req.params as { [key: string]: string };
+            const buffer = req.file?.buffer ?? req.body ?? (res.locals.cloudAttachment.userFileSize === 0 ? Buffer.alloc(0) : undefined);
+            if (!Buffer.isBuffer(buffer)) throw new HTTPError("file missing", 400);
+            if (buffer.length > Config.get().cdn.maxAttachmentSize) throw new HTTPError("File too large", 413);
 
-    await getDatabase()!.transaction(async (manager) => {
-        const att = await manager.getRepository(CloudAttachment).findOne({
-            lock: { mode: "pessimistic_write" },
-            where: {
-                uploadFilename: `${channel_id}/${batch_id}/${attachment_id}/${filename}`,
-                channelId: channel_id,
-                userAttachmentId: attachment_id,
-                userFilename: filename,
-            },
-        });
-        if (!att || !att.userId) throw new HTTPError("Attachment not found", 404);
-        if (buffer.length > declaredCloudUploadLimit(att)) throw new HTTPError("File too large", 413);
+            await getDatabase()!.transaction(async (manager) => {
+                const att = await manager.getRepository(CloudAttachment).findOne({
+                    lock: { mode: "pessimistic_write" },
+                    where: {
+                        uploadFilename: `${channel_id}/${batch_id}/${attachment_id}/${filename}`,
+                        channelId: channel_id,
+                        userAttachmentId: attachment_id,
+                        userFilename: filename,
+                    },
+                });
+                if (!att || !att.userId) throw new HTTPError("Attachment not found", 404);
+                if (buffer.length > declaredCloudUploadLimit(att)) throw new HTTPError("File too large", 413);
 
-        const path = `attachments/${channel_id}/${batch_id}/${attachment_id}/${filename}`;
-        let mimeType = att.userOriginalContentType;
-        if (mimeType === null) {
-            const ft = await fileTypeFromBuffer(buffer);
-            mimeType = att.contentType = ft?.mime || "application/octet-stream";
-        }
+                const path = `attachments/${channel_id}/${batch_id}/${attachment_id}/${filename}`;
+                let mimeType = att.userOriginalContentType;
+                if (mimeType === null) {
+                    const ft = await fileTypeFromBuffer(buffer);
+                    mimeType = att.contentType = ft?.mime || "application/octet-stream";
+                }
 
-        try {
-            const dimensions = mimeType?.includes("image") ? imageSize(buffer) : mimeType?.startsWith("video/") ? readVideoDimensions(buffer) : undefined;
-            if (dimensions) {
-                att.width = dimensions.width;
-                att.height = dimensions.height;
-            }
-        } catch {
-            att.width = undefined;
-            att.height = undefined;
-        }
+                try {
+                    const dimensions = mimeType?.includes("image") ? imageSize(buffer) : mimeType?.startsWith("video/") ? readVideoDimensions(buffer) : undefined;
+                    if (dimensions) {
+                        att.width = dimensions.width;
+                        att.height = dimensions.height;
+                    }
+                } catch {
+                    att.width = undefined;
+                    att.height = undefined;
+                }
 
-        await storage.set(path, buffer);
-        att.size = buffer.length;
-        await manager.save(att);
-    });
-    return res.status(200).end();
-});
+                await storage.set(path, buffer);
+                att.size = buffer.length;
+                await manager.save(att);
+            });
+            return res.status(200).end();
+        },
+    ),
+);
 
 router.delete("/:channel_id/:batch_id/:attachment_id/:filename", async (req: Request, res: Response) => {
     if (req.headers.signature !== Config.get().security.requestSignature) throw new HTTPError("Invalid request signature");

@@ -47,6 +47,7 @@ function compile(filename, imports) {
 }
 const config = { cdn: { maxAttachmentSize: 16, endpointPublic: "http://localhost" }, security: { requestSignature: "synthetic-upload-signature" } };
 const writes = [];
+let storageBlock;
 let reservation;
 let deletedBeforeWrite = false;
 let locked = false;
@@ -86,14 +87,21 @@ const wrapRouter = () => {
     }
     return router;
 };
+const admission = compile("src/cdn/util/uploadAdmission.ts", { "lambert-server/HTTPError": { HTTPError }, "node:process": { env: {} } });
 const router = compile("src/cdn/routes/attachments.ts", {
     express: { ...express, Router: wrapRouter },
     "@spacebar/database": databaseImports,
     "@spacebar/util": utilityImports,
     "lambert-server/HTTPError": { HTTPError },
     "../util/cloudUploads": guard,
+    "../util/uploadAdmission": admission,
     "../util": {
-        storage: { set: async (path, buffer) => writes.push({ path, bytes: Buffer.from(buffer) }) },
+        storage: {
+            set: async (path, buffer) => {
+                writes.push({ path, bytes: Buffer.from(buffer) });
+                if (storageBlock) await storageBlock;
+            },
+        },
         multer: multer({ storage: multer.memoryStorage(), limits: { fileSize: 16 } }),
         setCacheControl: (_req, _res, next) => next(),
     },
@@ -196,6 +204,67 @@ test("CDN authorizes upload capabilities before reading bodies and enforces rese
             const result = await fetch(origin + "/attachments/123/synthetic-capability/0/file.bin", { method: "PUT", body: Buffer.from("1234") });
             assert.equal(result.status, 404);
             assert.equal(writes.length, 0);
+        });
+        await t.test("the attachment route reserves declared worst-case bytes before parsing another concurrent body", async () => {
+            freshReservation();
+            config.cdn.maxAttachmentSize = 500 * 1024 * 1024;
+            reservation.userFileSize = config.cdn.maxAttachmentSize;
+            let release;
+            storageBlock = new Promise((resolve) => (release = resolve));
+            const pending = fetch(origin + "/attachments/123/synthetic-capability/0/file.bin", { method: "PUT", body: Buffer.from("1234") });
+            try {
+                for (let n = 0; n < 200 && writes.length === 0; n++) await new Promise((resolve) => setTimeout(resolve, 5));
+                assert.equal(writes.length, 1);
+                assert.equal(await headerOnly("PUT", "/attachments/123/synthetic-capability/0/file.bin", { "content-length": "4" }), 503);
+                assert.equal(await headerOnly("POST", "/attachments/123/456", { "content-length": "4" }), 403);
+                release();
+                assert.equal((await pending).status, 200);
+                storageBlock = undefined;
+                assert.equal((await fetch(origin + "/attachments/123/synthetic-capability/0/file.bin", { method: "PUT", body: Buffer.from("1234") })).status, 200);
+            } finally {
+                release();
+                await pending;
+                storageBlock = undefined;
+                config.cdn.maxAttachmentSize = 16;
+            }
+        });
+        await t.test("sixteen tiny signed internal uploads fit the byte budget and preserve fifteen-file batches", async () => {
+            freshReservation();
+            let release;
+            storageBlock = new Promise((resolve) => (release = resolve));
+            const pending = Array.from({ length: 16 }, (_, index) => {
+                const form = new FormData();
+                form.append("file", new Blob(["1"]), `tiny-${index}.bin`);
+                return fetch(origin + "/attachments/123/456", { method: "POST", headers: { signature: config.security.requestSignature }, body: form });
+            });
+            try {
+                for (let n = 0; n < 200 && writes.length < 16; n++) await new Promise((resolve) => setTimeout(resolve, 5));
+                assert.equal(writes.length, 16);
+                assert.equal(
+                    await headerOnly("POST", "/attachments/123/456", {
+                        signature: config.security.requestSignature,
+                        "content-length": "200",
+                        "content-type": "multipart/form-data; boundary=fixture",
+                    }),
+                    503,
+                );
+                release();
+                const responses = await Promise.all(pending);
+                assert.ok(responses.every((response) => response.status === 200));
+                assert.ok(writes.every((write) => write.bytes.length === 1));
+                storageBlock = undefined;
+                const retry = new FormData();
+                retry.append("file", new Blob(["1"]), "retry.bin");
+                assert.equal((await fetch(origin + "/attachments/123/456", { method: "POST", headers: { signature: config.security.requestSignature }, body: retry })).status, 200);
+                assert.equal(
+                    await headerOnly("POST", "/attachments/123/456", { signature: config.security.requestSignature, "content-length": String(164 * 1024 * 1024 + 1) }),
+                    413,
+                );
+            } finally {
+                release();
+                await Promise.all(pending);
+                storageBlock = undefined;
+            }
         });
         await t.test("multipart bodies use the reservation file cap", async () => {
             freshReservation();

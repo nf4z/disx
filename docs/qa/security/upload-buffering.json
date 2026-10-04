@@ -1,0 +1,50 @@
+{
+    "before": [
+        {
+            "variant": "before",
+            "concurrency": 8,
+            "declaredFileLimit": 524288000,
+            "bytesPerUpload": 8388608,
+            "admitted": 8,
+            "bufferedHandlerBytes": 67108864,
+            "rssDelta": 303366144,
+            "arrayBufferDelta": 201381474
+        },
+        {
+            "statuses": {
+                "200": 8
+            }
+        }
+    ],
+    "after": [
+        {
+            "variant": "after",
+            "concurrency": 8,
+            "declaredFileLimit": 524288000,
+            "bytesPerUpload": 8388608,
+            "admitted": 1,
+            "bufferedHandlerBytes": 8388608,
+            "rssDelta": 238813184,
+            "arrayBufferDelta": 142728000
+        },
+        {
+            "statuses": {
+                "200": 1,
+                "503": 7
+            }
+        }
+    ],
+    "source": "Before compiled the committed attachment route; after compiled the working-tree route/helper. Actual HTTP requests, mocked reservation/transaction/storage; storage held until measurement.",
+    "limitations": [
+        "8 MiB bounded payload sample; no 500 MiB allocation",
+        "Each request declared a valid500 MiB reservation, so admission conservatively reserves the worst case",
+        "RSS and ArrayBuffer metrics include both HTTP clients and server in the same process",
+        "No production capacity claim; no existing file deletion or actual persistent storage writes"
+    ],
+    "focused_tests": {
+        "passed": 16,
+        "commands": [
+            "node --test scripts/tests/upload-admission.test.cjs scripts/tests/cdn-upload-authorization.test.cjs"
+        ]
+    }
+}
