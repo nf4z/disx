@@ -17,13 +17,15 @@
 */
 
 import { Channel, Message, RateLimit } from "@spacebar/database";
-import { ApiError, Permissions } from "@spacebar/util";
+import { ApiError, Config, Permissions } from "@spacebar/util";
 import { EntityManager, IsNull } from "typeorm";
 
 const SLOWMODE_RETENTION_SECONDS = 21600;
 
 export function requiresMessageSlowmode(channel: Channel, permission: Permissions) {
-    return !!channel.guild_id && !!channel.rate_limit_per_user && !permission.has("MANAGE_MESSAGES") && !permission.has("MANAGE_CHANNELS") && !permission.has("BYPASS_SLOWMODE");
+    if (!channel.guild_id || !channel.rate_limit_per_user) return false;
+    if (!Config.get().limits.channel.allowSlowmodeBypass) return true;
+    return !permission.has("MANAGE_MESSAGES") && !permission.has("MANAGE_CHANNELS") && !permission.has("BYPASS_SLOWMODE");
 }
 
 export async function messageSlowmodeCooldown(channel: Channel, user_id: string, permission: Permissions, manager?: EntityManager) {

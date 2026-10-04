@@ -125,6 +125,7 @@ interface ServerUserKeys {
 
 interface ServerState extends ServerUserKeys {
     channels: string[];
+    private_by_default?: boolean;
 }
 
 export interface DirectoryDevice {
@@ -317,7 +318,17 @@ export class Engine {
     private freshIdentity: OkpJwk | null = null;
     private trustVersion = -1;
 
-    constructor(private api: Api) {}
+    private privateByDefault = true;
+
+    constructor(
+        private api: Api,
+        private classifyChannel: (channelId: string, privateByDefault: boolean) => boolean = () => false,
+        private trustDirectory: () => boolean = () => false,
+    ) {}
+
+    get trustsServer() {
+        return this.trustDirectory();
+    }
 
     onChange(listener: () => void) {
         this.listeners.add(listener);
@@ -585,6 +596,7 @@ export class Engine {
         const revoked = this.device && state.devices.find((d) => d.device_id === this.device!.deviceId)?.status === "revoked" ? this.device.deviceId : null;
         if (revoked && (await store.get<StoredDevice>("device"))?.deviceId === revoked) await this.wipeLocal(true);
         this.encryptedChannels = new Set(state.channels);
+        this.privateByDefault = state.private_by_default ?? this.privateByDefault;
         this.identity = (await store.get<StoredIdentity>("identity")) ?? null;
         this.trustedKey = (await store.get<string>("trusted-identity")) ?? null;
         this.prekeys = (await store.get<StoredPrekey[]>("prekeys")) ?? [];
@@ -854,7 +866,7 @@ export class Engine {
     }
 
     isEncrypted(channelId: string) {
-        return this.encryptedChannels.has(channelId);
+        return this.encryptedChannels.has(channelId) || this.classifyChannel(channelId, this.privateByDefault);
     }
 
     channelMembers(channelId: string) {
@@ -918,6 +930,15 @@ export class Engine {
                 contact.identityKey = identityKey;
                 contact.pendingKey = null;
                 await this.saveContacts();
+            } else if (this.trustsServer && (contact.identityKey !== identityKey || contact.pendingKey)) {
+                if (contact.identityKey !== identityKey) {
+                    contact.previousKeys = [...new Set([...(contact.previousKeys ?? []), contact.identityKey])].slice(-16);
+                    contact.verified = false;
+                }
+                contact.identityKey = identityKey;
+                contact.pendingKey = null;
+                await this.saveContacts();
+                queueMicrotask(() => this.emit());
             } else if (contact.identityKey !== identityKey) {
                 if (contact.pendingKey !== identityKey) {
                     contact.pendingKey = identityKey;

@@ -42,6 +42,7 @@ router.get(
     async (req: Request, res: Response) => {
         const { channel_id } = req.params as { [key: string]: string };
         const channel = await Channel.findOneOrFail({ where: { id: channel_id } });
+        await Channel.ensureDefaultPrivateEncryption(channel, req.user_id);
         res.json(toResponse(channel));
     },
 );
@@ -60,6 +61,7 @@ router.put(
         const { enabled } = req.body as ChannelE2eeUpdateSchema;
         const channel = await Channel.findOneOrFail({ where: { id: channel_id }, relations: { recipients: true } });
         if (!isE2eeChannelType(channel.type)) throw E2eeErrors.UNSUPPORTED;
+        await Channel.ensureDefaultPrivateEncryption(channel, req.user_id);
         if (!enabled) {
             if (channel.e2ee_enabled_at) throw E2eeErrors.CANNOT_DISABLE;
             return res.json(toResponse(channel));

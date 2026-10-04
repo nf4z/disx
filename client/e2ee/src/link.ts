@@ -52,11 +52,13 @@ export interface Incoming {
     name: string;
     detail: string | null;
     sas: string;
+    autoApprove?: boolean;
     approve: () => Promise<void>;
     deny: () => Promise<void>;
 }
 
 interface PromptInfo {
+    autoApprove?: boolean;
     requestId: string;
     name: string;
     detail: string | null;
@@ -306,6 +308,7 @@ export const createLink = (engine: Engine, api: Api, hooks: LinkHooks) => {
                 name: (device && deviceTitle(device)) || pending.name,
                 detail: [added && t("Signed in {date}", { date: added }), device?.session?.location].filter(Boolean).join(" · ") || null,
                 sas: await sasFor(event.request_id, event.public_key, pending.publicKey),
+                autoApprove: device?.session?.signed_in === true && device.status !== "revoked",
             };
             prompts.set(info.requestId, info);
             send({ type: "prompt", prompt: info });

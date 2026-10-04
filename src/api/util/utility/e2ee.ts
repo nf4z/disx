@@ -162,7 +162,10 @@ export async function e2eeChannelIdsFor(userId: string) {
     const recipients = await Recipient.find({ where: { user_id: userId }, select: { channel_id: true } });
     if (!recipients.length) return [];
     const channels = await Channel.find({
-        where: { id: In(recipients.map((r) => r.channel_id)), e2ee_enabled_at: Not(IsNull()) },
+        where: [
+            { id: In(recipients.map((r) => r.channel_id)), type: In([ChannelType.DM, ChannelType.GROUP_DM]) },
+            { id: In(recipients.map((r) => r.channel_id)), e2ee_enabled_at: Not(IsNull()) },
+        ],
         select: { id: true },
     });
     return channels.map((c) => c.id);
@@ -265,12 +268,13 @@ const opaqueAttachments = (opts: MessageOptions, message: Message) =>
     );
 
 export async function applyE2eeToMessage(opts: MessageOptions, channel: Channel, message: Message) {
+    await Channel.ensureDefaultPrivateEncryption(channel, opts.author_id);
     const envelope = opts.encrypted ?? null;
     const encryptedChannel = channel.e2ee_enabled_at != null;
     const userMessage = !!opts.author_id && !opts.webhook_id && !opts.application_id && [MessageType.DEFAULT, MessageType.REPLY].includes(opts.type ?? MessageType.DEFAULT);
 
     if (!envelope) {
-        if (encryptedChannel && userMessage) throw E2eeErrors.REQUIRED;
+        if (encryptedChannel && [MessageType.DEFAULT, MessageType.REPLY].includes(opts.type ?? MessageType.DEFAULT)) throw E2eeErrors.REQUIRED;
         message.encrypted = null;
         return;
     }

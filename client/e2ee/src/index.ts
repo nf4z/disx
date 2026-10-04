@@ -74,7 +74,20 @@ const api: Api = {
     },
 };
 
-const engine = new Engine(api);
+interface NativeChannelStore {
+    getChannel(id: string): { type?: number; e2ee_enabled?: boolean } | undefined;
+}
+let nativeChannels: NativeChannelStore | null = null;
+const classifyChannel = (channelId: string) => {
+    nativeChannels ??= findStore<NativeChannelStore>(loader.reqs, ["getChannel", "getDMFromUserId"]);
+    const channel = nativeChannels?.getChannel(channelId);
+    if (channel?.e2ee_enabled) return true;
+    return channel ? channel.type === 1 || channel.type === 3 : location.pathname === `/channels/@me/${channelId}`;
+};
+const trustsServer = () =>
+    (window as unknown as { GLOBAL_ENV?: { E2EE_TRUST_SERVER?: boolean } }).GLOBAL_ENV?.E2EE_TRUST_SERVER !== false &&
+    browserStorage?.getItem("fosscord-e2ee-strict-safety") !== "true";
+const engine = new Engine(api, classifyChannel, trustsServer);
 const attachments = createAttachments();
 attachments.start();
 
@@ -104,7 +117,10 @@ const storedToken = () => {
 };
 
 const link = createLink(engine, api, {
-    onPrompt: (prompt) => ui.showApproval(prompt),
+    onPrompt: (prompt) => {
+        if (!engine.trustsServer) ui.showApproval(prompt);
+        else if (prompt.autoApprove) prompt.approve().catch((error) => console.error("[e2ee] automatic browser linking failed", error));
+    },
     onChange: () => ui.renderUnlock(),
     onDismiss: (requestId) => ui.dismissApproval(requestId),
     onPeerUnlock: () => {
@@ -150,6 +166,7 @@ const verifyPassword = async (password: string) => {
 
 const ui = createUi({
     engine,
+    ready,
     states,
     link,
     verifyPassword,
@@ -392,6 +409,7 @@ const tick = () => {
 
 loader.status = () => ({
     ready: initialized && !failure && installed.http && installed.dispatcher && installed.gateway,
+    trustsServer: engine.trustsServer,
     failure,
     userId: engine.userId,
     deviceId: engine.device?.deviceId ?? null,

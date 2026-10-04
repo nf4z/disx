@@ -21,6 +21,7 @@ import { Channel, User } from "../../database/entities";
 import { PublicUser, PublicUserProjection } from "@spacebar/schemas";
 
 export class DmChannelDTO {
+    e2ee_enabled_at: string | null;
     flags: number;
     icon: string | null;
     id: string;
@@ -33,6 +34,7 @@ export class DmChannelDTO {
 
     static async from(channel: Channel, excluded_recipients: string[] = [], origin_channel_id?: string, knownUsers?: Map<string, User>) {
         const obj = new DmChannelDTO();
+        obj.e2ee_enabled_at = channel.e2ee_enabled_at?.toISOString() ?? null;
         obj.flags = channel.flags ?? 0;
         obj.icon = channel.icon || null;
         obj.id = channel.id;

@@ -32,8 +32,16 @@ export const FAILED_CONTENT = "This message couldn't be decrypted";
 
 const decryptingContent = () => t(DECRYPTING_CONTENT);
 
-const contentFor = (state: MessageState | undefined, fallback?: string) =>
-    state === "missing" ? t(MISSING_CONTENT) : state === "locked" ? t(LOCKED_CONTENT) : state === "reset" ? t(RESET_CONTENT) : state === "failed" ? t(FAILED_CONTENT) : fallback;
+const contentFor = (state: MessageState | undefined, fallback?: string, trustsServer = false) =>
+    state === "missing"
+        ? t(MISSING_CONTENT)
+        : state === "locked"
+          ? t(trustsServer ? "Preparing private chat…" : LOCKED_CONTENT)
+          : state === "reset"
+            ? t(RESET_CONTENT)
+            : state === "failed"
+              ? t(FAILED_CONTENT)
+              : fallback;
 
 const SEARCH_URL = /^\/channels\/(\d+)\/messages\/search(\/tabs)?$/;
 const SEARCH_PAGES = 10;
@@ -144,7 +152,7 @@ export const createHooks = (ctx: HookContext) => {
                     const state: MessageState = code === "LOCKED" ? "locked" : code === "NO_KEY" ? "missing" : code === "RESET" ? "reset" : "failed";
                     states.set(message.id, { state, reason: errorText(error) });
                     if (state === "locked" || state === "missing") retry.set(message.id, original);
-                    message.content = contentFor(state);
+                    message.content = contentFor(state, undefined, engine.trustsServer);
                 }
             })().finally(() => inflight.delete(key));
             inflight.set(key, pending);
@@ -154,7 +162,7 @@ export const createHooks = (ctx: HookContext) => {
             const again = engine.cached(message);
             const state = states.get(message.id)?.state;
             if (again) show(message, again);
-            else message.content = contentFor(state, message.content);
+            else message.content = contentFor(state, message.content, engine.trustsServer);
             ctx.onState();
         });
     };

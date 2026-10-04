@@ -198,6 +198,7 @@ export interface E2eeKeysQueryResponse {
 }
 
 export interface E2eeStateResponse {
+    private_by_default: boolean;
     identity_key: string | null;
     identity_created_at?: string | null;
     previous_identity?: E2eeSignedKey | null;

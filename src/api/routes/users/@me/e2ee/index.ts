@@ -18,6 +18,7 @@
 
 import bcrypt from "bcrypt";
 import { Request, Response, Router } from "express";
+import { Config } from "@spacebar/util";
 import { Not } from "typeorm";
 import { route } from "@spacebar/api/middlewares";
 import {
@@ -42,7 +43,7 @@ const router: Router = Router({ mergeParams: true });
 
 const state = async (userId: string): Promise<E2eeStateResponse> => {
     const [users, channels] = await Promise.all([e2eeUserKeys([userId]), e2eeChannelIdsFor(userId)]);
-    return { ...users[userId], channels };
+    return { ...users[userId], channels, private_by_default: true };
 };
 
 router.get(

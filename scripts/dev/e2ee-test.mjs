@@ -112,24 +112,39 @@ const launchAll = async (...specs) => {
     throw failed.reason;
 };
 
-const open = async (context, user, { login = false, extraInit } = {}) => {
+const open = async (context, user, { login = false, extraInit, strictSafety = false } = {}) => {
     if (login)
-        await context.addInitScript((nonce) => {
-            if (sessionStorage.getItem("e2ee-test-cleared") === nonce) return;
-            sessionStorage.setItem("e2ee-test-cleared", nonce);
-            localStorage.clear();
-        }, randomBytes(8).toString("hex"));
+        await context.addInitScript(
+            ({ nonce, strictSafety }) => {
+                if (sessionStorage.getItem("e2ee-test-cleared") !== nonce) {
+                    sessionStorage.setItem("e2ee-test-cleared", nonce);
+                    localStorage.clear();
+                }
+                if (strictSafety) localStorage.setItem("fosscord-e2ee-strict-safety", "true");
+                else localStorage.removeItem("fosscord-e2ee-strict-safety");
+            },
+            { nonce: randomBytes(8).toString("hex"), strictSafety },
+        );
     else
-        await context.addInitScript((token) => {
-            localStorage.setItem("token", JSON.stringify(token));
-            localStorage.removeItem("tokens");
-        }, user.token);
+        await context.addInitScript(
+            ({ token, strictSafety }) => {
+                localStorage.setItem("token", JSON.stringify(token));
+                localStorage.removeItem("tokens");
+                if (strictSafety) localStorage.setItem("fosscord-e2ee-strict-safety", "true");
+                else localStorage.removeItem("fosscord-e2ee-strict-safety");
+            },
+            { token: user.token, strictSafety },
+        );
     if (extraInit) await context.addInitScript(extraInit);
     const page = context.pages()[0] ?? (await context.newPage());
     const sent = [];
     const errors = [];
     page.on("console", (m) => m.text().startsWith("[e2ee]") && errors.push(m.text()));
-    page.on("request", (r) => ["POST", "PATCH"].includes(r.method()) && r.url().includes(`/channels/${dm.id}/messages`) && sent.push(r.postDataJSON()));
+    page.on("request", (r) => {
+        const path = new URL(r.url()).pathname;
+        const message = path.match(/\/channels\/(\d+)\/messages(?:\/(\d+))?$/);
+        if (message?.[1] === dm.id && ((r.method() === "POST" && !message[2]) || (r.method() === "PATCH" && message[2]))) sent.push(r.postDataJSON());
+    });
     if (!login) {
         await page.goto(`${origin}/channels/@me/${dm.id}`);
         return { context, page, sent, errors, user };
@@ -176,7 +191,10 @@ const send = async (s, text) => {
 };
 const waitDecrypted = (s, text) =>
     s.page.waitForFunction(
-        (text) => [...document.querySelectorAll('[id^="message-content-"]')].some((el) => el.textContent.includes(text) && el.querySelector('.fe2ee-lock[data-state="decrypted"]')),
+        (text) =>
+            [...document.querySelectorAll('[id^="message-content-"]')].some(
+                (el) => el.textContent.includes(text) && window.__fosscordE2ee?.status?.()?.states?.[el.id.replace("message-content-", "")]?.state === "decrypted",
+            ),
         text,
         { timeout: 12000 },
     );
@@ -213,14 +231,15 @@ const diagnose = async (...sessions) => {
 };
 
 const phase = async (name, fn) => {
-    for (let attempt = 1; attempt <= 5; attempt++) {
+    for (let attempt = 1; attempt <= 3; attempt++) {
         try {
             log(`${name}${attempt > 1 ? ` (attempt ${attempt})` : ""}`);
             return await fn();
         } catch (error) {
-            const closed = /closed|disconnected|Target|Timeout/i.test(String(error));
-            if (!closed || attempt === 5) throw error;
-            log(`browser went away, retrying: ${String(error).split("\n")[0]}`);
+            const closed = /closed|disconnected|Target/i.test(String(error));
+            const timeout = /Timeout/i.test(String(error));
+            if (error instanceof assert.AssertionError || (!closed && !timeout) || attempt === 3) throw error;
+            log(`${closed ? "browser closed or disconnected" : "native UI timed out"}, retrying: ${String(error).split("\n")[0]}`);
         }
     }
 };
@@ -248,6 +267,7 @@ try {
             await waitReady(a);
             const sa = await status(a);
             assert.equal(sa.linked, true, "tester device linked");
+            assert.equal(sa.trustsServer, true, "ordinary chat uses the default trusted-server policy");
             assert.deepEqual(sa.backup && { mode: sa.backup.mode, hasSecret: sa.backup.hasSecret }, { mode: "password", hasSecret: true }, "login created a password backup");
             assert.equal(a.askedToUnlock, false, "the first device never asks to unlock");
         } catch (error) {
@@ -273,25 +293,27 @@ try {
         }
     });
 
-    await phase("both browsers register devices, tester turns encryption on and sends", async () => {
+    await phase("both browsers register devices and send with default encryption", async () => {
         const [a, b] = await launchAll([tester], [friend]);
         try {
             await Promise.all([waitReady(a), waitReady(b)]);
             const [sa, sb] = await Promise.all([status(a), status(b)]);
             assert.equal(sa.linked, true, "tester device linked");
+            assert.equal(sa.trustsServer, true, "ordinary chat uses the default trusted-server policy");
             assert.equal(sb.linked, true, "friend device linked");
             log(`tester device ${sa.deviceId}, friend device ${sb.deviceId}`);
 
-            if (!sa.encryptedChannels.includes(dm.id)) {
-                await a.page.locator(".fe2ee-toggle").click();
-                await a.page.locator("dialog.fe2ee-dialog button", { hasText: "Turn on encryption" }).click();
-            }
+            assert.ok(sa.encryptedChannels.includes(dm.id), "private conversation is encrypted by default");
+            assert.equal(await dialogOpen(a), 0, "default encryption shows no setup dialogs");
+            assert.equal(await dialogOpen(b), 0, "default encryption shows no peer setup dialogs");
             await Promise.all([waitEncrypted(a), waitEncrypted(b)]);
             assert.equal(await a.page.locator(".fe2ee-toggle").getAttribute("aria-pressed"), "true", "header toggle shows encryption on");
 
             await send(a, first);
             await waitDecrypted(b, first);
             await waitDecrypted(a, first);
+            assert.equal(await a.page.locator('.fe2ee-lock[data-state="decrypted"]').count(), 0, "healthy messages have no encryption icons");
+            assert.equal(await b.page.locator('.fe2ee-lock[data-state="decrypted"]').count(), 0, "healthy peer messages have no encryption icons");
             await shot(b, "1-friend-reads-tester");
             assert.ok(a.sent.length >= 1, "tester sent a request");
             const body = a.sent.at(-1);
@@ -488,7 +510,7 @@ try {
     });
 
     await phase("history decrypts after reload, friend replies, safety numbers match", async () => {
-        const [a, b] = await launchAll([tester], [friend]);
+        const [a, b] = await launchAll([tester, { strictSafety: true }], [friend, { strictSafety: true }]);
         try {
             await Promise.all([waitReady(a), waitReady(b)]);
             await waitDecrypted(b, edited);
@@ -597,6 +619,7 @@ try {
             await waitReady(b);
             if (!(await b.page.locator('[id^="message-content-"]', { hasText: afterRotation }).count())) await send(b, afterRotation);
             await waitDecrypted(b, afterRotation);
+            assert.equal(await dialogOpen(b), 0, "default trust accepts the rotated identity without a dialog");
             await b.page.locator(".fe2ee-toggle").click();
             await b.page.locator("dialog.fe2ee-dialog .fe2ee-status", { hasText: "Verified" }).waitFor({ timeout: 8000 });
             assert.equal(await b.page.locator(".fe2ee-notice", { hasText: "safety number changed" }).count(), 0, "friend sees no safety number warning after the signed rotation");
@@ -685,7 +708,7 @@ try {
 
     let recoveryCode = "";
     await phase("recovery-code mode asks a new browser for the code", async () => {
-        const a = await launch(tester);
+        const a = await launch(tester, { login: true, strictSafety: true });
         try {
             await waitReady(a);
             await a.page.locator(".fe2ee-toggle").click();
@@ -712,14 +735,14 @@ try {
     });
 
     await phase("a new browser asks for the recovery code and the history fills in", async () => {
-        const e = await launch(tester, { login: true, profile: fresh("tester-e") });
+        const e = await launch(tester, { login: true, profile: fresh("tester-e"), strictSafety: true });
         try {
             await waitReady(e);
             assert.equal((await status(e)).locked, true, "the password alone doesn't unlock a recovery-code backup");
             const missing = e.page.locator('[id^="message-content-"]', { hasText: "Unlock this browser to read this message" }).first();
             await missing.waitFor({ timeout: 12000 });
             await shot(e, "6-missing-keys");
-            if (!(await dialogOpen(e))) await missing.locator(".fe2ee-unlock").click();
+            if (!(await dialogOpen(e))) await e.page.locator(".fe2ee-notice button", { hasText: "Unlock" }).click();
             const input = e.page.getByLabel("Recovery code");
             await input.fill("AAAA-BBBB-CCCC-DDDD-EEEE-FFFF-GGGG-HHHH");
             await e.page.locator("dialog.fe2ee-dialog button", { hasText: /^Unlock$/ }).click();
@@ -740,7 +763,7 @@ try {
     });
 
     await phase("a signed-in browser approves a new login", async () => {
-        const [a, f] = await launchAll([tester], [tester, { login: true, profile: fresh("tester-f") }]);
+        const [a, f] = await launchAll([tester, { strictSafety: true }], [tester, { login: true, profile: fresh("tester-f"), strictSafety: true }]);
         try {
             await waitReady(a);
             try {
@@ -769,6 +792,71 @@ try {
             }
         } finally {
             await close(a);
+        }
+    });
+
+    await phase("default trusted-server mode links an authenticated new browser without approval dialogs", async () => {
+        const [a, g] = await launchAll([tester], [tester, { login: true, profile: fresh("tester-auto") }]);
+        try {
+            await Promise.all([waitReady(a), waitReady(g)]);
+            await g.page.waitForFunction(() => window.__fosscordE2ee?.status?.()?.linked === true, null, { timeout: 20000 });
+            await waitDecrypted(g, edited);
+            assert.equal(await dialogOpen(a), 0, "signed-in browser links without an approval dialog");
+            assert.equal(await dialogOpen(g), 0, "authenticated new browser links without a recovery dialog");
+            const text = `Automatic private chat ${suffix}`;
+            await send(g, text);
+            await waitDecrypted(a, text);
+            await waitDecrypted(g, text);
+            assert.equal(g.sent.at(-1).content, "🔒 Encrypted message");
+            assert.ok(g.sent.at(-1).encrypted);
+            await shot(g, "10-automatic-private-chat");
+            log("authenticated browser linked and sent ciphertext with no encryption dialogs");
+        } catch (error) {
+            await diagnose(a, g);
+            throw error;
+        } finally {
+            await close(a, g);
+        }
+    });
+
+    await phase("a blocked browser requires its account password without a plaintext bypass", async () => {
+        const h = await launch(friend, { profile: fresh("friend-password") });
+        try {
+            await waitReady(h);
+            assert.equal((await status(h)).locked, true);
+            const text = `Password protected draft ${suffix}`;
+            await send(h, text);
+            const prompt = h.page.locator('dialog.fe2ee-dialog[data-required-password="true"]');
+            await prompt.waitFor({ timeout: 12000 });
+            assert.equal(await prompt.locator("input").count(), 1, "only the account password is requested");
+            assert.equal(await prompt.getByLabel("Recovery code").count(), 0);
+            assert.equal(await prompt.getByRole("button", { name: /Not now|Skip|Reset encryption/ }).count(), 0);
+            await h.page.keyboard.press("Escape");
+            assert.equal(await prompt.count(), 1, "password requirement cannot be dismissed");
+            assert.equal(h.sent.length, 0, "locked browser sends no plaintext request");
+            await prompt.getByLabel("Account password").fill("wrong-test-password");
+            await prompt.getByRole("button", { name: "Continue", exact: true }).click();
+            await prompt.locator(".fe2ee-error", { hasText: "isn't right" }).waitFor();
+            assert.equal(h.sent.length, 0, "wrong password does not forward the draft");
+            assert.equal((await status(h)).locked, true);
+            assert.equal(await h.page.locator(".fe2ee-lock").count(), 0, "no message has an added lock icon");
+            await prompt.getByLabel("Account password").fill(friend.password);
+            await prompt.getByRole("button", { name: "Continue", exact: true }).click();
+            await prompt.waitFor({ state: "detached", timeout: 15000 });
+            await waitDecrypted(h, edited);
+            assert.equal((await status(h)).linked, true);
+            assert.ok((await h.page.locator('[role="textbox"]').innerText()).includes(text), "draft survives required password verification");
+            await h.page.locator('[role="textbox"]').press("Enter");
+            await waitDecrypted(h, text);
+            assert.equal(h.sent.at(-1).content, FALLBACK);
+            assert.ok(h.sent.at(-1).encrypted);
+            await h.page.screenshot({ path: join(tmpdir(), "fosscord-e2ee-required-password-unlocked.png") });
+            log("required password rejected an incorrect password, retained the draft, and sent ciphertext after unlock");
+        } catch (error) {
+            await diagnose(h);
+            throw error;
+        } finally {
+            await close(h);
         }
     });
 

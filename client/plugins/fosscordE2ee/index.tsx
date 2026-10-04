@@ -20,7 +20,7 @@ import { updateMessage } from "@api/MessageUpdater";
 import SettingsPlugin from "@plugins/_core/settings";
 import definePlugin, { IconProps } from "@utils/types";
 import { findComponentByCodeLazy } from "@webpack";
-import { MessageStore, useEffect, useRef, useState } from "@webpack/common";
+import { ChannelStore, MessageStore, showToast, Toasts, useEffect, useRef, useState } from "@webpack/common";
 
 import { FosscordAuthor } from "../fosscordCore/shared";
 
@@ -63,6 +63,22 @@ const labels = () => {
 };
 
 const bridge = () => (window as unknown as { __fosscordE2ee?: E2eeBridge }).__fosscordE2ee;
+
+const privateChannel = (channelId: string) => {
+    const channel = ChannelStore.getChannel(channelId);
+    return channel ? channel.type === 1 || channel.type === 3 : location.pathname === `/channels/@me/${channelId}`;
+};
+const guardSend = async (channelId: string) => {
+    if (!bridge()?.beforeSend && privateChannel(channelId)) {
+        const deadline = Date.now() + 20000;
+        while (!bridge()?.beforeSend && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 50));
+        if (!bridge()?.beforeSend) {
+            showToast("Private chat is still preparing. Try sending again.", Toasts.Type.FAILURE);
+            return true;
+        }
+    }
+    return !!(await bridge()?.beforeSend?.(channelId));
+};
 
 const exposeUpdater = () => {
     const target = bridge();
@@ -168,11 +184,11 @@ export default definePlugin({
     },
 
     async onBeforeMessageSend(channelId) {
-        if (await bridge()?.beforeSend?.(channelId)) return { cancel: true };
+        if (await guardSend(channelId)) return { cancel: true };
     },
 
     async onBeforeMessageEdit(channelId) {
-        if (await bridge()?.beforeSend?.(channelId)) return { cancel: true };
+        if (await guardSend(channelId)) return { cancel: true };
     },
 
     start() {

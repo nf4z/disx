@@ -21,6 +21,20 @@ const LOCALES = ["de", "fr", "ja", "pl", "zh-CN"] as const;
 type Row = [de: string, fr: string, ja: string, pl: string, zh: string];
 
 export const STRINGS: Record<string, Row> = {
+    "Preparing private chat… Your message is still in the text box.": [
+        "Privater Chat wird vorbereitet… Deine Nachricht bleibt im Textfeld.",
+        "Préparation de la conversation privée… Votre message reste dans le champ de texte.",
+        "プライベートチャットを準備中… メッセージは入力欄に残っています。",
+        "Przygotowywanie prywatnego czatu… Twoja wiadomość pozostaje w polu tekstowym.",
+        "正在准备私密聊天… 你的消息仍保留在输入框中。",
+    ],
+    "Preparing private chat…": [
+        "Privater Chat wird vorbereitet…",
+        "Préparation de la conversation privée…",
+        "プライベートチャットを準備中…",
+        "Przygotowywanie prywatnego czatu…",
+        "正在准备私密聊天…",
+    ],
     Close: ["Schließen", "Fermer", "閉じる", "Zamknij", "关闭"],
     Cancel: ["Abbrechen", "Annuler", "キャンセル", "Anuluj", "取消"],
     Done: ["Fertig", "OK", "完了", "Gotowe", "完成"],

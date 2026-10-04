@@ -31,15 +31,17 @@ const SCREEN_PATH =
     "M4 3a3 3 0 0 0-3 3v9a3 3 0 0 0 3 3h7v2H8a1 1 0 1 0 0 2h8a1 1 0 1 0 0-2h-3v-2h7a3 3 0 0 0 3-3V6a3 3 0 0 0-3-3H4Zm0 2h16a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z";
 
 const css = `
+.fe2ee-safety-option{display:flex;align-items:center;gap:8px;min-height:40px;cursor:pointer}
+.fe2ee-safety-option input{width:18px;height:18px;accent-color:var(--button-filled-brand-background,var(--focus-primary))}
 .fe2ee-lock{display:inline-flex;vertical-align:-2px;margin-inline-start:4px;color:var(--text-muted,#949ba4)}
 .fe2ee-lock svg{width:14px;height:14px}
 .fe2ee-lock[data-state="failed"]{color:var(--status-danger,#f23f43)}
 .fe2ee-toggle{background:none;border:0;padding:0;margin:0 8px;width:24px;height:24px;flex:none;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--interactive-icon-default,var(--interactive-normal,#b5bac1));transition:color 120ms ease-out,scale 200ms ease-out}
 .fe2ee-toggle svg{width:24px;height:24px}
-.fe2ee-toggle[aria-pressed="true"]{color:var(--status-positive,#23a55a)}
+.fe2ee-toggle[aria-pressed="true"]{color:var(--text-muted,#949ba4)}
 .fe2ee-toggle:active{scale:.94}
 .fe2ee-toggle:focus-visible{outline:2px solid var(--focus-primary,#00a8fc);outline-offset:2px;border-radius:4px}
-@media (hover:hover){.fe2ee-toggle:hover{color:var(--interactive-icon-hover,var(--interactive-hover,#dbdee1))}.fe2ee-toggle[aria-pressed="true"]:hover{color:var(--status-positive,#23a55a)}}
+@media (hover:hover){.fe2ee-toggle:hover{color:var(--interactive-icon-hover,var(--interactive-hover,#dbdee1))}.fe2ee-toggle[aria-pressed="true"]:hover{color:var(--text-muted,#949ba4)}}
 .fe2ee-tooltip{position:fixed;z-index:10002;pointer-events:none;max-width:220px;padding:8px 12px;border-radius:8px;font-size:14px;line-height:18px;font-weight:500;text-align:center;text-wrap:balance;color:var(--text-strong,#f2f3f5);background:var(--background-surface-highest,#111214);box-shadow:0 0 0 1px var(--border-subtle,rgb(255 255 255 / .06)),0 2px 4px rgb(0 0 0 / .16),0 8px 16px rgb(0 0 0 / .24)}
 .fe2ee-tooltip::before{content:"";position:absolute;left:calc(50% - 5px);width:10px;height:10px;rotate:45deg;background:inherit}
 .fe2ee-tooltip[data-side="bottom"]::before{top:-4px}
@@ -188,6 +190,7 @@ const snoozeUnlock = () => {
 
 export interface UiOptions {
     engine: Engine;
+    ready: Promise<boolean>;
     states: Map<string, { state: MessageState; reason?: string }>;
     enableChannel: (channelId: string) => Promise<void>;
     link: { outgoing: () => Outgoing | null; request: () => Promise<void>; cancel: () => Promise<void>; invite: (deviceId: string) => Promise<void> };
@@ -195,12 +198,17 @@ export interface UiOptions {
     reset: (password: string) => Promise<void>;
 }
 
-export const createUi = ({ engine, states, enableChannel, link, verifyPassword, reset }: UiOptions) => {
+export const createUi = ({ engine, ready, states, enableChannel, link, verifyPassword, reset }: UiOptions) => {
     const style = document.createElement("style");
     style.textContent = css;
     const bar = document.createElement("div");
     bar.className = "fe2ee-notice";
     bar.setAttribute("role", "status");
+    let bootstrapped = false;
+    ready.then((ok) => {
+        bootstrapped = ok;
+        refresh();
+    });
     let failure: string | null = null;
     let paused: string | null = null;
     let transient: (Notice & { channelId: string; until: number }) | null = null;
@@ -211,6 +219,8 @@ export const createUi = ({ engine, states, enableChannel, link, verifyPassword, 
     let scheduled = false;
     let tooltip: HTMLElement | null = null;
     let backupPromptDismissed = false;
+    let requiredPasswordOpen: (() => void) | null = null;
+    let passwordPromptTimer: ReturnType<typeof setTimeout> | null = null;
     const invited = new Map<string, number>();
 
     const mount = () => {
@@ -410,8 +420,10 @@ export const createUi = ({ engine, states, enableChannel, link, verifyPassword, 
                 text = t("{name}'s safety number changed. Review it before sending more messages.", { name: who ? memberName(who) : t("Someone") });
             else if (error.code === "UNSUPPORTED") text = t("{reason}. Your message wasn't sent.", { reason: error.message });
             else if (error.code === "NOT_LINKED") {
-                text = t("Unlock this browser to send encrypted messages. Your message wasn't sent.");
-                action = { label: t("Unlock"), run: showUnlock };
+                text = engine.trustsServer
+                    ? t("Preparing private chat… Your message is still in the text box.")
+                    : t("Unlock this browser to send encrypted messages. Your message wasn't sent.");
+                if (!engine.trustsServer) action = { label: t("Unlock"), run: showUnlock };
             } else if (error.code === "NOT_READY") text = t("End-to-end encryption is unavailable right now, so your message wasn't sent.");
         }
         flash(channelId, { tone: "danger", text, action });
@@ -581,6 +593,71 @@ export const createUi = ({ engine, states, enableChannel, link, verifyPassword, 
         input.addEventListener("keydown", (event) => event.key === "Enter" && submit.click());
         row.append(submit);
         return wrap;
+    };
+
+    const showRequiredPassword = () => {
+        if (requiredPasswordOpen || unlockOpen || !engine.locked || !engine.trustsServer || failure) return;
+        dialog(t("Enter your password"), (body, actions, { el, close, setDismissable }) => {
+            setDismissable(false);
+            el.dataset.requiredPassword = "true";
+            describe(body, t("Enter your account password to finish setting up this browser."));
+            const { wrap, input, setError } = field(t("Account password"), "password", "current-password");
+            input.required = true;
+            body.append(wrap);
+            let finished = false;
+            const finish = () => {
+                if (finished) return;
+                finished = true;
+                stop();
+                requiredPasswordOpen = null;
+                if (engine.linked && transient?.tone === "info") transient = null;
+                close();
+                refresh();
+            };
+            const stop = engine.onChange(() => {
+                if (engine.linked) finish();
+            });
+            requiredPasswordOpen = finish;
+            const submit = button(t("Continue"), "primary", async () => {
+                if (!input.value) return setError(t("Enter your password."));
+                submit.disabled = true;
+                setError(null);
+                try {
+                    if (!(await verifyPassword(input.value))) return setError(t("That password isn't right."));
+                    await engine.reloadBackup();
+                    if (engine.backup?.mode === "password" && engine.backup.wrapped_secret) await engine.unlockWith("password", input.value);
+                    else {
+                        await link.request();
+                        await new Promise<void>((resolve) => {
+                            const timer = setTimeout(() => {
+                                unsubscribe();
+                                resolve();
+                            }, 8000);
+                            const unsubscribe = engine.onChange(() => {
+                                if (!engine.linked) return;
+                                clearTimeout(timer);
+                                unsubscribe();
+                                resolve();
+                            });
+                        });
+                    }
+                    input.value = "";
+                    if (engine.linked) finish();
+                    else
+                        setError(
+                            t(
+                                "Your password is correct, but this browser still needs your saved keys. Open a previously signed-in browser or use Advanced recovery. Your messages have not been reset.",
+                            ),
+                        );
+                } catch (error) {
+                    setError(errorText(error));
+                } finally {
+                    submit.disabled = false;
+                }
+            });
+            input.addEventListener("keydown", (event) => event.key === "Enter" && submit.click());
+            actions.append(button(t("Advanced recovery"), "link", showSettings), submit);
+        });
     };
 
     const showUnlock = () => {
@@ -895,7 +972,22 @@ export const createUi = ({ engine, states, enableChannel, link, verifyPassword, 
                       );
             if (resetText.textContent !== text) resetText.textContent = text;
         };
-        root.append(browser, backupSection, devices, resetSection);
+        const advanced = section(t("Advanced safety checks"));
+        const strictLabel = document.createElement("label");
+        strictLabel.className = "fe2ee-safety-option";
+        const strict = document.createElement("input");
+        strict.type = "checkbox";
+        strict.checked = !engine.trustsServer;
+        strict.addEventListener("change", () => {
+            if (strict.checked) browserStorage?.setItem("fosscord-e2ee-strict-safety", "true");
+            else browserStorage?.removeItem("fosscord-e2ee-strict-safety");
+            engine.invalidateAll();
+            refresh();
+        });
+        strictLabel.append(strict, document.createTextNode(t("Review safety number changes and new browser approvals")));
+        advanced.append(strictLabel);
+        describe(advanced, t("By default, this browser trusts this instance's signed-in sessions and key directory. Messages and key backups stay encrypted."));
+        root.append(browser, backupSection, devices, resetSection, advanced);
         const clear = (el: HTMLElement) => el.querySelectorAll(":scope > :not(h3)").forEach((child) => child.remove());
         const renderBrowser = () => {
             clear(browser);
@@ -1068,6 +1160,10 @@ export const createUi = ({ engine, states, enableChannel, link, verifyPassword, 
 
     const beforeSend = async (channelId: string) => {
         if (!engine.isEncrypted(channelId)) return false;
+        if (!(await ready)) {
+            flash(channelId, { tone: "danger", text: failure ?? t("Encryption is unavailable in this client build") });
+            return true;
+        }
         if (failure) {
             flash(channelId, { tone: "danger", text: failure });
             return true;
@@ -1077,8 +1173,14 @@ export const createUi = ({ engine, states, enableChannel, link, verifyPassword, 
             return true;
         }
         const changed = members?.channelId === channelId ? members.list.find((m) => engine.contacts[m.id]?.pendingKey) : undefined;
-        if (changed) return pauseForChange(channelId, changed);
+        if (changed && !engine.trustsServer) return pauseForChange(channelId, changed);
         if (engine.locked) {
+            if (engine.trustsServer) {
+                link.request().catch(() => {});
+                showRequiredPassword();
+                flash(channelId, { tone: "info", text: t("Preparing private chat… Your message is still in the text box.") });
+                return true;
+            }
             showUnlock();
             flash(channelId, {
                 tone: "warning",
@@ -1087,8 +1189,20 @@ export const createUi = ({ engine, states, enableChannel, link, verifyPassword, 
             });
             return true;
         }
-        const checked = await Promise.race([changedMember(channelId).catch(() => null), new Promise<null>((resolve) => void setTimeout(() => resolve(null), 3000))]);
-        return checked ? pauseForChange(channelId, checked) : false;
+        if (!engine.trustsServer) {
+            const checked = await Promise.race([changedMember(channelId).catch(() => null), new Promise<null>((resolve) => void setTimeout(() => resolve(null), 3000))]);
+            return checked ? pauseForChange(channelId, checked) : false;
+        }
+        const prepared = await Promise.race([
+            engine
+                .channelMembers(channelId)
+                .then((ids) => engine.keysFor(ids))
+                .then((entries) => entries.every((entry) => entry.devices.some((device) => device.status === "active")))
+                .catch(() => false),
+            new Promise<boolean>((resolve) => void setTimeout(() => resolve(false), 3000)),
+        ]);
+        if (!prepared) flash(channelId, { tone: "info", text: t("Preparing private chat… Your message is still in the text box.") });
+        return !prepared;
     };
 
     const decorateMessages = () => {
@@ -1097,57 +1211,15 @@ export const createUi = ({ engine, states, enableChannel, link, verifyPassword, 
             if (!content) continue;
             if (info.state === "decrypted") delete content.dataset.fe2eeState;
             else if (content.dataset.fe2eeState !== info.state) content.dataset.fe2eeState = info.state;
-            const edited = [...content.children].find((el) => el.getAttribute("class")?.includes("timestamp_") && el.querySelector('[class*="edited_"]'));
-            const host = (edited as HTMLElement | undefined) ?? content;
-            const existing = content.querySelector<HTMLElement>(".fe2ee-lock");
-            const existingButton = content.querySelector<HTMLElement>(".fe2ee-unlock");
-            const wantsButton = info.state === "locked" && engine.locked;
-            const placed =
-                existing?.parentElement === host &&
-                existing.dataset.state === info.state &&
-                existing.nextElementSibling === (wantsButton && host === content ? existingButton : null) &&
-                (wantsButton ? existingButton?.parentElement === content && content.lastElementChild === existingButton : !existingButton);
-            if (placed) continue;
-            existing?.remove();
-            existingButton?.remove();
-            const lock = document.createElement("span");
-            lock.className = "fe2ee-lock";
-            lock.dataset.state = info.state;
-            const label =
-                info.state === "decrypted"
-                    ? t("End-to-End Encrypted")
-                    : info.state === "pending"
-                      ? t("Decrypting")
-                      : info.state === "locked"
-                        ? t("Unlock this browser to read this message")
-                        : info.state === "missing"
-                          ? t("This browser doesn't have the key for this message")
-                          : info.state === "reset"
-                            ? t("Sent before encryption was reset, so it can't be read anymore")
-                            : info.reason
-                              ? t("Couldn't decrypt this message. {reason}", { reason: info.reason })
-                              : t("Couldn't decrypt this message.");
-            lock.innerHTML = svg(info.state === "decrypted" || info.state === "pending" ? LOCK_PATH : OPEN_LOCK_PATH, label);
-            withTooltip(lock, () => label);
-            host.append(lock);
-            if (wantsButton) {
-                const unlock = document.createElement("button");
-                unlock.type = "button";
-                unlock.className = "fe2ee-unlock";
-                unlock.textContent = t("Unlock");
-                unlock.addEventListener("click", (event) => {
-                    event.stopPropagation();
-                    showUnlock();
-                });
-                content.append(unlock);
-            }
+            content.querySelectorAll(".fe2ee-lock, .fe2ee-unlock").forEach((el) => el.remove());
         }
     };
 
     const headerLabel = (channelId: string) => {
         if (!engine.isEncrypted(channelId)) return t("Turn On Encryption");
+        if (!bootstrapped) return t("Preparing private chat…");
         const list = members?.channelId === channelId ? members.list : [];
-        if (list.some((m) => engine.contacts[m.id]?.pendingKey)) return t("Safety Number Changed");
+        if (!engine.trustsServer && list.some((m) => engine.contacts[m.id]?.pendingKey)) return t("Safety Number Changed");
         if (list.length && list.every((m) => engine.contacts[m.id]?.verified)) return t("Encrypted and Verified");
         return t("End-to-End Encrypted");
     };
@@ -1177,6 +1249,7 @@ export const createUi = ({ engine, states, enableChannel, link, verifyPassword, 
             toolbar.prepend(toggle);
         }
         const label = headerLabel(channelId);
+        toggle.disabled = on && !bootstrapped;
         const key = `${on}|${verified}|${label}`;
         if (toggle.dataset.key === key) return;
         toggle.dataset.key = key;
@@ -1192,16 +1265,20 @@ export const createUi = ({ engine, states, enableChannel, link, verifyPassword, 
         if (!engine.isEncrypted(channelId)) return temporary;
         if (failure) return { tone: "danger", text: failure };
         if (paused) return { tone: "warning", text: paused };
+        if (!bootstrapped) return { tone: "info", text: t("Preparing private chat…") };
         const changed = members?.channelId === channelId ? members.list.find((m) => engine.contacts[m.id]?.pendingKey) : undefined;
-        if (changed)
+        if (changed && !engine.trustsServer)
             return {
                 tone: "warning",
                 text: t("{name}'s safety number changed. Sending is paused until you review it.", { name: memberName(changed) }),
                 action: { label: t("Review"), run: () => showSafety(channelId) },
             };
         if (temporary) return temporary;
-        if (engine.locked) return { tone: "info", text: t("Unlock this browser to read and send encrypted messages here."), action: { label: t("Unlock"), run: showUnlock } };
-        if (engine.backupNeedsPassword && !backupPromptDismissed)
+        if (engine.locked)
+            return engine.trustsServer
+                ? { tone: "info", text: t("Preparing private chat…") }
+                : { tone: "info", text: t("Unlock this browser to read and send encrypted messages here."), action: { label: t("Unlock"), run: showUnlock } };
+        if (!engine.trustsServer && engine.backupNeedsPassword && !backupPromptDismissed)
             return {
                 tone: "info",
                 text: t("Back up your encryption keys with your password so your other browsers can read your encrypted messages."),
@@ -1241,7 +1318,7 @@ export const createUi = ({ engine, states, enableChannel, link, verifyPassword, 
             scheduled = false;
             mount();
             const channelId = currentChannel();
-            if (channelId && engine.userId && members?.channelId !== channelId) {
+            if (bootstrapped && channelId && engine.userId && members?.channelId !== channelId) {
                 const id = channelId;
                 engine
                     .channelMembers(id)
@@ -1256,6 +1333,18 @@ export const createUi = ({ engine, states, enableChannel, link, verifyPassword, 
             decorateMessages();
             decorateHeader(channelId);
             decorateNotice(channelId);
+            const needsPassword = bootstrapped && !failure && engine.trustsServer && engine.locked && !!channelId && engine.isEncrypted(channelId);
+            if (!needsPassword && passwordPromptTimer) {
+                clearTimeout(passwordPromptTimer);
+                passwordPromptTimer = null;
+            }
+            if (needsPassword && !requiredPasswordOpen && !passwordPromptTimer) {
+                passwordPromptTimer = setTimeout(() => {
+                    passwordPromptTimer = null;
+                    const current = currentChannel();
+                    if (current && engine.isEncrypted(current)) showRequiredPassword();
+                }, 8000);
+            }
         });
     };
 

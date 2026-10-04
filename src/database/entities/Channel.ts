@@ -17,7 +17,7 @@
 */
 
 import { HTTPError } from "lambert-server/HTTPError";
-import { Column, Entity, EntityManager, Index, JoinColumn, ManyToOne, OneToMany } from "typeorm";
+import { Column, Entity, EntityManager, Index, IsNull, JoinColumn, ManyToOne, OneToMany } from "typeorm";
 import { DmChannelDTO } from "../../util/dtos";
 import { ChannelCreateEvent, ChannelRecipientRemoveEvent, ThreadCreateEvent, ThreadMembersUpdateEvent } from "../../util/interfaces";
 import { InvisibleCharacters, Snowflake, emitEvent, getPermission, Permissions, Config, DiscordApiErrors, FieldErrors } from "@spacebar/util/util";
@@ -324,6 +324,27 @@ export class Channel extends BaseClass {
         return this.type === ChannelType.GUILD_FORUM || this.type === ChannelType.GUILD_MEDIA;
     }
 
+    static async ensureDefaultPrivateEncryption(channel: Channel, actor_id?: string) {
+        if (![ChannelType.DM, ChannelType.GROUP_DM].includes(channel.type) || channel.e2ee_enabled_at) return;
+        const enabled_at = new Date();
+        const result = await Channel.update({ id: channel.id, e2ee_enabled_at: IsNull() }, { e2ee_enabled_at: enabled_at });
+        if (!result.affected) {
+            channel.e2ee_enabled_at = (await Channel.findOneByOrFail({ id: channel.id })).e2ee_enabled_at;
+            return;
+        }
+        channel.e2ee_enabled_at = enabled_at;
+        const recipients = channel.recipients ?? (await Recipient.find({ where: { channel_id: channel.id } }));
+        await Promise.all(
+            recipients.map(({ user_id }) =>
+                emitEvent({
+                    event: "CHANNEL_E2EE_UPDATE",
+                    user_id,
+                    data: { channel_id: channel.id, enabled: true, enabled_at: enabled_at.toISOString(), user_id: actor_id ?? user_id },
+                }),
+            ),
+        );
+    }
+
     static async createDMChannel(recipients: string[], creator_user_id: string, name?: string) {
         recipients = [...new Set(recipients)].filter((x) => x !== creator_user_id);
         // TODO: check config for max number of recipients
@@ -370,6 +391,7 @@ export class Channel extends BaseClass {
                 owner_id: type === ChannelType.GROUP_DM ? creator_user_id : undefined,
                 created_at: new Date(),
                 last_message_id: undefined,
+                e2ee_enabled_at: new Date(),
                 recipients: channelRecipients.map((x) =>
                     Recipient.create({
                         user_id: x,
@@ -380,6 +402,7 @@ export class Channel extends BaseClass {
             }).save();
         }
 
+        await Channel.ensureDefaultPrivateEncryption(channel, creator_user_id);
         const channel_dto = await DmChannelDTO.from(channel);
 
         if (!needsTx) {
