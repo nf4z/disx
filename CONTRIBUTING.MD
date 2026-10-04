@@ -61,16 +61,13 @@ PORT=3001 SERVER_LOG=$PWD/server.log scripts/dev/restart.sh
 PORT=3001 node scripts/dev/parity-probe.mjs
 ```
 
-Rate limits are stored in the database, so running the probes over and over can hit them. Clear them between runs:
+Rate limits persist in the database. Do not clear global rate-limit rows to make a probe pass. Use disposable test accounts, honor `Retry-After`, and let each fixture remove only records it created. Keep mutation probes on an explicitly isolated database.
+
+Run the end-to-end encryption test when you change messages, channels, sessions, the gateway or anything under `client/e2ee`, `client/plugins/fosscordE2ee` or the `e2ee` routes. The full suite takes several minutes. It creates disposable Cap-registered accounts, checks the selected database before writes, and preserves private browser profiles if key restoration fails. It does not reuse the demo login or clear global rate limits. Run from the isolated worktree whose `.env` names the test database. For the persistent local demo:
 
 ```sh
-psql fosscord -c "delete from rate_limits"
-```
-
-Run the end-to-end encryption test when you change messages, channels, sessions, the gateway or anything under `client/e2ee`, `client/plugins/fosscordE2ee` or the `e2ee` routes. It takes about five minutes and clears the rate limits itself:
-
-```sh
-CHROME_PATH="/Applications/Brave Browser.app/Contents/MacOS/Brave Browser" PORT=3001 node scripts/dev/e2ee-test.mjs
+cd /tmp/fosscord-admin-perf
+CHROME_PATH="/Applications/Brave Browser.app/Contents/MacOS/Brave Browser" PORT=3290 node scripts/dev/e2ee-test.mjs
 ```
 
 Run the client check when you change `client/plugins`, `client/vencord-patches` or `client/vencord.json`, and after downloading a new Discord build. It exits with code 1 when one of our patches, or an upstream plugin we turn on by default, no longer matches the client:
@@ -80,3 +77,5 @@ CHROME_PATH="/Applications/Brave Browser.app/Contents/MacOS/Brave Browser" PORT=
 ```
 
 For voice and video changes, run `PORT=3001 node scripts/dev/voice-probe.mjs` and check that both users report audio packets in each direction. It needs the SFU, which `worktree-setup.sh` builds when Go is installed.
+
+The continuing project queue is [docs/work-backlog.md](docs/work-backlog.md). Each task has a stable ID, priority and acceptance target. Record evidence and the shipped commit when marking a task complete; source-only findings are not completed features.
