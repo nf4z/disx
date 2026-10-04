@@ -26,24 +26,11 @@ import { PartialConnectedAccountResponse, PrivateUserProjection, PublicUserProje
 
 import { prideBadges } from "@spacebar/api/util/utility/prideBadges";
 
+import { isSubscriptionBadge } from "@spacebar/api/util/utility/profile";
+
 import { profileApplication } from "@spacebar/api/util/handlers/Application";
 
 const router: Router = Router({ mergeParams: true });
-
-const PREMIUM_BADGE_ICON = "2ba85e8026a8614b640c2837bcdfe21b";
-const PREMIUM_TENURE_MONTHS = [72, 60, 36, 24, 12, 6, 3, 1];
-
-const premiumBadge = (since: Date) => {
-    const now = new Date();
-    const months = (now.getUTCFullYear() - since.getUTCFullYear()) * 12 + now.getUTCMonth() - since.getUTCMonth() - (now.getUTCDate() < since.getUTCDate() ? 1 : 0);
-    const tier = PREMIUM_TENURE_MONTHS.find((x) => months >= x);
-    const id = tier ? `premium_tenure_${tier}_month_v2` : "premium";
-    return {
-        id,
-        description: `Subscriber since ${since.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })}`,
-        icon: tier ? id : PREMIUM_BADGE_ICON,
-    };
-};
 
 router.get("/", route({ responses: { 200: { body: "UserProfileResponse" } } }), async (req: Request, res: Response) => {
     if (req.params.user_id === "@me") req.params.user_id = req.user_id;
@@ -67,11 +54,7 @@ router.get("/", route({ responses: { 200: { body: "UserProfileResponse" } } }), 
         .where("user.id = :user_id", { user_id })
         .getOneOrFail();
 
-    const memberships = await Member.find({ where: { id: user_id }, select: { guild_id: true, nick: true, premium_since: true } });
-    const premium_guild_since = memberships
-        .map((x) => x.premium_since)
-        .filter((x) => x != null)
-        .sort((a, b) => Number(a) - Number(b))[0];
+    const memberships = await Member.find({ where: { id: user_id }, select: { guild_id: true, nick: true } });
 
     let mutual_guilds: { id: string; nick: string | null }[] | undefined;
     if (with_mutual_guilds === "true") {
@@ -113,7 +96,6 @@ router.get("/", route({ responses: { 200: { body: "UserProfileResponse" } } }), 
         : null;
 
     const badges = [];
-    if (user.premium_type > 0 && !user.hide_premium_badge) badges.push(premiumBadge(new Date(user.created_at)));
     if (user.badge_ids?.length) badges.push(...(await Badge.find({ where: { id: In(user.badge_ids) } })));
 
     badges.push(...prideBadges(user.pride_badges));
@@ -131,12 +113,12 @@ router.get("/", route({ responses: { 200: { body: "UserProfileResponse" } } }), 
     res.json({
         user: { ...user.toPartialUser(), bio: user.bio ?? "" },
         connected_accounts,
-        premium_since: user.premium_type > 0 ? user.created_at : null,
+        premium_since: null,
         premium_type: user.premium_type,
-        premium_guild_since: premium_guild_since ? new Date(Number(premium_guild_since)) : null,
+        premium_guild_since: null,
         profile_themes_experiment_bucket: 4,
         user_profile: profileMetadata(user),
-        badges,
+        badges: badges.filter((badge) => !isSubscriptionBadge(badge)),
         guild_badges: [],
         widgets: user.profile_widgets ?? [],
         legacy_username: null,

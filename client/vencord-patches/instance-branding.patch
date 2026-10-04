@@ -11,12 +11,14 @@ index 2bcc785..b6b007b 100644
  import { React, useEffect } from "@webpack/common";
  
  import plugins from "~plugins";
-@@ -263,6 +263,9 @@ export function definePluginSettings<
+@@ -263,6 +263,11 @@ export function definePluginSettings<
      Checks extends SettingsChecks<Def>,
      PrivateSettings extends object = {}
  >(def: Def, checks?: Checks) {
 +    for (const option of Object.values(def) as any[]) {
 +        if (option && typeof option.description === "string") option.description = brand(option.description);
++        if (Array.isArray(option?.options))
++            option.options = option.options.map((choice: any) => typeof choice.label === "string" ? { ...choice, label: brand(choice.label) } : choice);
 +    }
      if (checks) {
          for (const [name, check] of Object.entries(checks)) {
@@ -176,7 +178,7 @@ index 5d25b17..b40f27c 100644
 +
 +export const brand = <T,>(text: T): T =>
 +    typeof text === "string"
-+        ? text.replace(/\bDiscord\b/g, instanceName()).replace(/\bDISCORD\b/g, instanceName().toUpperCase()).replace(/\bNitro\b/g, "Premium") as T
++        ? text.replace(/\bDiscord\b/g, instanceName()).replace(/\bDISCORD\b/g, instanceName().toUpperCase()).replace(/\b(?:Nitro|Premium)\b/gi, "Features") as T
 +        : text;
 +
  // exists to export default definePlugin({...})

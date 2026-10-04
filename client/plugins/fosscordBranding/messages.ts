@@ -21,27 +21,7 @@ const SELECT = 5;
 const PLURAL = 6;
 
 // fosscord too: client files downloaded before branding moved into this plugin already had Discord rewritten to Fosscord
-const CANDIDATE = /discord|discrod|fosscord|nitr|ディスコード|ไนโตร/i;
-
-const FINNISH_CASES = new Set(["n", "a", "ssa", "sta", "lla", "lta", "lle", "ksi", "na", "si", "ni", "mme", "nne", "kin"]);
-
-const TURKISH_CASES: Record<string, string> = { ya: "a", yu: "u", yla: "la", yle: "le", da: "da", dan: "dan", daki: "daki", nun: "un", nu: "unu", n: "un", ye: "e" };
-
-const premium = (vowel: string, suffix: string, turkish: boolean) => {
-    if (/^[oó]*$/.test(suffix) || suffix === "ween" || suffix === "to") return "Premium";
-    if (turkish && suffix === "n") return "Premium'un";
-    if (vowel === "ó") {
-        const rest = suffix.replace(/^ó+/, "");
-        if (rest === "val") return "Premiummal";
-        if (rest === "t" || rest === "n") return `Premiumo${rest}`;
-        if (rest.startsWith("d")) return `Premiumo${rest}`;
-        return `Premium${rest}`;
-    }
-    if (suffix === "on") return "Premiumiin";
-    if (FINNISH_CASES.has(suffix)) return `Premiumi${suffix}`;
-    if (suffix === "m" || suffix === "v") return `Premiumo${suffix}`;
-    return `Premium${suffix}`;
-};
+const CANDIDATE = /discord|discrod|fosscord|nitr|premium|ディスコード|ไนโตร/i;
 
 const brandText = (text: string, name: string) => {
     if (!CANDIDATE.test(text)) return text;
@@ -55,13 +35,12 @@ const brandText = (text: string, name: string) => {
         .replace(/FOSSCORD/g, () => name.toUpperCase())
         .replace(/Discord|Discrod|Fosscord|ディスコード/g, () => name)
         .replace(/(?<![\p{L}\w.@/-])discord(?![\p{L}\w.@/-])/gu, () => name)
-        .replace(/NITRO/g, "PREMIUM")
-        .replace(/ไนโตร/g, "Premium")
-        .replace(/Nitro(['’])(\p{Script=Latin}+)/gu, (match, apostrophe, suffix) =>
-            TURKISH_CASES[suffix] ? `Premium${apostrophe}${TURKISH_CASES[suffix]}` : `Premium${apostrophe}${suffix}`,
-        )
-        .replace(/Nitr([oóо])(\p{Script=Latin}*)/gu, (match, vowel, suffix) => premium(vowel, suffix, /[ığşüçİ]/.test(text)))
-        .replace(/Nitr(?:a|u+|em|om|e|y|ou)(?!\p{Script=Latin})/gu, "Premium");
+        .replace(/(?:NITRO|PREMIUM)(?: BASIC| CLASSIC)?/g, "FEATURES")
+        .replace(/ไนโตร/g, "Features")
+        .replace(/Nitro(['’])(\p{Script=Latin}+)/gu, "Features")
+        .replace(/Nitr([oóо])(\p{Script=Latin}*)/gu, "Features")
+        .replace(/Nitr(?:a|u+|em|om|e|y|ou)(?!\p{Script=Latin})/gu, "Features")
+        .replace(/\bPremium(?: Basic| Classic)?\b/gi, "Features");
 };
 
 const QR_LOGIN = /^\["Scan this with the ",\[8,"\$b",\["[^"]*"\]\]," to log in instantly\."\]$/;

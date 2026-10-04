@@ -20,6 +20,8 @@ import definePlugin from "@utils/types";
 
 import { FosscordAuthor, hideNotices, hideSetting, redirectHome } from "../fosscordCore/shared";
 
+import { renderGradientToggle } from "./gradient";
+
 const NITRO_WHEEL_PATH = "M16.23 12c0 1.29-.95 2.25-2.22 2.25A2.18 2.18 0 0 1 11.8 12c0-1.29";
 
 const MAKE_IT_YOURS_ONLY_WITH_PREMIUM = "#{intl::np0X/u::raw}";
@@ -30,13 +32,22 @@ const WISHLIST = "#{intl::7lZ31J::raw}";
 
 export default definePlugin({
     name: "FosscordNoNitroUpsells",
-    description: "Everyone already has Nitro here, so this removes every Nitro advert, trial, gift prompt, wishlist and billing page.",
+    description: "All features are free. Removes subscription adverts, trial prompts, billing pages and subscription badges.",
+    hidden: true,
     authors: [FosscordAuthor],
     required: true,
 
     redirectHome,
+    renderGradientToggle,
 
     patches: [
+        {
+            find: "showResetThemeButton:",
+            replacement: {
+                match: /(function \i\((\i)\)\{let\{user:\i,pendingAvatarSrc:\i,pendingColors:\i,onThemeColorsChange:\i,preventDisabled:\i,guildId:\i,className:\i,showPremiumIcon:\i=!0,showResetThemeButton:\i=!1,forcedDivider:\i\}=\2,(\i)=.{0,110}?\{primaryColor:(\i),secondaryColor:(\i)\}=.{0,1400}?children:\(0,\i\.jsxs\)\("div",\{className:\i\.\i,children:\[)/,
+                replace: "$1$self.renderGradientToggle($2,$3?.themeColors,[$4,$5]),",
+            },
+        },
         hideNotices([
             "GIFTING_PROMOTION_REMINDER",
             "OUTBOUND_PROMOTION",

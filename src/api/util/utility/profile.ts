@@ -20,6 +20,11 @@ import { Member, User } from "@spacebar/database";
 import { CollectibleItemType, Collectibles, FieldErrors } from "@spacebar/util";
 import { ProfileCollectible } from "@spacebar/schemas";
 
+const SUBSCRIPTION_BADGE = /^(?:premium(?:_|$)|nitro(?:_|$)|subscriber(?:_|$)|guild_booster(?:_|$))/;
+
+export const isSubscriptionBadge = (badge: { id: string; icon: string }) =>
+    SUBSCRIPTION_BADGE.test(badge.id) || SUBSCRIPTION_BADGE.test(badge.icon) || badge.icon === "2ba85e8026a8614b640c2837bcdfe21b";
+
 export const profileMetadata = (source: User | Member) => {
     const collectibles = source.profile_collectibles ?? [];
     const effect = collectibles.find((x) => x.type === CollectibleItemType.PROFILE_EFFECT);

@@ -84,7 +84,7 @@ let originalOpen: typeof window.open | null = null;
 export default definePlugin({
     name: "FosscordBranding",
     description:
-        "Uses this instance's name, logo, default avatars and help center instead of Discord's, in every translated string and on the sign-in pages, and Premium instead of Nitro.",
+        "Uses this instance's name, logo, default avatars and help center instead of Discord's, in every translated string and on the sign-in pages, with feature access available to everyone.",
     authors: [FosscordAuthor],
     required: true,
 
