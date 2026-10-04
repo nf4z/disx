@@ -1,3 +1,4 @@
+import { solveCap } from "./cap-token.mjs";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { createHmac, randomBytes } from "node:crypto";
@@ -16,6 +17,7 @@ const accounts = Object.fromEntries(
 );
 
 async function call(method, path, token, body, extraHeaders = {}) {
+    if (method === "POST" && path === "/auth/register" && body && !body.captcha_key) body = { ...body, captcha_key: await solveCap({ origin: `http://localhost:${port}` }) };
     const isForm = body instanceof FormData;
     const res = await fetch(path.startsWith("http") ? path : `${api}${path}`, {
         method,
@@ -294,14 +296,14 @@ await check("messages", "reply with mention", async () => {
     return { ok: r.body?.type === 19 && r.body?.referenced_message?.id === msg.id && r.body?.mentions?.some((u) => u.id === me.id), note: `type=${r.body?.type}` };
 });
 await check("messages", "forward", async () => {
-    const temporary = globalThis.gdm ? null : await call("POST", `/guilds/${guild.id}/channels`, A, { name: "probe-forward", type: 0 });
-    if (temporary && !temporary.body?.id) return st(temporary, 201, 200);
-    const destination = globalThis.gdm ?? temporary.body.id;
+    const temporary = await call("POST", `/guilds/${guild.id}/channels`, A, { name: "probe-forward", type: 0 });
+    if (!temporary.body?.id) return st(temporary, 201, 200);
+    const destination = temporary.body.id;
     try {
         const r = await call("POST", `/channels/${destination}/messages`, A, { message_reference: { type: 1, message_id: msg.id, channel_id: text.id, guild_id: guild.id } });
         return { ok: r.status === 200 && r.body?.message_snapshots?.length === 1, note: `${r.status} ${JSON.stringify(r.body).slice(0, 150)}` };
     } finally {
-        if (temporary) await call("DELETE", `/channels/${destination}`, A);
+        await call("DELETE", `/channels/${destination}`, A);
     }
 });
 await check("messages", "reactions and super reactions", async () => {

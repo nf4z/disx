@@ -15,22 +15,22 @@ Each feature has one of four marks:
 
 ## Accounts and sign-in
 
-| Feature                                       | Status   | Notes                                                                                                              |
-| --------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------ |
-| Register with username and password           | working  | Email and date of birth are optional.                                                                              |
-| Captcha on register, login and password reset | working  | Optional Cap captcha. `/auth/captcha` reports what is turned on.                                                   |
-| Login, logout                                 | working  | Logging out revokes the token, so the next request with it gets 401.                                               |
-| Password reset by email                       | working  | Without SMTP the reset link is written to the server log.                                                          |
-| Email verification and change                 | working  | Changing a verified email asks for the code sent to the old address.                                               |
-| TOTP two-factor and backup codes              | working  | Enabling with a code, then login asking for the TOTP ticket.                                                       |
-| Security keys and passkeys (WebAuthn)         | working  | Registering a key asks for MFA first, like Discord. Passkey login (`/auth/conditional/start`) returns a challenge. |
-| SMS two-factor and phone numbers              | partial  | Works, but without an SMS provider the code is only written to the server log.                                     |
-| QR code login (remote auth)                   | working  | `/remote-auth` answers with `hello`.                                                                               |
-| Sessions and devices list, remote logout      | working  |                                                                                                                    |
-| Disable and delete account                    | working  |                                                                                                                    |
-| Data package request                          | working  | Without SMTP the download link is written to the server log.                                                       |
-| Unique usernames (pomelo) and suggestions     | working  |                                                                                                                    |
-| Age verification flows                        | excluded | Discord runs these for legal reasons in some countries. Nothing here needs them.                                   |
+| Feature                                       | Status   | Notes                                                                                                                                      |
+| --------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Register with username and password           | working  | Email and date of birth are optional.                                                                                                      |
+| Captcha on register, login and password reset | working  | Visible Cap verification is required for signup by default, with server-side one-use checks and local assets. Login/reset remain optional. |
+| Login, logout                                 | working  | Logging out revokes the token, so the next request with it gets 401.                                                                       |
+| Password reset by email                       | working  | Without SMTP the reset link is written to the server log.                                                                                  |
+| Email verification and change                 | working  | Changing a verified email asks for the code sent to the old address.                                                                       |
+| TOTP two-factor and backup codes              | working  | Enabling with a code, then login asking for the TOTP ticket.                                                                               |
+| Security keys and passkeys (WebAuthn)         | working  | Registering a key asks for MFA first, like Discord. Passkey login (`/auth/conditional/start`) returns a challenge.                         |
+| SMS two-factor and phone numbers              | partial  | Works, but without an SMS provider the code is only written to the server log.                                                             |
+| QR code login (remote auth)                   | working  | `/remote-auth` answers with `hello`.                                                                                                       |
+| Sessions and devices list, remote logout      | working  |                                                                                                                                            |
+| Disable and delete account                    | working  |                                                                                                                                            |
+| Data package request                          | working  | Without SMTP the download link is written to the server log.                                                                               |
+| Unique usernames (pomelo) and suggestions     | working  |                                                                                                                                            |
+| Age verification flows                        | excluded | Discord runs these for legal reasons in some countries. Nothing here needs them.                                                           |
 
 ## Profiles
 

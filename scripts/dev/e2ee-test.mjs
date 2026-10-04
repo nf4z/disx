@@ -1,3 +1,4 @@
+import { solveCap } from "./cap-token.mjs";
 import { createRequire } from "node:module";
 import { homedir, tmpdir } from "node:os";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -27,6 +28,7 @@ const shot = (s, name) => shots && s.page.screenshot({ path: join(shots, `${name
 const log = (...args) => console.log(`[${((Date.now() - started) / 1000).toFixed(1)}s]`, ...args);
 
 const call = async (method, path, token, body) => {
+    if (method === "POST" && path === "/auth/register" && body && !body.captcha_key) body = { ...body, captcha_key: await solveCap({ origin: `http://localhost:${port}` }) };
     const res = await fetch(`${api}${path}`, {
         method,
         headers: { "content-type": "application/json", ...(token && { authorization: token }) },
