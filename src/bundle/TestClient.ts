@@ -191,7 +191,7 @@ const stripScheme = (url: string) => url.replace(/^(https?|wss?):\/\//, "").repl
 
 const buildHtml = () => {
     const source = fs.readFileSync(path.join(CACHE_PATH, "index.html"), "utf8");
-    const { client, cdn, gateway } = Config.get();
+    const { client, cdn } = Config.get();
 
     const envMatch = source.match(/<script[^>]*>\s*window\.GLOBAL_ENV\s*=([\s\S]*?)<\/script>/);
     if (!envMatch) throw new Error("[TestClient] assets/cache/index.html has no GLOBAL_ENV, rerun `npm run generate:client`");
@@ -203,14 +203,13 @@ const buildHtml = () => {
     const cdnHost = stripScheme(cdn.endpointPublic || "");
     const images = brandImageUrls();
     const json = (value: unknown) => JSON.stringify(value).replace(/</g, "\\u003c");
-    const gatewayUrl = (gateway.endpointPublic || "").replace(/\/$/, "");
 
     const env = `<script>
 (() => {
     const host = location.host;
     const secure = location.protocol === "https:";
     const cdn = ${JSON.stringify(cdnHost)} || host;
-    const gateway = ${JSON.stringify(gatewayUrl)} || \`\${secure ? "wss" : "ws"}://\${host}\`;
+    const gateway = \`\${secure ? "wss" : "ws"}://\${host}\`;
     window.GLOBAL_ENV = Object.assign(${JSON.stringify(base)}, {
         HTML_TIMESTAMP: Date.now(),
         API_ENDPOINT: \`//\${host}/api\`,

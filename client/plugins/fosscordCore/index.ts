@@ -26,7 +26,15 @@ export default definePlugin({
     authors: [FosscordAuthor],
     required: true,
 
+    gateway: () => `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}`,
     patches: [
+        {
+            find: "resume_gateway_url",
+            replacement: {
+                match: /this\.setResumeUrl\(\i\.resume_gateway_url\)/,
+                replace: "this.setResumeUrl($self.gateway())",
+            },
+        },
         {
             find: "https://cdn.discordapp.com/assets/content/",
             all: true,
