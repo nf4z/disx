@@ -59,10 +59,13 @@ router.get("/", route({ responses: { 200: {}, 403: { body: "APIErrorResponse" } 
 // PUT replaces every value, PATCH changes only the keys it sends and removes the ones set to null.
 const save = (merge: boolean) => async (req: Request, res: Response) => {
     const { app, userId } = await resolve(req);
-    const body = (req.body ?? {}) as { username?: unknown; data?: Record<string, unknown> };
+    if (!req.body || typeof req.body !== "object" || Array.isArray(req.body)) throw FieldErrors({ body: { code: "BASE_TYPE_INVALID", message: "Must be an object." } });
+    const body = req.body as { username?: unknown; data?: Record<string, unknown> };
+    const input = body.data === undefined ? {} : body.data;
+    parseIdentityData(input);
     const existing = await ApplicationIdentity.findOne({ where: { application_id: app.id, user_id: userId } });
-    const removed = merge ? Object.keys(body.data ?? {}).filter((key) => body.data![key] === null) : [];
-    const merged = merge ? { ...existing?.data, ...body.data } : (body.data ?? {});
+    const removed = merge ? Object.keys(input).filter((key) => input[key] === null) : [];
+    const merged = merge ? { ...existing?.data, ...input } : input;
     const data = parseIdentityData(Object.fromEntries(Object.entries(merged).filter(([key]) => !removed.includes(key))));
     const username = parseUsername(body.username);
     const identity = ApplicationIdentity.create({

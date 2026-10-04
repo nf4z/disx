@@ -174,11 +174,12 @@ export async function canUseWidget(app: Application, userId: string) {
 
 export function parseIdentityData(raw: unknown) {
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw invalid("data", "Must be an object.");
-    const entries = Object.entries(raw as Record<string, unknown>).filter(([, value]) => value != null);
+    const entries = Object.entries(raw as Record<string, unknown>);
     if (entries.length > MAX_IDENTITY_KEYS) throw invalid("data", `Can have up to ${MAX_IDENTITY_KEYS} keys.`);
     const data: Record<string, string | number> = {};
     for (const [key, value] of entries) {
         if (!DATA_KEY.test(key)) throw invalid(`data.${key}`, "Keys can only use letters, numbers and underscores, up to 32 characters.");
+        if (value == null) continue;
         if (typeof value === "number" && Number.isFinite(value)) data[key] = value;
         else if (typeof value === "string" && value.length <= MAX_WIDGET_TEXT) data[key] = value;
         else throw invalid(`data.${key}`, `Must be a number or a string of up to ${MAX_WIDGET_TEXT} characters.`);
@@ -202,27 +203,47 @@ const toClientIdentity = (applicationId: string, userId: string, identity?: Appl
 
 // Identities for every application with data for the user, and for every widget on their profile or of their own
 // applications even when there's no data for them, so widgets made only of fixed text and images still render.
-export async function listUserIdentities(userId: string) {
-    const [identities, user, owned] = await Promise.all([
-        ApplicationIdentity.find({ where: { user_id: userId } }),
+export async function listUserIdentities(userId: string, viewerId?: string) {
+    const self = userId === viewerId;
+    const [user, ownIdentities, owned] = await Promise.all([
         User.findOne({ where: { id: userId }, select: { id: true, profile_widgets: true } }),
-        Application.find({ where: { owner_id: userId }, select: { id: true } }),
+        self ? ApplicationIdentity.find({ where: { user_id: userId } }) : Promise.resolve([]),
+        self ? Application.find({ where: { owner_id: userId }, select: { id: true } }) : Promise.resolve([]),
     ]);
     const widgetApps = (user?.profile_widgets ?? []).filter((w) => w.data.type === "application").map((w) => String(w.data.application_id));
-    const ids = [...new Set([...identities.map((x) => x.application_id), ...widgetApps, ...owned.map((app) => app.id)])];
+    const ids = [...new Set([...widgetApps, ...ownIdentities.map((identity) => identity.application_id), ...owned.map((app) => app.id)])];
     if (!ids.length) return [];
-    const configured = new Set(
-        (await Application.find({ where: { id: In(ids) }, select: { id: true, widget_config: true } })).filter((app) => isWidgetComplete(app.widget_config)).map((app) => app.id),
-    );
+    const [apps, identities] = await Promise.all([
+        Application.find({ where: { id: In(ids) }, select: { id: true, widget_config: true } }),
+        self ? Promise.resolve(ownIdentities) : ApplicationIdentity.find({ where: { user_id: userId, application_id: In(ids) } }),
+    ]);
+    const identityById = new Map(identities.map((identity) => [identity.application_id, identity]));
+    const configById = new Map(apps.filter((app) => isWidgetComplete(app.widget_config)).map((app) => [app.id, app.widget_config!]));
+    const surfaces = ["widget_top", "widget_bottom", "mini_profile", "activity_accessory", ...(self ? ["add_widget_preview"] : [])];
     return ids
-        .filter((id) => configured.has(id))
-        .map((id) =>
-            toClientIdentity(
+        .filter((id) => configById.has(id))
+        .map((id) => {
+            const identity = identityById.get(id);
+            const keys = new Set<string>();
+            const include = (field: ApplicationWidgetField) => {
+                if (field.value_type === "data") keys.add(field.value);
+                if (field.fallback) include(field.fallback);
+            };
+            for (const surface of surfaces) {
+                for (const component of Object.values(configById.get(id)!.surfaces[surface]?.components ?? {})) {
+                    for (const field of Object.values(component.fields)) include(field);
+                }
+            }
+            return toClientIdentity(
                 id,
                 userId,
-                identities.find((x) => x.application_id === id),
-            ),
-        );
+                identity
+                    ? Object.assign(new ApplicationIdentity(), identity, {
+                          data: Object.fromEntries(Object.entries(identity.data).filter(([key]) => keys.has(key))),
+                      })
+                    : undefined,
+            );
+        });
 }
 
 // What a user's application widget showed, for a report: every text field as the reporter saw it, and its images.
