@@ -185,7 +185,25 @@ async function customCollectibles() {
             unpublished_at: null,
         };
     });
-    return { categories, hidden: hidden.map((x) => x.sku_id) };
+    return {
+        categories,
+        hidden: hidden.filter((x) => x.hidden !== false).map((x) => x.sku_id),
+        overrides: Object.fromEntries(
+            hidden.map((pack) => {
+                const metadata = pack.customization ?? {};
+                return [
+                    pack.sku_id,
+                    {
+                        ...(metadata.name !== undefined ? { name: metadata.name } : {}),
+                        ...(metadata.summary !== undefined ? { summary: metadata.summary } : {}),
+                        ...(metadata.position !== undefined ? { position: metadata.position } : {}),
+                        ...(metadata.banner_hash ? { banner_url: artUrl(`builtin/${pack.sku_id}/banner`, metadata.banner_hash) } : {}),
+                        ...(metadata.logo_hash ? { logo_url: artUrl(`builtin/${pack.sku_id}/logo`, metadata.logo_hash) } : {}),
+                    },
+                ];
+            }),
+        ),
+    };
 }
 
 /** Whether a store item has the art it needs to show up in the shop. */

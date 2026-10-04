@@ -443,7 +443,25 @@ export interface AdminStoreBuiltinPackUpdateSchema {
     /**
      * Take the pack out of the shop; people who already have its items keep them
      */
-    hidden: boolean;
+    hidden?: boolean;
+    /**
+     * @minLength 1
+     * @maxLength 100
+     */
+    name?: string | null;
+    /**
+     * @maxLength 500
+     */
+    summary?: string | null;
+    /**
+     * @TJS-type integer
+     * @minimum -2147483648
+     * @maximum 2147483647
+     */
+    position?: number | null;
+    banner_data?: string | null;
+    logo_data?: string | null;
+    reset?: boolean;
 }
 
 /**

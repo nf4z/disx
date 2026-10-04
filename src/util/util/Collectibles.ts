@@ -91,7 +91,8 @@ let refreshTimer: NodeJS.Timeout | undefined;
 
 // the admin panel's own packs, and the mirrored packs it took out of the shop. The api registers this, since the
 // database isn't reachable from here
-export type CustomCollectibles = { categories: CollectibleCategory[]; hidden: string[] };
+export type BuiltinCollectibleOverride = { name?: string; summary?: string; position?: number; banner_url?: string; logo_url?: string };
+export type CustomCollectibles = { categories: CollectibleCategory[]; hidden: string[]; overrides?: Record<string, BuiltinCollectibleOverride> };
 let customSource: (() => Promise<CustomCollectibles>) | undefined;
 
 const withCustom = async (base: Catalog): Promise<Catalog> => {
@@ -109,7 +110,31 @@ const withCustom = async (base: Catalog): Promise<Catalog> => {
         }
     // hidden packs only leave the shop, so people who already have their items can keep using them
     const hidden = new Set(custom.hidden);
-    return { categories: [...custom.categories, ...base.categories.filter((x) => !hidden.has(x.sku_id))], products, items, builtin: base.categories };
+    const builtin = base.categories
+        .map((category, index) => {
+            const override = custom.overrides?.[category.sku_id];
+            const result: CollectibleCategory & { position: number; customized: boolean } = {
+                ...category,
+                position: override?.position ?? index,
+                customized: !!override && Object.keys(override).length > 0,
+            };
+            if (override?.name !== undefined) {
+                result.name = override.name;
+                result.hero_block_title = override.name;
+            }
+            if (override?.summary !== undefined) result.summary = override.summary;
+            if (override?.banner_url !== undefined) {
+                for (const field of ["hero_banner_url", "catalog_banner_url", "featured_block_url", "mobile_banner_url", "mobile_hero_url"]) result[field] = override.banner_url;
+                result.hero_banner_animated_url = null;
+            }
+            if (override?.logo_url !== undefined) {
+                result.logo_url = override.logo_url;
+                result.hero_logo_url = override.logo_url;
+            }
+            return result;
+        })
+        .sort((a, b) => a.position - b.position);
+    return { categories: [...custom.categories, ...builtin.filter((x) => !hidden.has(x.sku_id))], products, items, builtin };
 };
 
 const localize = (raw: string) => {

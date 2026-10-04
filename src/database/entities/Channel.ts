@@ -17,7 +17,7 @@
 */
 
 import { HTTPError } from "lambert-server/HTTPError";
-import { Column, Entity, Index, JoinColumn, ManyToOne, OneToMany } from "typeorm";
+import { Column, Entity, EntityManager, Index, JoinColumn, ManyToOne, OneToMany } from "typeorm";
 import { DmChannelDTO } from "../../util/dtos";
 import { ChannelCreateEvent, ChannelRecipientRemoveEvent, ThreadCreateEvent, ThreadMembersUpdateEvent } from "../../util/interfaces";
 import { InvisibleCharacters, Snowflake, emitEvent, getPermission, Permissions, Config, DiscordApiErrors, FieldErrors } from "@spacebar/util/util";
@@ -231,6 +231,7 @@ export class Channel extends BaseClass {
             skipPermissionCheck?: boolean;
             skipEventEmit?: boolean;
             skipNameChecks?: boolean;
+            manager?: EntityManager;
         },
     ): Promise<Channel> {
         if (!opts?.skipPermissionCheck) {
@@ -239,7 +240,7 @@ export class Channel extends BaseClass {
             permissions.hasThrow("MANAGE_CHANNELS");
         }
 
-        const guild = await Guild.findOneOrFail({
+        const guild = await (opts?.manager?.getRepository(Guild) ?? Guild.getRepository()).findOneOrFail({
             where: { id: channel.guild_id },
             select: {
                 features: !opts?.skipNameChecks,
@@ -270,7 +271,7 @@ export class Channel extends BaseClass {
                     channel.user_limit ??= 0;
                 }
                 if (channel.parent_id && !opts?.skipExistsCheck) {
-                    const exists = await Channel.findOne({
+                    const exists = await (opts?.manager?.getRepository(Channel) ?? Channel.getRepository()).findOne({
                         where: { id: channel.parent_id },
                     });
                     if (!exists || exists.type !== ChannelType.GUILD_CATEGORY) throw new HTTPError("Parent id channel doesn't exist", 400);
@@ -307,8 +308,9 @@ export class Channel extends BaseClass {
         // TODO: figure out why the generic is required here
         const ret = Channel.create<Channel>(channel);
 
-        await ret.save();
-        ret.position = await Guild.insertChannelInOrder(guild.id, ret.id, position, guild);
+        if (opts?.manager) await opts.manager.save(ret);
+        else await ret.save();
+        ret.position = await Guild.insertChannelInOrder(guild.id, ret.id, position, guild, opts?.manager);
         if (!opts?.skipEventEmit)
             await emitEvent({
                 event: "CHANNEL_CREATE",

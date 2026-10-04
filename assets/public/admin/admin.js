@@ -2609,7 +2609,7 @@ async function renderStore(view) {
                     <h1>Store</h1>
                     <p class="muted">
                         Packs of avatar decorations, nameplates, profile effects and profile frames people can pick up for free in the shop. Your packs come first, then the ones
-                        mirrored from Discord, which you can take out of the shop. Changed art can take up to 6 hours to update for people who already loaded it.
+                        mirrored from Discord. Edit pack details and artwork, or hide packs from the shop. Your edits affect this instance’s shop.
                     </p>
                 </div>
                 <button class="btn primary" id="new-pack" type="button">Add pack</button>
@@ -2637,7 +2637,10 @@ async function renderStore(view) {
                                                                   ? html`<img class="avatar square" src="${p.logo || p.banner}" alt="" loading="lazy" style="object-fit:cover" />`
                                                                   : html`<span class="avatar square">${initials(p.name)}</span>`
                                                           }
-                                                          <div><strong>${p.name}</strong><span class="muted">${p.summary || "No summary"}</span></div>
+                                                          <div>
+                                                              <button class="btn small" type="button" aria-label="Edit ${p.name}">${p.name}</button
+                                                              ><span class="muted">${p.summary || "No summary"}</span>
+                                                          </div>
                                                       </div>
                                                   </td>
                                                   <td class="hide-sm">
@@ -2660,10 +2663,15 @@ async function renderStore(view) {
                 <div class="card stack" style="gap:0;padding:0">
                     ${data.builtin.map(
                         (b) =>
-                            html`<label class="list-item toggle" style="padding:10px 16px;margin:0">
-                                <input type="checkbox" data-builtin="${b.sku_id}" ${b.hidden ? "" : raw("checked")} />
-                                <span class="grow"><strong>${b.name}</strong><span class="hint">${b.items} ${b.items === 1 ? "item" : "items"}</span></span>
-                            </label>`,
+                            html`<div class="list-item" style="padding:10px 16px">
+                                <label class="toggle grow"
+                                    ><input type="checkbox" data-builtin="${b.sku_id}" ${b.hidden ? "" : raw("checked")} /><span
+                                        ><strong>${b.name}</strong
+                                        ><span class="hint">${b.items} ${b.items === 1 ? "item" : "items"}${b.customized ? " · Customized" : ""}</span></span
+                                    ></label
+                                >
+                                <button class="btn small" type="button" data-edit-builtin="${b.sku_id}" aria-label="Edit ${b.name}">Edit pack</button>
+                            </div>`,
                     )}
                 </div>
             </div>
@@ -2672,6 +2680,7 @@ async function renderStore(view) {
     const refresh = () => renderStore(view);
     $("#new-pack").addEventListener("click", () => openPack(null, refresh));
     for (const row of $$("tr[data-pack]", view)) row.addEventListener("click", () => openPack(row.dataset.pack, refresh));
+    for (const button of $$("[data-edit-builtin]", view)) button.addEventListener("click", () => openBuiltinPack(button.dataset.editBuiltin, refresh));
     for (const box of $$("[data-builtin]", view))
         box.addEventListener("change", async () => {
             const done = await act(
@@ -2712,6 +2721,68 @@ function artField(name, label, hint, current, { accept = IMAGE_TYPES, removable 
             }
         </div>
     </div>`;
+}
+
+function openBuiltinPack(skuId, refresh) {
+    const pack = storeState.data.builtin.find((item) => item.sku_id === skuId);
+    if (!pack) return;
+    const art = {};
+    const body = openDrawer(
+        `Edit ${pack.name}`,
+        html`<form class="stack" id="builtin-pack-form">
+            <p class="muted">
+                Customize this pack for your instance. Restore defaults to use its original details and artwork again. Existing owners keep their items when you hide the pack.
+            </p>
+            <label>Name<input name="name" value="${pack.name}" required maxlength="100" /></label>
+            <label>Summary<textarea name="summary" maxlength="500" rows="2">${pack.summary ?? ""}</textarea></label>
+            <label
+                >Order<input name="position" type="number" step="1" min="-2147483648" max="2147483647" value="${pack.position ?? 0}" /><span class="hint"
+                    >Lower numbers appear first among packs from Discord.</span
+                ></label
+            >
+            <label class="toggle"><input name="visible" type="checkbox" ${pack.hidden ? "" : raw("checked")} /><span>Show in the shop</span></label>
+            ${artField("banner", "Banner", "Upload artwork to replace the original banner on this instance.", pack.banner)}
+            ${artField("logo", "Logo", "Upload artwork to replace the original logo on this instance.", pack.logo)}
+            <div class="form-actions">
+                <button class="btn" data-reset-builtin type="button">Restore defaults</button><button class="btn primary" type="submit">Save pack</button>
+            </div>
+        </form>`,
+    );
+    if (!body) return;
+    const form = $("form", body);
+    for (const input of $$("[data-art]", form)) input.addEventListener("change", async () => (art[input.dataset.art] = await pickArt(input)));
+    for (const button of $$("[data-art-remove]", form)) {
+        button.textContent = "Restore original";
+        button.addEventListener("click", () => {
+            art[button.dataset.artRemove] = null;
+            form.dataset.dirty = "true";
+            mount(button.parentElement, html`<span class="muted">Original artwork restored when you save</span>`);
+        });
+    }
+    form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const fields = form.elements;
+        const payload = {
+            name: fields.namedItem("name").value,
+            summary: fields.namedItem("summary").value,
+            position: Number(fields.namedItem("position").value),
+            hidden: !fields.namedItem("visible").checked,
+        };
+        for (const slot of ["banner", "logo"]) if (art[slot] !== undefined) payload[`${slot}_data`] = art[slot];
+        const saved = await act($("button[type=submit]", form), () => api(`/admin/store/builtin/${skuId}`, { method: "PATCH", body: payload }), "Pack saved");
+        if (saved) {
+            await refresh();
+            openBuiltinPack(skuId, refresh);
+        }
+    });
+    $("[data-reset-builtin]", form).addEventListener("click", async (event) => {
+        if (!confirm(`Restore the original details and artwork for "${pack.name}"?`)) return;
+        const saved = await act(event.currentTarget, () => api(`/admin/store/builtin/${skuId}`, { method: "PATCH", body: { reset: true } }), "Pack defaults restored");
+        if (saved) {
+            await refresh();
+            openBuiltinPack(skuId, refresh);
+        }
+    });
 }
 
 async function openPack(packId, refresh) {
@@ -2769,6 +2840,7 @@ async function openPack(packId, refresh) {
     for (const btn of $$("[data-art-remove]", form))
         btn.addEventListener("click", () => {
             art[btn.dataset.artRemove] = null;
+            form.dataset.dirty = "true";
             mount(btn.parentElement, html`<span class="muted">Removed when you save</span>`);
         });
 
@@ -2892,6 +2964,11 @@ function openStoreItem(pack, item, refresh) {
                     >Description for screen readers<span class="hint">What it looks like, for people who can't see it.</span
                     ><input name="label" maxlength="500" value="${item?.label ?? ""}"
                 /></label>
+                <label
+                    >Order in this pack<input name="position" type="number" step="1" min="-2147483648" max="2147483647" value="${item?.position ?? 0}" /><span class="hint"
+                        >Lower numbers appear first.</span
+                    ></label
+                >
                 <div class="stack" id="store-type-fields"></div>
                 <div class="form-actions">
                     <button class="btn" id="store-item-back" type="button" style="margin-right:auto">Back to ${pack.name}</button>
@@ -2910,6 +2987,7 @@ function openStoreItem(pack, item, refresh) {
         for (const btn of $$("[data-art-remove]", form))
             btn.addEventListener("click", () => {
                 art[btn.dataset.artRemove] = null;
+                form.dataset.dirty = "true";
                 mount(btn.parentElement, html`<span class="muted">Removed when you save</span>`);
             });
     };
@@ -2922,7 +3000,7 @@ function openStoreItem(pack, item, refresh) {
 
     form.addEventListener("submit", async (e) => {
         e.preventDefault();
-        const payload = { name: form.name.value, summary: form.summary.value, label: form.label.value };
+        const payload = { name: form.name.value, summary: form.summary.value, label: form.label.value, position: Number(form.position.value) };
         if (!item) payload.type = type;
         if (type === 2) payload.palette = form.palette.value;
         if (type === 1) Object.assign(payload, { duration: Number(form.duration.value) || 3000, loop: form.loop.checked });
@@ -3033,7 +3111,7 @@ async function renderGuilds(view) {
     await load();
 }
 
-async function openGuild(id, reload) {
+async function openGuild(id, reload, resourcesOpen = false) {
     const body = openDrawer("Server", html`<div class="spinner">Loading…</div>`);
     if (!body) return;
     let g;
@@ -3196,7 +3274,7 @@ async function openGuild(id, reload) {
 
             <details class="card" id="server-resources">
                 <summary>Manage channels and roles</summary>
-                <p class="muted">Edit this server's channel details and role permissions.</p>
+                <p class="muted">Create channels and roles, or edit their details and permissions.</p>
                 <div id="server-resource-body" class="stack"></div>
             </details>
             <div class="card danger-zone stack">
@@ -3217,16 +3295,24 @@ async function openGuild(id, reload) {
             resourcesLoaded = true;
             mount(
                 target,
-                html`<h3>Channels</h3>
+                html`<div class="form-actions">
+                        <h3>Channels</h3>
+                        <button class="btn" type="button" data-create-channel>Create channel</button>
+                    </div>
                     ${channelData.truncated ? html`<p class="muted">Showing the first 1,000 channels.</p>` : ""}
                     <div class="resource-list">
                         ${channelData.channels.map((channel) => html`<button class="resource-row" type="button" data-edit-channel="${channel.id}"><span>${channel.type === 4 ? "Category" : channel.type === 2 ? "Voice" : "Channel"}</span><strong>${channel.name}</strong><span class="muted">Edit</span></button>`)}
                     </div>
-                    <h3>Roles</h3>
+                    <div class="form-actions">
+                        <h3>Roles</h3>
+                        <button class="btn" type="button" data-create-role>Create role</button>
+                    </div>
                     <div class="resource-list">
                         ${roleData.roles.map((role) => html`<button class="resource-row" type="button" data-edit-role="${role.id}" ${role.managed ? raw("disabled") : ""}><strong>${role.name}</strong><span class="muted">${role.managed ? "Integration managed" : "Edit"}</span></button>`)}
                     </div>`,
             );
+            $("[data-create-channel]", target).addEventListener("click", () => openAdminChannel(id, null, channelData.channels));
+            $("[data-create-role]", target).addEventListener("click", () => openAdminRole(id, null, roleData.permissions));
             for (const button of $$("[data-edit-channel]", target))
                 button.addEventListener("click", () =>
                     openAdminChannel(
@@ -3372,6 +3458,7 @@ async function openGuild(id, reload) {
             reload?.();
         }
     });
+    $("#server-resources", body).open = resourcesOpen;
 }
 
 /* ---------- system ---------- */
@@ -4119,57 +4206,123 @@ async function renderPerformance(view) {
 }
 
 function openAdminChannel(guildId, channel, channels) {
+    const creating = !channel;
+    channel ??= { name: "", type: 0, parent_id: null, rate_limit_per_user: 0, nsfw: false };
     const body = openDrawer(
-        `Edit ${channel.name}`,
+        creating ? "Create channel" : `Edit ${channel.name}`,
         html`<form class="stack" id="admin-channel-form">
+            ${
+                creating
+                    ? html`<label
+                              >Channel type<select name="type">
+                                  ${options(
+                                      [
+                                          [0, "Text"],
+                                          [2, "Voice"],
+                                          [4, "Category"],
+                                          [5, "Announcement"],
+                                          [13, "Stage"],
+                                          [15, "Forum"],
+                                          [16, "Media"],
+                                      ],
+                                      0,
+                                  )}
+                              </select></label
+                          >
+                          <p class="muted">Announcement and stage channels require the corresponding server features.</p>`
+                    : ""
+            }
             <label>Name<input name="name" value="${channel.name}" required maxlength="100" /></label>
-            <label>Topic<textarea name="topic" maxlength="4096">${channel.topic ?? ""}</textarea></label>
+            <label data-channel-topic>Topic<textarea name="topic" maxlength="4096">${channel.topic ?? ""}</textarea></label>
             <label
                 >Category<select name="parent_id">
                     ${options([["", "No category"], ...channels.filter((item) => item.type === 4 && item.id !== channel.id).map((item) => [item.id, item.name])], channel.parent_id ?? "")}
                 </select></label
             >
-            <label>Slowmode in seconds<input name="rate_limit_per_user" type="number" min="0" max="21600" step="1" value="${channel.rate_limit_per_user ?? 0}" /></label>
+            <label data-channel-slowmode
+                >Slowmode in seconds<input name="rate_limit_per_user" type="number" min="0" max="21600" step="1" value="${channel.rate_limit_per_user ?? 0}"
+            /></label>
+            ${
+                creating
+                    ? html`<div class="form-grid" data-channel-voice hidden>
+                          <label>Bitrate in bits per second<input name="bitrate" type="number" min="8000" max="384000" step="1000" value="64000" /></label
+                          ><label>Member limit<input name="user_limit" type="number" min="0" max="99" step="1" value="0" /><span class="hint">Use 0 for no limit.</span></label>
+                      </div>`
+                    : ""
+            }
             <label class="toggle"><input name="nsfw" type="checkbox" ${channel.nsfw ? raw("checked") : ""} /><span>Age restricted channel</span></label>
             <div class="form-actions">
-                <button class="btn primary" type="submit">Save channel</button><button class="btn" type="button" data-return-server>Back to server</button>
+                <button class="btn primary" type="submit">${creating ? "Create channel" : "Save channel"}</button
+                ><button class="btn" type="button" data-return-server>Back to server</button>
             </div>
         </form>`,
     );
     if (!body) return;
-    $("[data-return-server]", body).addEventListener("click", () => openGuild(guildId));
-    $("form", body).addEventListener("submit", async (event) => {
+    $("[data-return-server]", body).addEventListener("click", () => openGuild(guildId, undefined, true));
+    const form = $("form", body);
+    const field = (name) => form.elements.namedItem(name);
+    const updateType = () => {
+        const type = creating ? Number(field("type").value) : channel.type;
+        const voice = type === 2 || type === 13;
+        $("[data-channel-topic]", body).hidden = voice || type === 4;
+        $("[data-channel-slowmode]", body).hidden = voice || type === 4;
+        field("parent_id").disabled = type === 4;
+        if (type === 4) field("parent_id").value = "";
+        const voiceFields = $("[data-channel-voice]", body);
+        if (voiceFields) {
+            voiceFields.hidden = !voice;
+            for (const input of $$("input", voiceFields)) input.disabled = !voice;
+        }
+    };
+    if (creating) field("type").addEventListener("change", updateType);
+    updateType();
+    form.addEventListener("submit", async (event) => {
         event.preventDefault();
-        const form = event.currentTarget;
+        const type = creating ? Number(field("type").value) : channel.type;
+        const voice = type === 2 || type === 13;
         const patch = {
-            name: form.name.value,
-            topic: form.topic.value || null,
-            parent_id: form.parent_id.value || null,
-            rate_limit_per_user: Number(form.rate_limit_per_user.value),
-            nsfw: form.nsfw.checked,
+            name: field("name").value,
+            parent_id: field("parent_id").value || null,
+            nsfw: field("nsfw").checked,
         };
-        const result = await act($("button[type=submit]", form), () => api(`/admin/guilds/${guildId}/channels/${channel.id}`, { method: "PATCH", body: patch }), "Channel saved");
-        if (result) openGuild(guildId);
+        if (!voice && type !== 4) Object.assign(patch, { topic: field("topic").value || null, rate_limit_per_user: Number(field("rate_limit_per_user").value) });
+        if (creating) {
+            patch.type = type;
+            if (voice) Object.assign(patch, { bitrate: Number(field("bitrate").value), user_limit: Number(field("user_limit").value) });
+        }
+        const path = `/admin/guilds/${guildId}/channels${creating ? "" : `/${channel.id}`}`;
+        const result = await act(
+            $("button[type=submit]", form),
+            () => api(path, { method: creating ? "POST" : "PATCH", body: patch }),
+            creating ? "Channel created" : "Channel saved",
+        );
+        if (result) openGuild(guildId, undefined, true);
     });
 }
+
 function openAdminRole(guildId, role, permissions) {
+    const creating = !role;
+    role ??= { name: "", color: 0, permissions: "0", hoist: false, mentionable: false };
     const body = openDrawer(
-        `Edit ${role.name}`,
+        creating ? "Create role" : `Edit ${role.name}`,
         html`<form class="stack" id="admin-role-form">
             <label>Name<input name="name" value="${role.name}" required maxlength="100" /></label>
             <label>Color<input name="color" type="color" value="${hexColor(role.color)}" /></label>
             <label class="toggle"><input name="hoist" type="checkbox" ${role.hoist ? raw("checked") : ""} /><span>Display members separately</span></label>
             <label class="toggle"><input name="mentionable" type="checkbox" ${role.mentionable ? raw("checked") : ""} /><span>Allow anyone to mention this role</span></label>
             <h3>Permissions</h3>
-            <p class="muted">Administrator grants every server permission. Existing unknown permissions are preserved.</p>
+            <p class="muted">Administrator grants every server permission. ${creating ? "New roles start with no permissions." : "Existing unknown permissions are preserved."}</p>
             <div class="checks">
                 ${permissions.map((permission) => html`<label class="toggle"><input type="checkbox" data-permission="${permission.value}" ${(BigInt(role.permissions) & BigInt(permission.value)) === BigInt(permission.value) ? raw("checked") : ""} /><span>${permission.name.toLowerCase().replaceAll("_", " ")}</span></label>`)}
             </div>
-            <div class="form-actions"><button class="btn primary" type="submit">Save role</button><button class="btn" type="button" data-return-server>Back to server</button></div>
+            <div class="form-actions">
+                <button class="btn primary" type="submit">${creating ? "Create role" : "Save role"}</button
+                ><button class="btn" type="button" data-return-server>Back to server</button>
+            </div>
         </form>`,
     );
     if (!body) return;
-    $("[data-return-server]", body).addEventListener("click", () => openGuild(guildId));
+    $("[data-return-server]", body).addEventListener("click", () => openGuild(guildId, undefined, true));
     $("form", body).addEventListener("submit", async (event) => {
         event.preventDefault();
         const form = event.currentTarget;
@@ -4185,7 +4338,8 @@ function openAdminRole(guildId, role, permissions) {
             mentionable: form.mentionable.checked,
             permissions: bits.toString(),
         };
-        const result = await act($("button[type=submit]", form), () => api(`/admin/guilds/${guildId}/roles/${role.id}`, { method: "PATCH", body: patch }), "Role saved");
-        if (result) openGuild(guildId);
+        const path = `/admin/guilds/${guildId}/roles${creating ? "" : `/${role.id}`}`;
+        const result = await act($("button[type=submit]", form), () => api(path, { method: creating ? "POST" : "PATCH", body: patch }), creating ? "Role created" : "Role saved");
+        if (result) openGuild(guildId, undefined, true);
     });
 }

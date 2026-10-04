@@ -32,7 +32,7 @@ router.get(
     async (req: Request, res: Response) => {
         const [packs, items, hidden, builtin] = await Promise.all([StorePack.find(), StoreItem.find(), StoreHiddenPack.find(), Collectibles.builtinCategories()]);
         const grouped = groupStoreItems(items);
-        const hiddenSkus = new Set(hidden.map((x) => x.sku_id));
+        const hiddenSkus = new Set(hidden.filter((x) => x.hidden !== false).map((x) => x.sku_id));
         res.json({
             packs: packs.sort((a, b) => a.position - b.position || +a.created_at - +b.created_at).map((pack) => serializeStorePack(pack, grouped)),
             builtin: builtin
@@ -40,6 +40,9 @@ router.get(
                 .map((category) => ({
                     sku_id: category.sku_id,
                     name: category.name,
+                    summary: category.summary ?? "",
+                    position: category.position ?? 0,
+                    customized: category.customized ?? false,
                     logo: category.logo_url ?? null,
                     banner: category.catalog_banner_url ?? category.hero_banner_url ?? null,
                     // counted by what's in them, bundles included

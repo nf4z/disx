@@ -99,4 +99,18 @@ export class StoreItem extends BaseClass {
 export class StoreHiddenPack extends BaseClassWithoutId {
     @PrimaryColumn({ type: "int8" })
     sku_id: string;
+
+    @Column({ type: "boolean", default: true })
+    hidden: boolean = true;
+
+    @Column({ type: "jsonb", default: {} })
+    customization: StoreBuiltinPackMetadata = {};
+}
+
+export interface StoreBuiltinPackMetadata {
+    name?: string;
+    summary?: string;
+    position?: number;
+    banner_hash?: string;
+    logo_hash?: string;
 }
