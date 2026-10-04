@@ -1,0 +1,133 @@
+{
+    "sampled_at": "2026-10-04T15:40:53.758Z",
+    "origin": "http://localhost:3290",
+    "revision": "ffc7cf127ab09a76b1cf9d6690e3044b3de0ae5b",
+    "node": "v26.9.0",
+    "cpu_parallelism": 8,
+    "results": [
+        {
+            "path": "/admin",
+            "concurrency": 1,
+            "requests": 100,
+            "elapsed_ms": 621.101083,
+            "requests_per_second": 161.0043883951817,
+            "p50_ms": 4.297250000000076,
+            "p95_ms": 13.882791999999995,
+            "p99_ms": 28.578791000000024,
+            "max_ms": 65.388416,
+            "statuses": {
+                "200": 100
+            }
+        },
+        {
+            "path": "/admin",
+            "concurrency": 16,
+            "requests": 100,
+            "elapsed_ms": 198.91916600000002,
+            "requests_per_second": 502.7167668700159,
+            "p50_ms": 24.53579200000013,
+            "p95_ms": 82.26133400000003,
+            "p99_ms": 100.52399999999989,
+            "max_ms": 113.39025000000004,
+            "statuses": {
+                "200": 100
+            }
+        },
+        {
+            "path": "/admin/users?limit=50",
+            "concurrency": 1,
+            "requests": 100,
+            "elapsed_ms": 459.35341600000015,
+            "requests_per_second": 217.69730346361453,
+            "p50_ms": 3.7875830000000406,
+            "p95_ms": 8.988792000000103,
+            "p99_ms": 10.009541000000127,
+            "max_ms": 14.176332999999886,
+            "statuses": {
+                "200": 100
+            }
+        },
+        {
+            "path": "/admin/users?limit=50",
+            "concurrency": 16,
+            "requests": 100,
+            "elapsed_ms": 376.6684580000001,
+            "requests_per_second": 265.48546308063834,
+            "p50_ms": 55.143499999999904,
+            "p95_ms": 117.01470800000016,
+            "p99_ms": 133.88883299999998,
+            "max_ms": 134.6187500000001,
+            "statuses": {
+                "200": 100
+            }
+        },
+        {
+            "path": "/admin/guilds?limit=50",
+            "concurrency": 1,
+            "requests": 100,
+            "elapsed_ms": 425.50850000000014,
+            "requests_per_second": 235.01293158656048,
+            "p50_ms": 3.688083000000006,
+            "p95_ms": 7.833334000000377,
+            "p99_ms": 11.806416000000127,
+            "max_ms": 12.564000000000078,
+            "statuses": {
+                "200": 100
+            }
+        },
+        {
+            "path": "/admin/guilds?limit=50",
+            "concurrency": 16,
+            "requests": 100,
+            "elapsed_ms": 188.29879200000005,
+            "requests_per_second": 531.0708525416348,
+            "p50_ms": 26.00841700000001,
+            "p95_ms": 46.36762500000032,
+            "p99_ms": 46.78870800000004,
+            "max_ms": 47.53791699999965,
+            "statuses": {
+                "200": 100
+            }
+        },
+        {
+            "path": "/admin/store",
+            "concurrency": 1,
+            "requests": 100,
+            "elapsed_ms": 470.9270419999998,
+            "requests_per_second": 212.34711766668954,
+            "p50_ms": 3.5134170000001177,
+            "p95_ms": 11.92383400000017,
+            "p99_ms": 18.068499999999858,
+            "max_ms": 21.04945799999996,
+            "statuses": {
+                "200": 100
+            }
+        },
+        {
+            "path": "/admin/store",
+            "concurrency": 16,
+            "requests": 100,
+            "elapsed_ms": 172.02149999999983,
+            "requests_per_second": 581.3226835017722,
+            "p50_ms": 24.50595899999962,
+            "p95_ms": 43.52912500000002,
+            "p99_ms": 48.01633300000003,
+            "max_ms": 48.04825000000028,
+            "statuses": {
+                "200": 100
+            }
+        }
+    ],
+    "dataset": {
+        "users": 73,
+        "guilds": 16
+    },
+    "source_note": "Backend source through ffc7cf127 plus uncommitted frozen Meowcord branding preview; normal Vencord branding bundle. Read-only route smoke; disposable login session revoked after requests.",
+    "total_requests": 800,
+    "total_elapsed_ms": 2912.7979569999998,
+    "limitations": [
+        "Small isolated localhost dataset; no production capacity claim",
+        "Concurrent browser work and cold route caches may affect timings",
+        "Source revision field is demo checkout HEAD; source_note records preview differences"
+    ]
+}
