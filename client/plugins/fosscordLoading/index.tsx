@@ -18,6 +18,7 @@
 
 import definePlugin from "@utils/types";
 import { React } from "@webpack/common";
+import { MeowcordSpinner } from "../fosscordBranding/art";
 import { FosscordAuthor } from "../fosscordCore/shared";
 
 const env = () => (window as unknown as { GLOBAL_ENV: { LOADING_TIPS?: string[]; LOADING_SVG?: string } }).GLOBAL_ENV;
@@ -31,7 +32,7 @@ export default definePlugin({
         const tips = env().LOADING_TIPS;
         return tips?.length ? tips[Math.floor(Math.random() * tips.length)] : undefined;
     },
-    animation(original: React.ReactNode, ready: () => void) {
+    animation(original: React.ReactElement<{ className?: string; setRef?: (element: HTMLElement | null) => void }>, ready: () => void) {
         const svg = env().LOADING_SVG;
         return svg ? (
             <img
@@ -42,7 +43,7 @@ export default definePlugin({
                 style={{ width: 144, height: 144, objectFit: "contain" }}
             />
         ) : (
-            original
+            <MeowcordSpinner className={original.props.className} setRef={original.props.setRef} onReady={ready} />
         );
     },
     patches: [

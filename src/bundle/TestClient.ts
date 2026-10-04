@@ -37,6 +37,7 @@ import {
     CUSTOM_CLAN_BADGE_PACK,
     CUSTOM_CLAN_BADGES,
     DEFAULT_ICON_FILE,
+    DEFAULT_FAVICON_FILE,
     helpUrl,
     instanceIcon,
     instanceIconDataUri,
@@ -127,7 +128,7 @@ const BRANDED_ASSETS: Record<string, { wordmark?: boolean; svg: (iconUri: string
 
 export function TestClientAssets(app: Application) {
     const noCache = { setHeaders: (res: Response) => res.set("Cache-Control", "no-cache") };
-    app.get(["/assets/favicon.ico", "/favicon.ico"], (req, res) => void sendBrandImage(res, instanceIcon() ?? { file: DEFAULT_ICON_FILE }, "no-cache"));
+    app.get(["/assets/favicon.ico", "/favicon.ico", "/assets/favicon.svg", "/favicon.svg"], (req, res) => void sendBrandImage(res, instanceIcon() ?? { file: DEFAULT_FAVICON_FILE }, "no-cache"));
     app.get(["/manifest.webmanifest", "/manifest.json"], (req, res) => {
         res.set("Cache-Control", "no-cache");
         res.type("application/manifest+json").send(JSON.stringify(appManifest()));
@@ -264,6 +265,7 @@ const buildHtml = () => {
         : "";
     const title = client.instanceName.replace(/[<>&"]/g, (c) => `&#${c.charCodeAt(0)};`);
     const appMeta = [
+        `<link rel="icon" href="/favicon.svg">`,
         `<link rel="manifest" href="/manifest.webmanifest">`,
         `<meta name="theme-color" content="${APP_THEME_COLOR}">`,
         `<meta name="mobile-web-app-capable" content="yes">`,
@@ -287,6 +289,7 @@ const buildHtml = () => {
             /<meta content="[^"]*" name="viewport">/,
             '<meta content="width=device-width, initial-scale=1, maximum-scale=3, interactive-widget=resizes-content" name="viewport">',
         )
+        .replace(/<link[^>]*rel="(?:shortcut )?icon"[^>]*>/g, "")
         .replace(/<title>[^<]*<\/title>/, () => `<title>${title}</title>\n    ${appMeta}`);
 };
 

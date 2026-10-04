@@ -48,7 +48,7 @@ const main = async () => {
         console.warn("[default-avatars] sharp is not installed, the CDN will draw default avatars as SVG instead");
         return;
     }
-    const icon = localFile(process.env.DEFAULT_AVATAR_ICON) ?? configuredIcon() ?? path.join(ROOT, "assets", "icon.png");
+    const icon = localFile(process.env.DEFAULT_AVATAR_ICON) ?? configuredIcon() ?? path.join(ROOT, "assets", "public", "branding", "meowcord.svg");
     const { data: alpha, info } = await sharp(icon).resize(MARK, MARK, { fit: "inside" }).ensureAlpha().extractChannel(3).raw().toBuffer({ resolveWithObject: true });
     const mark = await sharp({ create: { width: info.width, height: info.height, channels: 3, background: "#ffffff" } })
         .joinChannel(alpha, { raw: { width: info.width, height: info.height, channels: 1 } })

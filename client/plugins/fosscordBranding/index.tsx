@@ -20,6 +20,7 @@ import definePlugin from "@utils/types";
 import { React } from "@webpack/common";
 
 import { FosscordAuthor } from "../fosscordCore/shared";
+import { MeowcordPaths, MeowcordSpinner } from "./art";
 import { brandMessages } from "./messages";
 
 const env = () => (window as any).GLOBAL_ENV ?? {};
@@ -41,43 +42,14 @@ const helpHref = (href: unknown) => {
     return href;
 };
 
-const LOGO_PATH =
-    "M3.21 4.84C3.44 3.71 4.58 3.24 5.51 3.78L12 7.59L18.49 3.78C19.42 3.24 20.56 3.71 20.79 4.84L22.8 14.61C23.5 17.82 21.06 20.56 17.78 20.56L6.22 20.56C2.94 20.56 .5 17.82 1.2 14.61ZM7.35 11.06a1.27 1.27 0 0 0-1.27 1.27v2.64a1.27 1.27 0 0 0 1.27 1.27h2.67a1.27 1.27 0 0 0 1.27-1.27v-2.64a1.27 1.27 0 0 0-1.27-1.27ZM13.97 11.06a1.27 1.27 0 0 0-1.27 1.27v2.64a1.27 1.27 0 0 0 1.27 1.27h2.67a1.27 1.27 0 0 0 1.27-1.27v-2.64a1.27 1.27 0 0 0-1.27-1.27Z";
-
 const Icon = ({ size }: { size: number }) =>
     imageUrl(env().INSTANCE_ICON) ? (
         <img src={env().INSTANCE_ICON} width={size} height={size} alt="" style={{ objectFit: "contain" }} />
     ) : (
         <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
-            <path fill="currentColor" d={LOGO_PATH} />
+            <MeowcordPaths />
         </svg>
     );
-
-const SPINNER_CSS =
-    "@keyframes fosscord-spinner-bob{0%,100%{transform:translateY(0) scale(1)}40%{transform:translateY(-10px) scale(1.04,.97)}60%{transform:translateY(-10px) scale(.98,1.03)}}.fosscord-spinner>svg,.fosscord-spinner>img{animation:fosscord-spinner-bob 1.4s cubic-bezier(.45,0,.55,1) infinite;transform-origin:50% 80%}@media (prefers-reduced-motion:reduce){.fosscord-spinner>svg,.fosscord-spinner>img{animation:none}}";
-
-function Spinner({ className, onReady, setRef }: { className?: string; onReady?: () => void; setRef?: (element: HTMLElement | null) => void }) {
-    React.useEffect(() => void onReady?.(), []);
-    return (
-        <div
-            ref={setRef}
-            className={`fosscord-spinner ${className ?? ""}`}
-            data-testid="app-spinner"
-            style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                width: 200,
-                height: 200,
-                margin: "0 auto",
-                color: "var(--text-strong, var(--header-primary, #fff))",
-            }}
-        >
-            <style>{SPINNER_CSS}</style>
-            <Icon size={80} />
-        </div>
-    );
-}
 
 let originalOpen: typeof window.open | null = null;
 
@@ -104,14 +76,21 @@ export default definePlugin({
         return Array.from({ length: 6 }, (_, i) => `${location.protocol}//${host}/embed/avatars/${i}.png`);
     },
 
+    restoreFavicon() {
+        for (const icon of document.querySelectorAll<HTMLLinkElement>('link[rel~="icon"]')) {
+            icon.removeAttribute("type");
+            icon.href = "/favicon.svg";
+        }
+    },
+
     renderLogo: (fill: string, className?: string) =>
         imageUrl(env().INSTANCE_ICON) ? (
             <image className={className} href={env().INSTANCE_ICON} x="0" y="0" width="24" height="24" preserveAspectRatio="xMidYMid meet" />
         ) : (
-            <path className={className} fill={fill} d={LOGO_PATH} />
+            <MeowcordPaths className={className} fill={fill} />
         ),
 
-    renderSpinner: (props: { className?: string; onReady?: () => void; setRef?: (element: HTMLElement | null) => void }) => <Spinner {...props} />,
+    renderSpinner: (props: { className?: string; onReady?: () => void; setRef?: (element: HTMLElement | null) => void }) => <MeowcordSpinner {...props} />,
 
     renderWordmark: (className: string) =>
         imageUrl(env().INSTANCE_LOGO) ? (
@@ -149,6 +128,13 @@ export default definePlugin({
     },
 
     patches: [
+        {
+            find: "Error setting image. Message: ",
+            replacement: {
+                match: /(\i\.reset=function\(\)\{[^{}]*?)\i\.setIcon\(\i\)/,
+                replace: "$1$self.restoreFavicon()",
+            },
+        },
         {
             find: "setAuthLogoHidden=",
             replacement: {
