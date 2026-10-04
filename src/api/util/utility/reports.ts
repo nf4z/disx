@@ -23,6 +23,7 @@ import { In, MoreThan } from "typeorm";
 import { Channel, Guild, Message, Report, ReportSnapshot, User } from "@spacebar/database";
 import { CreateReportSchema, ReportMenuType } from "@spacebar/schemas";
 import { DiscordApiErrors, getPermission, getUrlSignature, NewUrlSignatureData } from "@spacebar/util";
+import { snapshotWidget } from "../handlers/ApplicationWidgets";
 
 type MenuNode = { key?: string; header?: string; children?: [string, number][] };
 type Menu = { root_node_id: number; nodes: Record<string, MenuNode> };
@@ -112,9 +113,19 @@ export async function createReport(type: string, body: CreateReportSchema, repor
         report.reported_user_id ??= guild.owner_id ?? null;
         snapshot = { name: guild.name };
     } else if (report.reported_user_id) {
-        const user = await User.findOne({ where: { id: report.reported_user_id }, select: { id: true, username: true, discriminator: true, global_name: true, avatar: true } });
+        const user = await User.findOne({
+            where: { id: report.reported_user_id },
+            select: { id: true, username: true, discriminator: true, global_name: true, avatar: true, profile_widgets: true },
+        });
         if (!user) throw DiscordApiErrors.UNKNOWN_USER;
         snapshot = { author: pickAuthor(user) };
+        // An application widget's text can change after the report, so keep what it said.
+        const widget = type === ReportMenuType.WIDGET ? user.profile_widgets?.find((w) => w.id === report.widget_id) : undefined;
+        if (widget?.data.type === "application") {
+            report.application_id = snowflake(String(widget.data.application_id));
+            const widgetSnapshot = report.application_id ? await snapshotWidget(report.application_id, user.id) : null;
+            if (widgetSnapshot) snapshot = { ...snapshot, ...widgetSnapshot };
+        }
     }
     if (report.reported_user_id && !(await User.exists({ where: { id: report.reported_user_id } }))) throw DiscordApiErrors.UNKNOWN_USER;
     if (report.reported_user_id === reporterId) throw new HTTPError("You can't report yourself.", 400);

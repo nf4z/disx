@@ -1932,8 +1932,8 @@ function openReport(r, reload) {
                 snap.content !== undefined
                     ? html`<div class="card stack" style="gap:8px">
                           <div class="row" style="justify-content:space-between">
-                              <h3 style="margin:0">Reported message</h3>
-                              ${r.message_exists ? html`<span class="badge">Still posted</span>` : html`<span class="badge danger">Deleted</span>`}
+                              <h3 style="margin:0">${r.type === "widget" ? `Reported widget${snap.name ? `: ${snap.name}` : ""}` : "Reported message"}</h3>
+                              ${r.type === "widget" ? "" : r.message_exists ? html`<span class="badge">Still posted</span>` : html`<span class="badge danger">Deleted</span>`}
                           </div>
                           ${
                               snap.author
