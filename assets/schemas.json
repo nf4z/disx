@@ -6957,6 +6957,7 @@
                             14,
                             15,
                             16,
+                            17,
                             2,
                             3,
                             4,
@@ -10120,6 +10121,15 @@
                     },
                     "publicThreadsInvitable": {
                         "type": "boolean"
+                    },
+                    "discovery": {
+                        "type": "object",
+                        "properties": {
+                            "hideJoinedGuilds": {
+                                "type": "boolean"
+                            }
+                        },
+                        "additionalProperties": false
                     }
                 },
                 "additionalProperties": false

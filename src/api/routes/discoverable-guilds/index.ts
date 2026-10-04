@@ -19,8 +19,9 @@
 import { Request, Response, Router } from "express";
 import { ArrayContains, In, Not } from "typeorm";
 import { route } from "@spacebar/api/middlewares";
-import { Guild, Member } from "@spacebar/database";
+import { Guild } from "@spacebar/database";
 import { Config } from "@spacebar/util";
+import { discoveryCategories, discoveryPage, hiddenDiscoveryGuildIds, toDiscoveryList } from "@spacebar/api/util/handlers/Discovery";
 
 const router = Router({ mergeParams: true });
 
@@ -34,45 +35,23 @@ router.get(
         },
     }),
     async (req: Request, res: Response) => {
-        const { offset, limit, categories } = req.query;
-        const showAllGuilds = Config.get().guild.discovery.showAllGuilds;
-        const configLimit = Config.get().guild.discovery.limit;
-        const hideJoinedGuilds = Config.get().guild.discovery.hideJoinedGuilds;
-        const hiddenGuildIds = hideJoinedGuilds
-            ? await Member.find({
-                  where: { id: req.user_id },
-                  select: { guild_id: true },
-              }).then((members) => members.map((member) => member.guild_id))
-            : [];
+        const { offset, limit } = discoveryPage(req.query);
+        const categories = discoveryCategories(req.query.categories);
+        const hidden = await hiddenDiscoveryGuildIds(req.user_id);
 
-        const guilds = await Guild.find({
+        const [guilds, total] = await Guild.findAndCount({
             where: {
-                id: Not(In(hiddenGuildIds)),
+                ...(hidden.length ? { id: Not(In(hidden)) } : {}),
                 discovery_excluded: false,
-                ...(categories == undefined ? {} : { primary_category_id: Number(categories as string) }), // TODO: isnt this an array?
-                ...(showAllGuilds ? {} : { features: ArrayContains(["DISCOVERABLE"]) }),
+                ...(categories.length ? { primary_category_id: In(categories) } : {}),
+                ...(Config.get().guild.discovery.showAllGuilds ? {} : { features: ArrayContains(["DISCOVERABLE"]) }),
             },
-            order: {
-                discovery_weight: "DESC",
-                member_count: "DESC",
-            },
-            skip: Math.abs(Number(offset || Config.get().guild.discovery.offset)),
-            take: Math.abs(Number(limit || configLimit)),
+            order: { discovery_weight: "DESC", member_count: "DESC", id: "ASC" },
+            skip: offset,
+            take: limit,
         });
 
-        const total = guilds ? guilds.length : undefined;
-
-        res.send({
-            total: total,
-            // guilds: guilds.map((g) => ({
-            //     ...g,
-            //     discovery_weight: undefined,
-            //     discovery_splash: undefined,
-            // })),
-            guilds: await Promise.all(guilds.map((g) => g.toDiscoverableGuild())),
-            offset: Number(offset || Config.get().guild.discovery.offset),
-            limit: Number(limit || configLimit),
-        });
+        res.send({ total, guilds: await toDiscoveryList(guilds), offset, limit });
     },
 );
 

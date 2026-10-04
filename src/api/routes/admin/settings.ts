@@ -87,7 +87,7 @@ const pickSettings = () => {
         externalRequests: { ...externalRequests },
         e2ee: { ...limits.e2ee },
         limits: { user: { ...limits.user }, guild: { ...limits.guild }, message: { ...limits.message }, channel: { ...limits.channel } },
-        guild: { defaultFeatures: guild.defaultFeatures, publicThreadsInvitable: guild.publicThreadsInvitable },
+        guild: { defaultFeatures: guild.defaultFeatures, publicThreadsInvitable: guild.publicThreadsInvitable, discovery: { hideJoinedGuilds: guild.discovery.hideJoinedGuilds } },
     };
 };
 
@@ -146,7 +146,10 @@ router.patch(
             general,
             client,
             externalRequests: body.externalRequests ?? {},
-            guild: body.guild?.publicThreadsInvitable === undefined ? {} : { publicThreadsInvitable: body.guild.publicThreadsInvitable },
+            guild: {
+                ...(body.guild?.publicThreadsInvitable === undefined ? {} : { publicThreadsInvitable: body.guild.publicThreadsInvitable }),
+                ...(body.guild?.discovery?.hideJoinedGuilds === undefined ? {} : { discovery: { hideJoinedGuilds: body.guild.discovery.hideJoinedGuilds } }),
+            },
             register,
             login: body.login ?? {},
             passwordReset: body.passwordReset ?? {},

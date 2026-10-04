@@ -29,7 +29,7 @@ export interface AdminSettingsUpdateSchema {
     };
 
     limits?: AdminResourceLimitsSchema;
-    guild?: { defaultFeatures?: string[]; publicThreadsInvitable?: boolean };
+    guild?: { defaultFeatures?: string[]; publicThreadsInvitable?: boolean; discovery?: { hideJoinedGuilds?: boolean } };
 
     general?: {
         instanceName?: string;

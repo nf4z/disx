@@ -6401,6 +6401,7 @@
                                     14,
                                     15,
                                     16,
+                                    17,
                                     2,
                                     3,
                                     4,
@@ -9254,6 +9255,15 @@
                             },
                             "publicThreadsInvitable": {
                                 "type": "boolean"
+                            },
+                            "discovery": {
+                                "type": "object",
+                                "properties": {
+                                    "hideJoinedGuilds": {
+                                        "type": "boolean"
+                                    }
+                                },
+                                "additionalProperties": false
                             }
                         },
                         "additionalProperties": false
@@ -22800,34 +22810,6 @@
                         "description": "No description available"
                     }
                 },
-                "tags": [
-                    "api"
-                ]
-            }
-        },
-        "/api/widget-configs/{kind}/": {
-            "get": {
-                "security": [
-                    {
-                        "bearer": []
-                    }
-                ],
-                "responses": {
-                    "default": {
-                        "description": "No description available"
-                    }
-                },
-                "parameters": [
-                    {
-                        "name": "kind",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "kind"
-                    }
-                ],
                 "tags": [
                     "api"
                 ]
@@ -44038,6 +44020,62 @@
                         "label": "Spacebar-only",
                         "color": "red"
                     }
+                ]
+            }
+        },
+        "/api/auth/cap/{asset}": {
+            "get": {
+                "security": [
+                    {}
+                ],
+                "responses": {
+                    "default": {
+                        "description": "No description available"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "asset",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "asset"
+                    }
+                ],
+                "tags": [
+                    "api"
+                ]
+            }
+        },
+        "/api/auth/cap/challenge": {
+            "post": {
+                "security": [
+                    {}
+                ],
+                "responses": {
+                    "default": {
+                        "description": "No description available"
+                    }
+                },
+                "tags": [
+                    "api"
+                ]
+            }
+        },
+        "/api/auth/cap/redeem": {
+            "post": {
+                "security": [
+                    {}
+                ],
+                "responses": {
+                    "default": {
+                        "description": "No description available"
+                    }
+                },
+                "tags": [
+                    "api"
                 ]
             }
         },
