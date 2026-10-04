@@ -53,8 +53,9 @@ router.get(
     }),
     async (req: Request, res: Response) => {
         const provider = GifProviderManager.findProvider(req.query.provider as string);
-        if (!provider) return res.json([]);
-        const results = await provider.getTrendingGifs(req.query as typeof provider.getTrendingGifs.arguments).catch(() => []);
+        if (!provider) return res.status(503).json({ message: "This GIF provider is not configured." });
+        const results = await provider.getTrendingGifs(req.query as typeof provider.getTrendingGifs.arguments).catch(() => null);
+        if (results === null) return res.status(502).json({ message: "The GIF provider is temporarily unavailable." });
         res.json(results);
     },
 );

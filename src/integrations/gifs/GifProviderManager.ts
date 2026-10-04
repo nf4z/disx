@@ -24,8 +24,11 @@ import type { IGifProvider } from "./IGifProvider";
 export class GifProviderManager {
     private static _providers: Map<string, IGifProvider> = new Map<string, IGifProvider>();
     public static async init() {
-        this._providers.clear();
-        if (!Config.get().externalRequests.thirdParty) return;
+        if (!Config.get().integrations.gifs.enabled) {
+            this._providers.clear();
+            return;
+        }
+        const providers = new Map<string, IGifProvider>();
         console.log("[GifProviderManager] Initialising providers...");
         const providerImports = await Promise.all(
             (await fs.readdir(path.join(__dirname, "providers"))) /**/
@@ -36,31 +39,34 @@ export class GifProviderManager {
         for (const providerImport of providerImports) {
             const provider = new providerImport.default.default() as IGifProvider;
             console.log(`[GifProviderManager] Got provider with id ${provider.id}, calling init...`);
-            await provider.init();
+            try {
+                await provider.init();
+            } catch {
+                provider.available = false;
+            }
             console.log(`[GifProviderManager] Initialized '${provider.id}' - Available:`, provider.available);
-            if (provider.available) this._providers.set(provider.id, provider);
-            console.log(`[GifProviderManager] Initialized`, this._providers.size, "/", providerImports.length, "GIF providers...");
+            if (provider.available) providers.set(provider.id, provider);
+            console.log(`[GifProviderManager] Initialized`, providers.size, "/", providerImports.length, "GIF providers...");
         }
 
+        this._providers = providers;
         console.log("[GifProviderManager] Ready with", this._providers.size, "available providers!");
     }
 
     public static getProvider(id: string): IGifProvider {
-        if (!Config.get().externalRequests.thirdParty) throw new Error("External GIF providers are disabled by instance policy");
-        if (id == "tenor") id = "klipy";
+        if (!Config.get().integrations.gifs.enabled) throw new Error("External GIF providers are disabled by instance policy");
         if (this._providers.has(id)) return this._providers.get(id)!;
 
-        throw new Error(`Unknown GIF provider, or it is not enabled: ${id}, known GIF providers: ${this._providers.keys().toArray().join(", ")}`);
+        throw new Error(`Unknown GIF provider, or it is not enabled: ${id}, known GIF providers: ${Array.from(this._providers.keys()).join(", ")}`);
     }
 
     public static findProvider(id?: string): IGifProvider | undefined {
-        if (!Config.get().externalRequests.thirdParty) return undefined;
-        if (!id || id == "tenor") id = "klipy";
-        return this._providers.get(id) ?? this._providers.values().next().value;
+        if (!Config.get().integrations.gifs.enabled) return undefined;
+        return this._providers.get(id || Config.get().integrations.gifs.defaultProvider);
     }
 
     public static getProviders() {
-        if (!Config.get().externalRequests.thirdParty) return {};
+        if (!Config.get().integrations.gifs.enabled) return {};
         const providers: { [key: string]: { available: boolean } } = {};
         for (const [id, provider] of this._providers) {
             providers[id] = {

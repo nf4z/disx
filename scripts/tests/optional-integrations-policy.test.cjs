@@ -55,6 +55,7 @@ function load(relative, config, overrides = {}) {
 function config(allowed = false) {
     return {
         externalRequests: { thirdParty: allowed },
+        integrations: { gifs: { enabled: false, defaultProvider: "klipy", klipy: { enabled: false }, tenor: { enabled: false } } },
         security: {
             ipdataApiKey: "test-ip-key",
             abuseIpDbApiKey: "test-abuse-key",
@@ -131,7 +132,7 @@ test("browser push is unadvertised and skipped before key parsing or outbound fe
     assert.equal(result.skipped, true);
 });
 
-test("GIF init and provider access make no requests when disabled", async () => {
+test("explicit GIF switch prevents provider access and requests when disabled", async () => {
     const { GifProviderManager } = load("src/integrations/gifs/GifProviderManager.ts", config());
     // There is no providers directory in the VM fixture: disabled init must return first.
     await GifProviderManager.init();

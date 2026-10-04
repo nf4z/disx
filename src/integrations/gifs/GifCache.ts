@@ -16,19 +16,23 @@
 	along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-export class IntegrationConfiguration {
-    gifs: GifIntegrationConfiguration = new GifIntegrationConfiguration();
-}
-
-export class GifIntegrationConfiguration {
-    enabled: boolean = true;
-    defaultProvider: "klipy" | "tenor" = "klipy";
-    klipy: GenericGifIntegrationConfiguration = Object.assign(new GenericGifIntegrationConfiguration(), { enabled: true });
-    tenor: GenericGifIntegrationConfiguration = Object.assign(new GenericGifIntegrationConfiguration(), { enabled: true, apiKey: "3Z0688EVWYKH" });
-}
-
-export class GenericGifIntegrationConfiguration {
-    enabled: boolean = false;
-    apiKey?: string;
-    apiKeyPath?: string;
+export class GifCache<T> {
+    private expires = 0;
+    private value: T;
+    private pending?: Promise<T>;
+    constructor(private duration: number) {}
+    getOrUpdate(factory: () => Promise<T>): Promise<T> {
+        if (this.expires > Date.now()) return Promise.resolve(this.value);
+        if (this.pending) return this.pending;
+        this.pending = factory()
+            .then((value) => {
+                this.value = value;
+                this.expires = Date.now() + this.duration;
+                return value;
+            })
+            .finally(() => {
+                this.pending = undefined;
+            });
+        return this.pending;
+    }
 }

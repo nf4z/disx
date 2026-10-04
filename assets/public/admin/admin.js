@@ -761,6 +761,7 @@ const setPath = (obj, path, value) => {
 
 async function renderSettings(view) {
     const s = await api("/admin/settings");
+    const gifs = await api("/admin/gifs");
     const text = (path, label, hint, type = "text", placeholder = "") =>
         html`<label
             >${label}${hint ? html`<span class="hint">${hint}</span>` : ""}<input type="${type}" name="${path}" value="${getPath(s, path) ?? ""}" placeholder="${placeholder}"
@@ -780,11 +781,12 @@ async function renderSettings(view) {
         html`<label class="toggle"
             ><input type="checkbox" name="${path}" ${getPath(s, path) ? raw("checked") : ""} /><span>${label}${hint ? html`<span class="hint">${hint}</span>` : ""}</span></label
         >`;
-    const captchaState = s.captcha.active
-        ? html`<span class="badge ok"><span class="dot"></span>Active</span>`
-        : s.captcha.enabled
-          ? html`<span class="badge warn"><span class="dot"></span>Enabled but incomplete</span>`
-          : html`<span class="badge"><span class="dot"></span>Off</span>`;
+    const captchaState =
+        s.captcha.active || s.register.requireCaptcha
+            ? html`<span class="badge ok"><span class="dot"></span>${s.register.requireCaptcha ? "Signup verification active" : "Active"}</span>`
+            : s.captcha.enabled
+              ? html`<span class="badge warn"><span class="dot"></span>Enabled but incomplete</span>`
+              : html`<span class="badge"><span class="dot"></span>Off</span>`;
 
     mount(
         view,
@@ -815,6 +817,41 @@ async function renderSettings(view) {
                         ${toggle("externalRequests.thirdParty", "Allow configured third-party integrations", "Also requires configuring each provider. Leave off for local operation.")}
                     </div>
                 </div>
+                <div class="card" id="settings-gifs">
+                    <h2>GIF search</h2>
+                    <p class="muted">Klipy is the default. These providers work independently of other third-party integrations. Keys stay on the server.</p>
+                    <label class="toggle"><input id="gif-enabled" type="checkbox" ${gifs.enabled ? raw("checked") : ""} /><span>Enable GIF search</span></label>
+                    <label
+                        >Default provider<select id="gif-default">
+                            ${options(
+                                [
+                                    ["klipy", "Klipy"],
+                                    ["tenor", "Tenor"],
+                                ],
+                                gifs.defaultProvider,
+                            )}
+                        </select></label
+                    >
+                    <div class="form-grid">
+                        ${["klipy", "tenor"].map(
+                            (provider) =>
+                                html`<div class="stack">
+                                    <label class="toggle"
+                                        ><input id="gif-${provider}-enabled" type="checkbox" ${gifs[provider].enabled ? raw("checked") : ""} /><span
+                                            >Enable ${provider === "klipy" ? "Klipy" : "Tenor"}</span
+                                        ></label
+                                    ><label
+                                        >${provider === "klipy" ? "Klipy" : "Tenor"} API key<span class="hint"
+                                            >${gifs[provider].key_set ? "A key is configured. Leave blank to keep it." : "No key configured."}${provider === "tenor" ? " Uses Vencord's public key by default." : " Get a key from partner.klipy.com."}</span
+                                        ><input id="gif-${provider}-key" type="password" autocomplete="new-password" /></label
+                                    ><label class="toggle"><input id="gif-${provider}-clear" type="checkbox" /><span>Remove configured key</span></label>
+                                    <p class="muted">${gifs.providers[provider]?.available ? "Configured and ready" : "Not configured"}</p>
+                                </div>`,
+                        )}
+                    </div>
+                    <button class="btn" type="button" id="gif-save">Save GIF settings</button>
+                    <p class="hint">Google announced Tenor API retirement. This compatibility provider uses the same endpoint as Vencord; availability depends on Tenor.</p>
+                </div>
                 <div class="card" id="settings-limits">
                     <h2>Feature limits</h2>
                     <p class="muted">Control the limits used by accounts, servers, messages and channels.</p>
@@ -830,6 +867,7 @@ async function renderSettings(view) {
                         ><textarea name="guild.defaultFeatures" data-lines>${(s.guild.defaultFeatures ?? []).join("\n")}</textarea>
                     </label>
                     ${toggle("guild.publicThreadsInvitable", "Let members invite others to public threads")}
+                    ${toggle("limits.channel.allowSlowmodeBypass", "Allow moderators to bypass slowmode", "Owners and members with Manage Messages, Manage Channels or Bypass Slowmode can send without waiting.")}
                 </div>
                 <div class="card">
                     <h2 id="settings-instance">Instance information</h2>
@@ -905,7 +943,8 @@ ${(s.register.blacklistedUsernames ?? []).join("\n")}</textarea>
                                 ><input type="password" name="captcha.secret" autocomplete="new-password" placeholder="${s.captcha.secret_set ? "••••••••" : ""}"
                             /></label>
                         </div>
-                        ${toggle("register.requireCaptcha", "Ask for a captcha when registering", "")} ${toggle("login.requireCaptcha", "Ask for a captcha when signing in", "")}
+                        ${toggle("register.requireCaptcha", "Require Cap to create an account", "Uses the built-in self-hosted widget; no external service or key is needed.")}
+                        ${toggle("login.requireCaptcha", "Ask for a captcha when signing in", "")}
                         ${toggle("passwordReset.requireCaptcha", "Ask for a captcha when requesting a password reset", "")}
                     </div>
                 </div>
@@ -961,6 +1000,15 @@ ${(s.register.blacklistedUsernames ?? []).join("\n")}</textarea>
         `,
     );
 
+    $("#gif-save", view).addEventListener("click", async () => {
+        const body = { enabled: $("#gif-enabled", view).checked, defaultProvider: $("#gif-default", view).value };
+        for (const provider of ["klipy", "tenor"]) {
+            const apiKey = $(`#gif-${provider}-key`, view).value.trim();
+            body[provider] = { enabled: $(`#gif-${provider}-enabled`, view).checked, clearKey: $(`#gif-${provider}-clear`, view).checked, ...(apiKey ? { apiKey } : {}) };
+        }
+        const saved = await act($("#gif-save", view), () => api("/admin/gifs", { method: "PATCH", body }), "GIF settings saved");
+        if (saved) renderSettings(view);
+    });
     for (const link of $$("[data-settings-target]", view))
         link.addEventListener("click", (event) => {
             event.preventDefault();
@@ -1353,6 +1401,11 @@ async function openUser(id, reload) {
         `,
     );
 
+    import("/admin/user-customization.js")
+        .then(({ mountUserCustomization }) => {
+            if (body.isConnected && !$("#drawer").hidden) mountUserCustomization(body, u, { api, toast });
+        })
+        .catch(() => toast("Could not load account customization", "err"));
     $("#user-form").addEventListener("submit", async (e) => {
         e.preventDefault();
         const form = e.currentTarget;
@@ -2952,7 +3005,11 @@ function openStoreItem(pack, item, refresh) {
                 ${
                     item
                         ? html`<label
-                              >Pack<select name="pack_id">${options(storeState.data.packs.map((entry) => [entry.id, entry.name]), item.pack_id)}</select
+                              >Pack<select name="pack_id">
+                                  ${options(
+                                      storeState.data.packs.map((entry) => [entry.id, entry.name]),
+                                      item.pack_id,
+                                  )}</select
                               ><span class="hint">Moving keeps the item and its artwork.</span></label
                           >`
                         : ""

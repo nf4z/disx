@@ -16,19 +16,10 @@
 	along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-export class IntegrationConfiguration {
-    gifs: GifIntegrationConfiguration = new GifIntegrationConfiguration();
-}
-
-export class GifIntegrationConfiguration {
-    enabled: boolean = true;
-    defaultProvider: "klipy" | "tenor" = "klipy";
-    klipy: GenericGifIntegrationConfiguration = Object.assign(new GenericGifIntegrationConfiguration(), { enabled: true });
-    tenor: GenericGifIntegrationConfiguration = Object.assign(new GenericGifIntegrationConfiguration(), { enabled: true, apiKey: "3Z0688EVWYKH" });
-}
-
-export class GenericGifIntegrationConfiguration {
-    enabled: boolean = false;
-    apiKey?: string;
-    apiKeyPath?: string;
-}
+import { Router } from "express";
+import { route } from "@spacebar/api/middlewares";
+import { Config } from "@spacebar/util";
+import { GifProviderManager } from "@spacebar/integrations/gifs";
+const router = Router({ mergeParams: true });
+router.get("/", route({}), (_req, res) => res.json({ defaultProvider: Config.get().integrations.gifs.defaultProvider, providers: GifProviderManager.getProviders() }));
+export default router;

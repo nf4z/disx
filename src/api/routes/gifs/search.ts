@@ -58,8 +58,9 @@ router.get(
     }),
     async (req: Request, res: Response) => {
         const impl = GifProviderManager.findProvider(req.query.provider as string);
-        if (!impl) return res.json([]);
-        const result = await impl.search(req.query as typeof impl.search.arguments).catch(() => []);
+        if (!impl) return res.status(503).json({ message: "This GIF provider is not configured. Ask the instance administrator to enable it." });
+        const result = await impl.search(req.query as typeof impl.search.arguments).catch(() => null);
+        if (result === null) return res.status(502).json({ message: "The GIF provider could not complete the search. Try again or choose another provider." });
         res.json(result);
     },
 );
