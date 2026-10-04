@@ -87,14 +87,14 @@ async function fixture(rate = 2) {
     return result;
 }
 
-async function send(fixture, content = "Slowmode test", override) {
+async function send(fixture, content = "Slowmode test", override, message_id) {
     const channel = await entities.Channel.findOneOrFail({ where: { id: fixture.channel.id }, relations: { recipients: true } });
     const permission = override ?? (await getPermission(user.id, fixture.guild.id, channel, { user }));
     return publishUserMessage({
         channel,
         user_id: user.id,
         body: { content },
-        message_id: require("../../dist/util/util/Snowflake").Snowflake.generate(),
+        message_id: message_id ?? require("../../dist/util/util/Snowflake").Snowflake.generate(),
         attachments: [],
         permission,
     });
@@ -276,4 +276,35 @@ test("deferred channel updates preserve ephemeral message counter and last-messa
     assert.equal(stored.last_message_id, before);
     assert.equal(stored.message_count, 0);
     assert.equal(stored.total_message_sent, 0);
+});
+
+test("concurrent disabled and exempt sends create one readstate while preserving its ID and acknowledgement fields", { skip: !enabled }, async () => {
+    for (const mode of ["disabled", "exempt"]) {
+        const item = await fixture(mode === "disabled" ? 0 : 2);
+        const permission = mode === "exempt" ? new Permissions(["VIEW_CHANNEL", "SEND_MESSAGES", "MANAGE_MESSAGES"]) : undefined;
+        const sent = await Promise.all(Array.from({ length: 16 }, (_, i) => send(item, `${mode} concurrent ${i}`, permission)));
+        assert.equal(sent.length, 16);
+        assert.equal(await entities.Message.countBy({ channel_id: item.channel.id }), 16);
+        assert.equal(await entities.ReadState.countBy({ channel_id: item.channel.id, user_id: user.id }), 1);
+        const state = await entities.ReadState.findOneByOrFail({ channel_id: item.channel.id, user_id: user.id });
+        await entities.ReadState.update({ id: state.id }, { flags: 3, last_acked_id: sent[0].id, notifications_cursor: sent[1].id, badge_count: 7, mention_count: 4 });
+        await Promise.all([send(item, `${mode} subsequent one`, permission), send(item, `${mode} subsequent two`, permission)]);
+        const preserved = await entities.ReadState.findOneByOrFail({ channel_id: item.channel.id, user_id: user.id });
+        assert.equal(preserved.id, state.id);
+        assert.equal(preserved.flags, 3);
+        assert.equal(preserved.last_acked_id, sent[0].id);
+        assert.equal(preserved.notifications_cursor, sent[1].id);
+        assert.equal(preserved.badge_count, 7);
+        assert.equal(preserved.mention_count, 0);
+    }
+});
+
+test("an older concurrent send cannot rewind the sender's readstate", { skip: !enabled }, async () => {
+    const item = await fixture(0);
+    const older = require("../../dist/util/util/Snowflake").Snowflake.generate();
+    const newer = (BigInt(older) + 1n).toString();
+    await send(item, "Newer send completes first", undefined, newer);
+    await send(item, "Older send completes last", undefined, older);
+    const state = await entities.ReadState.findOneByOrFail({ channel_id: item.channel.id, user_id: user.id });
+    assert.equal(state.last_message_id, newer);
 });
