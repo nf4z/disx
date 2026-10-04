@@ -1,0 +1,121 @@
+/*
+	Spacebar: A FOSS re-implementation and extension of the Discord.com backend.
+	Copyright (C) 2026 Spacebar and Spacebar Contributors
+
+	This program is free software: you can redistribute it and/or modify
+	it under the terms of the GNU Affero General Public License as published
+	by the Free Software Foundation, either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+	GNU Affero General Public License for more details.
+
+	You should have received a copy of the GNU Affero General Public License
+	along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
+const assert = require("node:assert/strict");
+const { test } = require("node:test");
+const fs = require("node:fs");
+const vm = require("node:vm");
+const ts = require("typescript");
+function fixture() {
+    const cfg = {
+        general: {},
+        client: {},
+        register: { email: {}, dateOfBirth: {}, password: {} },
+        login: {},
+        passwordReset: {},
+        security: { captcha: { capMode: "core", service: "cap", enabled: false, instance: "https://stored.example.test", sitekey: "stored-key", secret: "stored-secret" } },
+        limits: { rate: { ip: {}, global: {}, error: {}, routes: { auth: { login: {}, register: {} } } }, e2ee: {}, user: {}, guild: {}, message: {}, channel: {} },
+        guild: {},
+        externalRequests: {},
+    };
+    const writes = [];
+    let patch;
+    const module = { exports: {} };
+    class HTTPError extends Error {
+        constructor(message, status) {
+            super(message);
+            this.status = status;
+        }
+    }
+    const imports = {
+        express: {
+            Router: () => ({
+                get() {},
+                patch: (...args) => {
+                    patch = args.at(-1);
+                },
+            }),
+        },
+        "@spacebar/api/middlewares": { route: () => () => {} },
+        "@spacebar/api/util": { captchaEnabled: () => false },
+        "@spacebar/util": { Config: { get: () => cfg, set: async (value) => writes.push(value) } },
+        "lambert-server/HTTPError": { HTTPError },
+    };
+    vm.runInNewContext(
+        ts.transpileModule(fs.readFileSync("src/api/routes/admin/settings.ts", "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } })
+            .outputText,
+        {
+            module,
+            exports: module.exports,
+            URL,
+            require: (id) => {
+                assert.ok(id in imports, id);
+                return imports[id];
+            },
+        },
+    );
+    return { cfg, writes, patch: (body) => patch({ body }, { json() {} }) };
+}
+
+test("core selection preserves stored credentials while selecting embedded verification", async () => {
+    const { patch, writes } = fixture();
+    await patch({ captcha: { capMode: "core", service: "cap", secret: "" }, limits: { channel: { allowSlowmodeBypass: false } }, e2ee: { trustServerByDefault: true } });
+    assert.equal(writes.length, 1);
+    assert.equal(writes[0].security.captcha.capMode, "core");
+    assert.equal(Object.hasOwn(writes[0].security.captcha, "secret"), false);
+    assert.equal(writes[0].limits.channel.allowSlowmodeBypass, false);
+    assert.equal(writes[0].limits.e2ee.trustServerByDefault, true);
+});
+
+test("admin rejects incomplete standalone before persisting any settings", async () => {
+    for (const missing of ["instance", "sitekey", "secret"]) {
+        const { cfg, patch, writes } = fixture();
+        delete cfg.security.captcha[missing];
+        await assert.rejects(patch({ captcha: { capMode: "standalone", service: "cap" } }), (error) => error.status === 400 && /requires a server URL/.test(error.message));
+        assert.equal(writes.length, 0);
+    }
+});
+
+test("admin rejects unsafe standalone URL and preserves masked blank secret", async () => {
+    for (const instance of ["javascript:alert(1)", "https://user:password@cap.example.test", "https://cap.example.test?secret=value", "https://cap.example.test/#fragment"]) {
+        const { patch, writes } = fixture();
+        await assert.rejects(patch({ captcha: { capMode: "standalone", service: "cap", instance } }), (error) => error.status === 400);
+        assert.equal(writes.length, 0);
+    }
+    const { patch, writes } = fixture();
+    await patch({ captcha: { capMode: "standalone", service: "cap", instance: "http://127.0.0.1:3000/", secret: "" } });
+    assert.equal(writes[0].security.captcha.instance, "http://127.0.0.1:3000");
+    assert.equal(Object.hasOwn(writes[0].security.captcha, "secret"), false);
+});
+
+test("Cap configuration input templates escape stored attribute payloads", () => {
+    const source = fs.readFileSync("assets/public/admin/admin.js", "utf8");
+    const helpers = source.slice(source.indexOf("class Raw"), source.indexOf("const snowflakeDate"));
+    const attrs = [
+        ...source.matchAll(
+            /<input (?:type="url" )?name="captcha\.(?:instance|sitekey)" value="\$\{s\.captcha\.(?:instance|sitekey) \?\? ""\}"(?: placeholder="https:\/\/cap\.example\.com")?\s*\/>/g,
+        ),
+    ].map((match) => match[0]);
+    assert.equal(attrs.length, 2);
+    const payload = '\" autofocus onfocus="window.injected=true"><img src=x onerror="window.injected=true">&';
+    const rendered = vm.runInNewContext(helpers + "\nrenderValue(html`" + attrs.join("\n") + "`)", { s: { captcha: { instance: payload, sitekey: payload } } });
+    assert.equal((rendered.match(/&quot; autofocus/g) ?? []).length, 2);
+    assert.equal((rendered.match(/&lt;img/g) ?? []).length, 2);
+    assert.equal(rendered.includes("<img"), false);
+    assert.equal(rendered.includes('value="" autofocus'), false);
+});

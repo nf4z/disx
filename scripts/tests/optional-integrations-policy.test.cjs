@@ -44,6 +44,14 @@ function load(relative, config, overrides = {}) {
                         }
                     },
                 };
+            if (id === "./localCap.js")
+                return {
+                    consumeRegistrationToken:
+                        overrides.consumeRegistrationToken ??
+                        (() => {
+                            throw new Error("Unexpected local token consumption");
+                        }),
+                };
             if (id === "./ConnectionConfig") return { ConnectionConfig: overrides.connectionConfig };
             if (id === "./ConnectionStore") return { ConnectionStore: { connections: new Map() } };
             return require(id);
@@ -108,6 +116,7 @@ test("disabled external CAPTCHA does not send tokens and does not challenge", as
 test("self-hosted Cap remains usable while third-party policy is disabled", async () => {
     const cfg = config();
     cfg.security.captcha.service = "cap";
+    cfg.security.captcha.capMode = "standalone";
     cfg.security.captcha.instance = "http://127.0.0.1:3000/";
     let requests = 0;
     const { captchaEnabled, verifyCaptcha } = load("src/api/util/utility/captcha.ts", cfg, {
@@ -155,4 +164,63 @@ test("connection policy changes apply at runtime without changing stored setting
     await ConnectionLoader.setConnectionConfig("twitch", { clientId: "edited" });
     assert.equal(stored.twitch.enabled, true);
     assert.equal(stored.twitch.clientId, "edited");
+});
+
+test("Cap core ignores stored standalone credentials and makes no external request", async () => {
+    const cfg = config();
+    cfg.register = { requireCaptcha: true };
+    Object.assign(cfg.security.captcha, { service: "cap", capMode: "core", instance: "https://stored-cap.example.test", sitekey: "old-key", secret: "old-secret" });
+    let consumed = 0;
+    const cap = load("src/api/util/utility/captcha.ts", cfg, {
+        consumeRegistrationToken: async (token) => {
+            consumed++;
+            return token === "valid-local";
+        },
+    });
+    assert.equal(cap.capEndpoint(), "/api/v9/auth/cap/");
+    assert.equal(cap.registrationCapEndpoint(), "/api/v9/auth/cap/");
+    assert.equal(cap.captchaEnabled(), true);
+    assert.equal((await cap.checkCaptcha(true, null)).captcha_sitekey, "fosscord");
+    assert.equal((await cap.verifyCaptcha("valid-local")).success, true);
+    assert.equal(await cap.checkRegistrationCaptcha("valid-local"), null);
+    assert.equal((await cap.checkRegistrationCaptcha("wrong-local")).captcha_key[0], "invalid-input-response");
+    assert.equal(consumed, 3);
+});
+
+test("Cap standalone required signup verifies even when optional captcha is disabled", async () => {
+    const cfg = config();
+    cfg.register = { requireCaptcha: true };
+    Object.assign(cfg.security.captcha, {
+        enabled: false,
+        service: "cap",
+        capMode: "standalone",
+        instance: "http://127.0.0.1:3000/",
+        sitekey: "local-key",
+        secret: "local-secret",
+    });
+    let requests = 0;
+    const cap = load("src/api/util/utility/captcha.ts", cfg, {
+        fetch: async (url, options) => {
+            requests++;
+            assert.equal(url, "http://127.0.0.1:3000/local-key/siteverify");
+            assert.deepEqual(JSON.parse(options.body), { secret: "local-secret", response: "valid-standalone" });
+            assert.ok(options.signal);
+            return { ok: true, json: async () => ({ success: true }) };
+        },
+    });
+    assert.equal(cap.captchaEnabled(), false);
+    assert.equal(await cap.checkRegistrationCaptcha("valid-standalone"), null);
+    assert.equal(requests, 1);
+});
+
+test("incomplete explicit standalone fails closed instead of using core", async () => {
+    for (const field of ["instance", "sitekey", "secret"]) {
+        const cfg = config();
+        cfg.register = { requireCaptcha: true };
+        Object.assign(cfg.security.captcha, { service: "cap", capMode: "standalone", instance: "https://cap.example.test", sitekey: "key", secret: "secret" });
+        delete cfg.security.captcha[field];
+        const cap = load("src/api/util/utility/captcha.ts", cfg);
+        assert.throws(() => cap.registrationCapEndpoint(), /Standalone needs/);
+        await assert.rejects(cap.checkRegistrationCaptcha("token"), /Standalone needs/);
+    }
 });

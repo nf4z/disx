@@ -30,16 +30,20 @@ const verifyEndpoints = {
 };
 
 export function captchaEnabled() {
-    const { enabled, service, sitekey, secret, instance } = Config.get().security.captcha;
-    if (!enabled || !service || !sitekey || !secret) return false;
+    const { enabled, service, capMode, sitekey, secret, instance } = Config.get().security.captcha;
+    if (!enabled || !service) return false;
+    if (service === "cap" && capMode !== "standalone") return true;
+    if (!sitekey || !secret) return false;
     if (service !== "cap" && !Config.get().externalRequests.thirdParty) return false;
     return service !== "cap" || !!instance;
 }
 
 export function capEndpoint() {
-    const { service, sitekey, instance } = Config.get().security.captcha;
-    if (service !== "cap" || !sitekey || !instance) return null;
-    return `${instance.replace(/\/+$/, "")}/${encodeURIComponent(sitekey)}/`;
+    const { service, capMode, sitekey, instance } = Config.get().security.captcha;
+    if (service !== "cap") return null;
+    if (capMode !== "standalone") return "/api/v9/auth/cap/";
+    if (!sitekey || !instance) return null;
+    return `${instance.replace(/\/+$/, "")}/${encodeURIComponent(sitekey!)}/`;
 }
 
 const verifyCap = async (response: string, secret: string): Promise<CaptchaVerifyResult> => {
@@ -58,9 +62,15 @@ const verifyCap = async (response: string, secret: string): Promise<CaptchaVerif
 export async function verifyCaptcha(response: string, ip?: string): Promise<CaptchaVerifyResult> {
     const { service, secret, sitekey } = Config.get().security.captcha;
 
-    if (!captchaEnabled() || !service || !secret || !sitekey) throw new Error("CAPTCHA is not configured correctly. https://docs.spacebar.chat/setup/server/security/captcha/");
+    if (!captchaEnabled() || !service) throw new Error("CAPTCHA is not configured correctly. https://docs.spacebar.chat/setup/server/security/captcha/");
 
-    if (service === "cap") return verifyCap(response, secret);
+    if (service === "cap") {
+        if (Config.get().security.captcha.capMode !== "standalone") {
+            const { consumeRegistrationToken } = await import("./localCap.js");
+            return { success: await consumeRegistrationToken(response) };
+        }
+        return verifyCap(response, secret!);
+    }
 
     const res = await fetch(verifyEndpoints[service], {
         method: "POST",
@@ -70,8 +80,8 @@ export async function verifyCaptcha(response: string, ip?: string): Promise<Capt
         },
         body:
             `response=${encodeURIComponent(response)}` +
-            `&secret=${encodeURIComponent(secret)}` +
-            `&sitekey=${encodeURIComponent(sitekey)}` +
+            `&secret=${encodeURIComponent(secret!)}` +
+            `&sitekey=${encodeURIComponent(sitekey!)}` +
             (ip ? `&remoteip=${encodeURIComponent(ip)}` : ""),
     });
 
@@ -81,7 +91,11 @@ export async function verifyCaptcha(response: string, ip?: string): Promise<Capt
 export async function checkCaptcha(required: boolean, response: string | null | undefined, ip?: string): Promise<CaptchaRequiredResponse | null> {
     if (!required || !captchaEnabled()) return null;
     const { sitekey, service } = Config.get().security.captcha;
-    const challenge = (codes: string[]) => ({ captcha_key: codes, captcha_sitekey: sitekey!, captcha_service: service! });
+    const challenge = (codes: string[]) => ({
+        captcha_key: codes,
+        captcha_sitekey: service === "cap" && Config.get().security.captcha.capMode !== "standalone" ? "fosscord" : sitekey!,
+        captcha_service: service!,
+    });
     if (!response) return challenge(["captcha-required"]);
     const verify = await verifyCaptcha(response, ip);
     return verify.success ? null : challenge(verify["error-codes"] ?? ["invalid-input-response"]);
@@ -89,7 +103,10 @@ export async function checkCaptcha(required: boolean, response: string | null | 
 
 export function registrationCapEndpoint() {
     const captcha = Config.get().security.captcha;
-    return captcha.enabled && captcha.service === "cap" && captcha.instance && captcha.sitekey && captcha.secret ? capEndpoint()! : "/api/v9/auth/cap/";
+    if (captcha.capMode !== "standalone") return "/api/v9/auth/cap/";
+    if (captcha.service !== "cap" || !captcha.instance || !captcha.sitekey || !captcha.secret)
+        throw new Error("Cap Standalone needs its server URL, site key and secret before signup can verify accounts");
+    return capEndpoint()!;
 }
 
 export async function checkRegistrationCaptcha(response: string | null | undefined): Promise<CaptchaRequiredResponse | null> {
@@ -103,6 +120,6 @@ export async function checkRegistrationCaptcha(response: string | null | undefin
         const { consumeRegistrationToken } = await import("./localCap.js");
         return (await consumeRegistrationToken(response)) ? null : challenge(["invalid-input-response"]);
     }
-    const verified = await verifyCaptcha(response);
+    const verified = await verifyCap(response, Config.get().security.captcha.secret!);
     return verified.success ? null : challenge(verified["error-codes"] ?? ["invalid-input-response"]);
 }

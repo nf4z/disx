@@ -679,8 +679,9 @@ async function renderOverview(view) {
 /* ---------- settings ---------- */
 
 const CAPTCHA_SERVICES = [
-    ["", "None"],
-    ["cap", "Cap (self-hosted)"],
+    ["cap-core", "Cap core (default)"],
+    ["cap-standalone", "Standalone Server"],
+    ["", "No optional captcha"],
     ["hcaptcha", "hCaptcha"],
     ["recaptcha", "reCAPTCHA"],
 ];
@@ -781,6 +782,7 @@ async function renderSettings(view) {
         html`<label class="toggle"
             ><input type="checkbox" name="${path}" ${getPath(s, path) ? raw("checked") : ""} /><span>${label}${hint ? html`<span class="hint">${hint}</span>` : ""}</span></label
         >`;
+    const captchaProvider = !s.captcha.service || s.captcha.service === "cap" ? (s.captcha.capMode === "standalone" ? "cap-standalone" : "cap-core") : s.captcha.service;
     const captchaState =
         s.captcha.active || s.register.requireCaptcha
             ? html`<span class="badge ok"><span class="dot"></span>${s.register.requireCaptcha ? "Signup verification active" : "Active"}</span>`
@@ -929,21 +931,29 @@ ${(s.register.blacklistedUsernames ?? []).join("\n")}</textarea>
                         ${captchaState}
                     </div>
                     <div class="stack">
-                        ${toggle("captcha.enabled", "Use a captcha", "Needs a service, a site key and a secret. Cap also needs its server URL.")}
+                        <label
+                            >Verification provider<select id="captcha-provider" name="captcha.provider">
+                                ${options(CAPTCHA_SERVICES, captchaProvider)}
+                            </select></label
+                        >
+                        <p class="muted" data-cap-core>Cap core runs inside this instance. Signup verification needs no separate server, API key or external service.</p>
                         <div class="form-grid">
-                            <label
-                                >Service<select name="captcha.service">
-                                    ${options(CAPTCHA_SERVICES, s.captcha.service ?? "")}
-                                </select></label
-                            >
-                            ${text("captcha.instance", "Cap server URL", "Cap Standalone base URL. Browsers have to reach it too.", "url", "https://cap.example.com")}
-                            ${text("captcha.sitekey", "Site key", "")}
-                            <label
-                                >Secret<span class="hint">${s.captcha.secret_set ? "A secret is saved. Leave empty to keep it." : "No secret saved yet."}</span
-                                ><input type="password" name="captcha.secret" autocomplete="new-password" placeholder="${s.captcha.secret_set ? "••••••••" : ""}"
+                            <label data-cap-standalone
+                                >Standalone server URL<span class="hint">The base URL of your Cap Standalone deployment. Browsers must be able to reach it.</span
+                                ><input type="url" name="captcha.instance" value="${s.captcha.instance ?? ""}" placeholder="https://cap.example.com"
+                            /></label>
+                            <label data-captcha-credentials
+                                >Site key<span class="hint">Provided by your verification server or captcha provider.</span
+                                ><input name="captcha.sitekey" value="${s.captcha.sitekey ?? ""}"
+                            /></label>
+                            <label data-captcha-credentials
+                                >Secret<span class="hint"
+                                    >${s.captcha.secret_set ? "A secret is configured. Leave blank to keep it." : "Enter the provider's verification secret."}</span
+                                ><input type="password" name="captcha.secret" autocomplete="new-password"
                             /></label>
                         </div>
-                        ${toggle("register.requireCaptcha", "Require Cap to create an account", "Uses the built-in self-hosted widget; no external service or key is needed.")}
+                        ${toggle("captcha.enabled", "Enable additional sign-in and password-reset verification", "Uses the selected provider for the actions enabled below. Required signup verification stays active independently.")}
+                        ${toggle("register.requireCaptcha", "Require Cap to create an account", "Always displays the selected Cap widget before an account can be created. Cap core is the default.")}
                         ${toggle("login.requireCaptcha", "Ask for a captcha when signing in", "")}
                         ${toggle("passwordReset.requireCaptcha", "Ask for a captcha when requesting a password reset", "")}
                     </div>
@@ -1000,6 +1010,28 @@ ${(s.register.blacklistedUsernames ?? []).join("\n")}</textarea>
         `,
     );
 
+    const syncCaptchaProvider = () => {
+        const provider = $("#captcha-provider", view).value;
+        const standalone = provider === "cap-standalone";
+        const needsKeys = standalone || provider === "hcaptcha" || provider === "recaptcha";
+        for (const group of $$("[data-cap-standalone]", view)) {
+            group.hidden = !standalone;
+            for (const input of $$("input", group)) {
+                input.disabled = !standalone;
+                input.required = standalone;
+            }
+        }
+        for (const group of $$("[data-captcha-credentials]", view)) {
+            group.hidden = !needsKeys;
+            for (const input of $$("input", group)) {
+                input.disabled = !needsKeys;
+                input.required = standalone && (input.name !== "captcha.secret" || !s.captcha.secret_set);
+            }
+        }
+        $("[data-cap-core]", view).hidden = provider !== "cap-core";
+    };
+    $("#captcha-provider", view).addEventListener("change", syncCaptchaProvider);
+    syncCaptchaProvider();
     $("#gif-save", view).addEventListener("click", async () => {
         const body = { enabled: $("#gif-enabled", view).checked, defaultProvider: $("#gif-default", view).value };
         for (const provider of ["klipy", "tenor"]) {
@@ -1019,7 +1051,12 @@ ${(s.register.blacklistedUsernames ?? []).join("\n")}</textarea>
         const form = e.currentTarget;
         const body = {};
         for (const el of $$("input, textarea, select", form)) {
-            if (!el.name) continue;
+            if (!el.name || el.disabled) continue;
+            if (el.name === "captcha.provider") {
+                setPath(body, "captcha.service", el.value.startsWith("cap-") ? "cap" : el.value || null);
+                setPath(body, "captcha.capMode", el.value === "cap-standalone" ? "standalone" : "core");
+                continue;
+            }
             if (el.name === "captcha.secret" && !el.value) continue;
             const value =
                 el.type === "checkbox"

@@ -8,9 +8,15 @@ The built-in integration uses [Cap core](https://trycap.dev/guide/capjs-core) an
 
 Challenge nonce redemption and solved-token consumption use atomic PostgreSQL operations in the existing expiring `rate_limits` store. Concurrent replays admit one winner. Only token hashes are stored; cleanup uses the existing expiry worker. Public challenge and redemption routes each permit 30 requests per IP per minute independently of the generic rate-limit switch.
 
-An explicitly configured, enabled Cap Standalone instance with a site key and secret can replace the embedded challenge service. Existing optional login/reset captcha settings remain available. Signup uses Cap even when the optional captcha service is unconfigured or disabled.
+In Site settings, choose **Cap core (default)** or **Standalone Server**. Core runs inside the instance and ignores any previously stored standalone URL or credentials. Standalone reveals its server URL, site key and masked secret fields; saving requires all three, with a valid HTTP or HTTPS URL. A blank secret preserves the existing secret.
+
+Selecting Standalone also applies to required signup verification when the optional sign-in/reset captcha switch is off. An incomplete standalone configuration fails closed instead of falling back to core. Existing optional hCaptcha/reCAPTCHA login/reset adapters remain available; required signup continues to use the selected Cap mode.
 
 ## Verification
+
+The Cap mode regression suite covers core ignoring stored standalone credentials, local token consumption without outbound requests, standalone required signup when optional captcha is off, fail-closed incomplete configuration, safe URL validation and masked-secret preservation. A real browser check also confirms that stored input payloads cannot inject HTML attributes or elements.
+
+The refreshed admin dashboard passed a full settings form save with HTTP 200, including the slowmode bypass field; readback kept bypass off, required signup enabled and the core endpoint local. An incomplete standalone save returned HTTP 400. Both mode layouts were inspected: [core](qa/admin-cap-core.png) and [standalone](qa/admin-cap-standalone.png).
 
 Seven real PostgreSQL tests cover production challenge settings, nonce and token replay, expiry, malformed proofs, required signup and invitation bypass prevention. The native browser smoke checks missing verification, successful signup, reset, replay rejection, load failure/retry and absence of external requests. The client patch checker passed on Discord build 627798. The compatibility probe passed 151 checks with one optional integration skipped.
 

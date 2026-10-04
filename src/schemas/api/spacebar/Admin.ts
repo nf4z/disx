@@ -96,6 +96,7 @@ export interface AdminSettingsUpdateSchema {
     login?: { requireCaptcha?: boolean };
     passwordReset?: { requireCaptcha?: boolean };
     captcha?: {
+        capMode?: "core" | "standalone";
         enabled?: boolean;
         service?: "cap" | "hcaptcha" | "recaptcha" | null;
         sitekey?: string | null;
@@ -117,6 +118,7 @@ export interface AdminSettingsUpdateSchema {
         register?: AdminRateLimitSchema;
     };
     e2ee?: {
+        trustServerByDefault?: boolean;
         /**
          * @minimum 1024
          */
@@ -756,6 +758,7 @@ export interface AdminResourceLimitsSchema {
         maxEmbedCharacters?: number;
     };
     channel?: {
+        allowSlowmodeBypass?: boolean;
         /** @minimum 1
          * @maximum 2147483647
          * @TJS-type integer */

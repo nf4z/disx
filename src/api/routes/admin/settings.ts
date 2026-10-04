@@ -20,6 +20,7 @@ import { Request, Response, Router } from "express";
 import { route } from "@spacebar/api/middlewares";
 import { captchaEnabled } from "@spacebar/api/util";
 import { Config } from "@spacebar/util";
+import { HTTPError } from "lambert-server/HTTPError";
 import { AdminSettingsUpdateSchema } from "@spacebar/schemas";
 
 const router = Router({ mergeParams: true });
@@ -69,6 +70,7 @@ const pickSettings = () => {
         login: { requireCaptcha: login.requireCaptcha },
         passwordReset: { requireCaptcha: passwordReset.requireCaptcha },
         captcha: {
+            capMode: captcha.capMode,
             enabled: captcha.enabled,
             service: captcha.service,
             sitekey: captcha.sitekey,
@@ -134,6 +136,20 @@ router.patch(
             else delete captcha.secret;
         }
         if (typeof captcha.instance === "string") captcha.instance = captcha.instance.replace(/\/+$/, "");
+
+        const nextCaptcha = { ...Config.get().security.captcha, ...captcha };
+        if (nextCaptcha.capMode === "standalone") {
+            if (nextCaptcha.service !== "cap" || !nextCaptcha.instance || !nextCaptcha.sitekey || !nextCaptcha.secret)
+                throw new HTTPError("Cap Standalone requires a server URL, site key and secret. Choose Cap core to run verification locally.", 400);
+            let url: URL;
+            try {
+                url = new URL(String(nextCaptcha.instance));
+            } catch {
+                throw new HTTPError("Enter a valid Cap Standalone server URL", 400);
+            }
+            if (!["http:", "https:"].includes(url.protocol) || url.username || url.password || url.search || url.hash)
+                throw new HTTPError("Use an HTTP or HTTPS Cap Standalone URL without credentials, query parameters or a fragment", 400);
+        }
 
         const { login, register: registerRate, ...rate } = body.rate ?? {};
 
