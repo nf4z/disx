@@ -24,6 +24,7 @@ export class CdnConfiguration extends EndpointConfiguration {
     imagorServerUrl: string | null = null;
     proxyCacheHeaderSeconds: number = 60 * 60 * 24;
     maxAttachmentSize: number = 500 * 1024 * 1024;
+    storageQuota: StorageQuotaConfiguration = new StorageQuotaConfiguration();
 
     // limits: CdnLimitsConfiguration = new CdnLimitsConfiguration();
 }
@@ -50,4 +51,13 @@ export class CdnImageLimitsConfiguration {
     maxWidth: number = 8192;
     maxSize: number = 10 * 1024 * 1024; // 10 MB
     allowAnimated: "always" | "never" | "premium" = "always";
+}
+
+export class StorageQuotaConfiguration {
+    instanceBytes: number = 100 * 1024 * 1024 * 1024;
+    principalBytes: number = 10 * 1024 * 1024 * 1024;
+    cacheBytes: number = 1024 * 1024 * 1024;
+    instanceObjects: number = 100000;
+    principalObjects: number = 10000;
+    cacheObjects: number = 10000;
 }

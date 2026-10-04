@@ -90,3 +90,6 @@ export * from "./PushDevice";
 export * from "./MentionDismissal";
 export * from "./Report";
 export * from "./GuildJoinRequest";
+export * from "./StorageQuotaAccount";
+export * from "./StorageQuotaObject";
+export * from "./StorageQuotaOperation";
