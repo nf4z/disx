@@ -5485,6 +5485,30 @@ ${approver}`;
     };
   };
 
+  // client/e2ee/src/channelLoader.ts
+  function createChannelLoader({ current, load, receive, retry, retryMs = 5e3 }) {
+    const pending = /* @__PURE__ */ new Map();
+    let failed = null;
+    let timer = null;
+    return (channelId) => {
+      if (pending.has(channelId) || failed?.channelId === channelId && Date.now() < failed.after) return;
+      const task = Promise.resolve().then(() => load(channelId)).then((value) => {
+        if (current() !== channelId) return;
+        failed = null;
+        receive(channelId, value);
+      }).catch(() => {
+        if (current() !== channelId) return;
+        failed = { channelId, after: Date.now() + retryMs };
+        if (timer) clearTimeout(timer);
+        timer = setTimeout(() => {
+          timer = null;
+          if (current() === channelId) retry();
+        }, retryMs);
+      }).finally(() => pending.delete(channelId));
+      pending.set(channelId, task);
+    };
+  }
+
   // client/e2ee/src/ui.ts
   var LOCK_PATH = "M7 10V7a5 5 0 0 1 10 0v3h1a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h1Zm2 0h6V7a3 3 0 0 0-6 0v3Z";
   var OPEN_LOCK_PATH = "M9 10h9a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h1V7a5 5 0 0 1 9.58-2 1 1 0 1 1-1.83.8A3 3 0 0 0 9 7v3Z";
@@ -5654,6 +5678,15 @@ ${approver}`;
     let unlockOpen = null;
     const approvals = /* @__PURE__ */ new Map();
     let members = null;
+    const loadMembers = createChannelLoader({
+      current: currentChannel,
+      load: (id) => engine2.channelMembers(id).then((ids) => Promise.all(ids.map((member) => engine2.profile(member)))),
+      receive: (channelId, list) => {
+        members = { channelId, list };
+        refresh();
+      },
+      retry: () => refresh()
+    });
     let scheduled = false;
     let tooltip = null;
     let backupPromptDismissed = false;
@@ -6624,7 +6657,7 @@ ${approver}`;
         };
       if (temporary) return temporary;
       if (engine2.locked)
-        return engine2.trustsServer ? { tone: "info", text: t("Preparing private chat…") } : { tone: "info", text: t("Unlock this browser to read and send encrypted messages here."), action: { label: t("Unlock"), run: showUnlock } };
+        return engine2.trustsServer ? { tone: "info", text: t("Unlock this browser to read and send encrypted messages here."), action: { label: t("Unlock"), run: showRequiredPassword } } : { tone: "info", text: t("Unlock this browser to read and send encrypted messages here."), action: { label: t("Unlock"), run: showUnlock } };
       if (!engine2.trustsServer && engine2.backupNeedsPassword && !backupPromptDismissed)
         return {
           tone: "info",
@@ -6663,14 +6696,7 @@ ${approver}`;
         scheduled = false;
         mount();
         const channelId = currentChannel();
-        if (bootstrapped && channelId && engine2.userId && members?.channelId !== channelId) {
-          const id = channelId;
-          engine2.channelMembers(id).then((ids) => Promise.all(ids.map((m) => engine2.profile(m)))).then((list) => {
-            members = { channelId: id, list };
-            refresh();
-          }).catch(() => {
-          });
-        }
+        if (bootstrapped && channelId && engine2.userId && members?.channelId !== channelId) loadMembers(channelId);
         if (tooltip && !document.querySelector(".fe2ee-toggle:hover, .fe2ee-lock:hover")) hideTooltip();
         decorateMessages();
         decorateHeader(channelId);
@@ -6808,7 +6834,7 @@ ${approver}`;
     async request(method, url, body) {
       if (!http) throw new Error("HTTP client not found");
       if (signedOut) throw { ok: false, status: 401, body: { message: "This session was signed out" } };
-      const res = await http[method]({ url, body, rejectWithError: false }).catch((error) => {
+      const res = await http[method]({ url, body, rejectWithError: false, timeout: 15e3, retries: 0 }).catch((error) => {
         if (error?.status === 401) sessionEnded();
         throw error;
       });
@@ -6987,7 +7013,9 @@ ${approver}`;
       await engine.init(userId);
       ui.pause(null);
       await selfTest();
-      if (!await attachments.ready()) console.warn("[e2ee] the attachment service worker isn't controlling this page, so encrypted files won't load");
+      void attachments.ready().then((controlled) => {
+        if (!controlled) console.warn("[e2ee] the attachment service worker isn't controlling this page, so encrypted files won't load");
+      });
       initialized = true;
       link.start(userId);
       engine.onUnlock(() => {

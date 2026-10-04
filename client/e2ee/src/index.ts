@@ -64,7 +64,7 @@ const api: Api = {
     async request<T>(method: "get" | "post" | "put" | "patch" | "del", url: string, body?: unknown) {
         if (!http) throw new Error("HTTP client not found");
         if (signedOut) throw { ok: false, status: 401, body: { message: "This session was signed out" } };
-        const res = await http[method]({ url, body, rejectWithError: false }).catch((error: unknown) => {
+        const res = await http[method]({ url, body, rejectWithError: false, timeout: 15000, retries: 0 }).catch((error: unknown) => {
             if ((error as { status?: number } | null)?.status === 401) sessionEnded();
             throw error;
         });
@@ -265,7 +265,9 @@ const start = async (userId: string) => {
         await engine.init(userId);
         ui.pause(null);
         await selfTest();
-        if (!(await attachments.ready())) console.warn("[e2ee] the attachment service worker isn't controlling this page, so encrypted files won't load");
+        void attachments.ready().then((controlled) => {
+            if (!controlled) console.warn("[e2ee] the attachment service worker isn't controlling this page, so encrypted files won't load");
+        });
         initialized = true;
         link.start(userId);
         engine.onUnlock(() => {

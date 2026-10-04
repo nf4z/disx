@@ -22,6 +22,7 @@ import { MessageState } from "./hooks";
 import { Incoming, Outgoing } from "./link";
 import { browserStorage } from "./store";
 import { conjunction, locale, t } from "./i18n";
+import { createChannelLoader } from "./channelLoader";
 
 const LOCK_PATH = "M7 10V7a5 5 0 0 1 10 0v3h1a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h1Zm2 0h6V7a3 3 0 0 0-6 0v3Z";
 const OPEN_LOCK_PATH = "M9 10h9a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h1V7a5 5 0 0 1 9.58-2 1 1 0 1 1-1.83.8A3 3 0 0 0 9 7v3Z";
@@ -216,6 +217,15 @@ export const createUi = ({ engine, ready, states, enableChannel, link, verifyPas
     let unlockOpen: { render: () => void; close: () => void } | null = null;
     const approvals = new Map<string, () => void>();
     let members: { channelId: string; list: ChannelMember[] } | null = null;
+    const loadMembers = createChannelLoader({
+        current: currentChannel,
+        load: (id) => engine.channelMembers(id).then((ids) => Promise.all(ids.map((member) => engine.profile(member)))),
+        receive: (channelId, list) => {
+            members = { channelId, list };
+            refresh();
+        },
+        retry: () => refresh(),
+    });
     let scheduled = false;
     let tooltip: HTMLElement | null = null;
     let backupPromptDismissed = false;
@@ -1287,7 +1297,7 @@ export const createUi = ({ engine, ready, states, enableChannel, link, verifyPas
         if (temporary) return temporary;
         if (engine.locked)
             return engine.trustsServer
-                ? { tone: "info", text: t("Preparing private chat…") }
+                ? { tone: "info", text: t("Unlock this browser to read and send encrypted messages here."), action: { label: t("Unlock"), run: showRequiredPassword } }
                 : { tone: "info", text: t("Unlock this browser to read and send encrypted messages here."), action: { label: t("Unlock"), run: showUnlock } };
         if (!engine.trustsServer && engine.backupNeedsPassword && !backupPromptDismissed)
             return {
@@ -1329,17 +1339,7 @@ export const createUi = ({ engine, ready, states, enableChannel, link, verifyPas
             scheduled = false;
             mount();
             const channelId = currentChannel();
-            if (bootstrapped && channelId && engine.userId && members?.channelId !== channelId) {
-                const id = channelId;
-                engine
-                    .channelMembers(id)
-                    .then((ids) => Promise.all(ids.map((m) => engine.profile(m))))
-                    .then((list) => {
-                        members = { channelId: id, list };
-                        refresh();
-                    })
-                    .catch(() => {});
-            }
+            if (bootstrapped && channelId && engine.userId && members?.channelId !== channelId) loadMembers(channelId);
             if (tooltip && !document.querySelector(".fe2ee-toggle:hover, .fe2ee-lock:hover")) hideTooltip();
             decorateMessages();
             decorateHeader(channelId);
