@@ -28,6 +28,9 @@ import { PostgresDataSourceOptions } from "typeorm/driver/postgres/PostgresDataS
 
 export let dbConnection: DataSource | undefined;
 
+let databaseInitialization: Promise<DataSource> | undefined;
+let shutdownHandlerRegistered = false;
+
 let isHeadlessProcess = false;
 // For typeorm cli
 if (!process.env) {
@@ -80,9 +83,23 @@ export function getDatabase(): DataSource | null {
 }
 
 // Called once on server start
-export async function initDatabase(): Promise<DataSource> {
-    if (dbConnection) return dbConnection;
+export function initDatabase(): Promise<DataSource> {
+    if (databaseInitialization) return databaseInitialization;
+    if (dbConnection?.isInitialized) return Promise.resolve(dbConnection);
+    databaseInitialization = initializeDatabase()
+        .catch(async (error) => {
+            dbConnection = undefined;
+            if (DataSourceOptions.isInitialized)
+                await DataSourceOptions.destroy().catch((cleanupError) => console.error("[Database] Failed to close database after initialization failure", cleanupError));
+            throw error;
+        })
+        .finally(() => {
+            databaseInitialization = undefined;
+        });
+    return databaseInitialization;
+}
 
+async function initializeDatabase(): Promise<DataSource> {
     if (!process.env.DB_SYNC) {
         const supported = ["postgres"];
         if (!supported.includes(DatabaseType)) {
@@ -122,24 +139,27 @@ export async function initDatabase(): Promise<DataSource> {
     };
     if (applyMigrations) {
         const qr = dbConnection.createQueryRunner();
-        /*
-        The advisory lock ensures that exactly one server is attempting to run migrations at a time.
-        It is session-specific, so should be released if a crash occurs. It is also blocking, so all
-        servers can run their logic.
-         */
-        await qr.query(`Select pg_advisory_lock(${MIGRATIONLOCK})`);
-        if (!(await dbExists())) {
-            console.log("[Database] This appears to be a fresh database. Running initial DDL.");
-            const initialPath = path.join(__dirname, "migration", DatabaseType + "-initial.js");
-            if (fs.existsSync(initialPath)) {
-                console.log("[Database] Found initial migration file, running it.");
-                await new (require(`./migration/${DatabaseType}-initial`).initial0)().up(qr);
-            } else console.log("[Database] No initial migration file found at '", initialPath, "', skipping.");
+        let migrationLockAcquired = false;
+        try {
+            await qr.query(`Select pg_advisory_lock(${MIGRATIONLOCK})`);
+            migrationLockAcquired = true;
+            if (!(await dbExists())) {
+                console.log("[Database] This appears to be a fresh database. Running initial DDL.");
+                const initialPath = path.join(__dirname, "migration", DatabaseType + "-initial.js");
+                if (fs.existsSync(initialPath)) {
+                    console.log("[Database] Found initial migration file, running it.");
+                    await new (require(`./migration/${DatabaseType}-initial`).initial0)().up(qr);
+                } else console.log("[Database] No initial migration file found at '", initialPath, "', skipping.");
+            }
+            console.log("[Database] Applying missing migrations, if any.", process.env.APPLY_DB_MIGRATIONS);
+            await dbConnection.runMigrations();
+        } finally {
+            try {
+                if (migrationLockAcquired) await qr.query(`Select pg_advisory_unlock(${MIGRATIONLOCK})`);
+            } finally {
+                await qr.release();
+            }
         }
-        console.log("[Database] Applying missing migrations, if any.", process.env.APPLY_DB_MIGRATIONS);
-        await dbConnection.runMigrations();
-        await qr.query(`Select pg_advisory_unlock(${MIGRATIONLOCK})`);
-        await qr.release();
     } else {
         console.log("[Database] Skipping migrations as per config.");
         while (!(await dbExists())) {
@@ -148,7 +168,10 @@ export async function initDatabase(): Promise<DataSource> {
         }
     }
 
-    ProcessLifecycle.eventEmitter.on("stopped", async () => await closeDatabase());
+    if (!shutdownHandlerRegistered) {
+        ProcessLifecycle.eventEmitter.on("stopped", async () => await closeDatabase());
+        shutdownHandlerRegistered = true;
+    }
 
     console.log(`[Database] ${green("Connected")}`);
     return dbConnection;
@@ -157,4 +180,5 @@ export async function initDatabase(): Promise<DataSource> {
 export async function closeDatabase() {
     if (DataSourceOptions.isInitialized) await DataSourceOptions.destroy();
     if (dbConnection?.isInitialized) await dbConnection?.destroy();
+    dbConnection = undefined;
 }
