@@ -22,8 +22,8 @@ const fs = require("fs/promises");
 const { existsSync } = require("fs");
 
 const BASE_URL = process.env.CLIENT_BASE_URL || "https://discord.com";
-const CACHE_PATH = path.join(__dirname, "..", "assets", "cache");
-const CONCURRENCY = Number(process.env.CLIENT_CONCURRENCY || 8);
+const CACHE_PATH = path.resolve(process.env.CLIENT_CACHE_PATH || path.join(__dirname, "..", "assets", "cache"));
+const CONCURRENCY = Math.max(1, Math.min(32, Math.floor(Number(process.env.CLIENT_CONCURRENCY) || 8)));
 const USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36";
 
 const MEDIA_EXT = "svg|png|jpe?g|gif|webp|avif|ico|woff2?|ttf|otf|mp3|ogg|wav|mp4|webm|json|lottie|wasm";
@@ -62,44 +62,59 @@ const sliceExpression = (source, start) => {
 
 const chunkNames = (source) => {
     const names = new Set();
-    for (const marker of [".u=e=>", ".k=e=>"]) {
-        const at = source.indexOf(marker);
-        if (at === -1) continue;
-        const body = sliceExpression(source, at + marker.length);
-        const ids = new Set([...body.matchAll(/"(\d+)"===e/g), ...body.matchAll(/[{,](\d+(?:e\d+)?):"[0-9a-f]+"/g)].map((m) => String(Number(m[1]))));
+    for (const match of source.matchAll(/\.[uk]=([a-zA-Z_$][\w$]*)=>/g)) {
+        const parameter = match[1];
+        const body = sliceExpression(source, match.index + match[0].length);
+        const ids = new Set([...body.matchAll(/"(\d+)"===[a-zA-Z_$][\w$]*/g), ...body.matchAll(/[{,](\d+(?:e\d+)?):"[0-9a-f]+"/g)].map((m) => String(Number(m[1]))));
         let fn;
         try {
-            fn = vm.runInNewContext(`(e=>${body})`);
+            fn = vm.runInNewContext(`(${parameter}=>${body})`, {}, { timeout: 100 });
         } catch {
             continue;
         }
         for (const id of ids) {
             const name = fn(id);
-            if (typeof name === "string" && !name.includes("undefined")) names.add(name);
+            if (typeof name === "string" && /^[\w.-]+$/.test(name) && !name.includes("undefined")) names.add(name);
         }
     }
     return names;
 };
 
 const WASM_MODULE = /\.v\(\w+,\w+\.id,"([0-9a-f]{8,32})"/g;
-const references = (text) => new Set([...[...text.matchAll(ASSET_NAME)].map((m) => m[1]), ...[...text.matchAll(WASM_MODULE)].map((m) => `${m[1]}.module.wasm`)]);
-const onlyMissing = process.argv.includes("--missing");
+const references = (text) => {
+    const names = [...text.matchAll(ASSET_NAME)]
+        .filter((match) => {
+            const prefix = text.slice(Math.max(0, match.index - 512), match.index + 1);
+            const url = prefix.match(/https?:\/\/[^\s"'`]*$/)?.[0];
+            return !url || /\/assets\/$/.test(url);
+        })
+        .map((match) => match[1]);
+    return new Set([...names, ...[...text.matchAll(WASM_MODULE)].map((match) => `${match[1]}.module.wasm`)]);
+};
+const checkOnly = process.argv.includes("--check");
+const onlyMissing = checkOnly || process.argv.includes("--missing");
+const writeAtomic = async (file, body) => {
+    const temporary = `${file}.${process.pid}.tmp`;
+    await fs.writeFile(temporary, body);
+    await fs.rename(temporary, file);
+};
 
-(async () => {
-    await fs.mkdir(CACHE_PATH, { recursive: true });
+const main = async () => {
+    if (!checkOnly) await fs.mkdir(CACHE_PATH, { recursive: true });
     const started = Date.now();
 
     const indexFile = path.join(CACHE_PATH, "index.html");
     let html;
+    if (checkOnly && !existsSync(indexFile)) throw new Error("Client index.html is missing; generate a snapshot before checking it");
     if (onlyMissing && existsSync(indexFile)) html = await fs.readFile(indexFile, "utf8");
     else {
-        const appRes = await fetch(`${BASE_URL}/app`, { headers: { "user-agent": USER_AGENT } });
+        const appRes = await fetch(`${BASE_URL}/app`, { headers: { "user-agent": USER_AGENT }, signal: AbortSignal.timeout(30000) });
         if (!appRes.ok) throw new Error(`GET /app returned ${appRes.status}`);
         html = await appRes.text();
-        await fs.writeFile(indexFile, html);
     }
 
-    const queue = [...new Set([...html.matchAll(/\/assets\/([\w.-]+)/g)].map((m) => m[1]))];
+    const servedHtml = html.replace(/<!-- section:seometa -->[\s\S]*?<!-- endsection -->/, "");
+    const queue = [...new Set([...servedHtml.matchAll(/\/assets\/([\w.-]+)/g)].map((m) => m[1]))];
     const seen = new Set(queue);
     const failed = [];
     let done = 0;
@@ -120,12 +135,16 @@ const onlyMissing = process.argv.includes("--missing");
             if (!isText) return;
             const text = await fs.readFile(file, "utf8");
             enqueue(references(text));
-            if (/^web\.[0-9a-f]+\.js$/.test(name)) enqueue(chunkNames(text));
+            if (name.endsWith(".js")) enqueue(chunkNames(text));
             const patched = name.endsWith(".json") ? text : patch(text);
-            if (patched !== text) await fs.writeFile(file, patched);
+            if (!checkOnly && patched !== text) await writeAtomic(file, patched);
             return;
         }
-        const res = await fetch(`${BASE_URL}/assets/${name}`, { headers: { "user-agent": USER_AGENT } });
+        if (checkOnly) {
+            failed.push(`missing ${name}`);
+            return;
+        }
+        const res = await fetch(`${BASE_URL}/assets/${name}`, { headers: { "user-agent": USER_AGENT }, signal: AbortSignal.timeout(30000) });
         if (!res.ok) {
             failed.push(`${res.status} ${name}`);
             return;
@@ -133,14 +152,14 @@ const onlyMissing = process.argv.includes("--missing");
         if (!isText) {
             const buf = Buffer.from(await res.arrayBuffer());
             bytes += buf.length;
-            await fs.writeFile(file, buf);
+            await writeAtomic(file, buf);
             return;
         }
         const text = await res.text();
         bytes += text.length;
         enqueue(references(text));
-        if (/^web\.[0-9a-f]+\.js$/.test(name)) enqueue(chunkNames(text));
-        await fs.writeFile(file, name.endsWith(".json") ? text : patch(text));
+        if (name.endsWith(".js")) enqueue(chunkNames(text));
+        await writeAtomic(file, name.endsWith(".json") ? text : patch(text));
     };
 
     const report = setInterval(() => {
@@ -148,23 +167,36 @@ const onlyMissing = process.argv.includes("--missing");
     }, 1000);
 
     let inflight = 0;
-    await Promise.all(
-        Array.from({ length: CONCURRENCY }, async () => {
-            while (queue.length || inflight) {
-                const name = queue.shift();
-                if (!name) {
-                    await new Promise((r) => setTimeout(r, 100));
-                    continue;
+    try {
+        await Promise.all(
+            Array.from({ length: CONCURRENCY }, async () => {
+                while (queue.length || inflight) {
+                    const name = queue.shift();
+                    if (!name) {
+                        await new Promise((r) => setTimeout(r, 100));
+                        continue;
+                    }
+                    inflight++;
+                    await fetchAsset(name).catch((e) => failed.push(`${e.message} ${name}`));
+                    inflight--;
+                    done++;
                 }
-                inflight++;
-                await fetchAsset(name).catch((e) => failed.push(`${e.message} ${name}`));
-                inflight--;
-                done++;
-            }
-        }),
+            }),
+        );
+    } finally {
+        clearInterval(report);
+    }
+    if (!checkOnly) await writeAtomic(path.join(CACHE_PATH, "..", "cacheFailures"), failed.join("\n"));
+    if (!failed.length && !onlyMissing) await writeAtomic(indexFile, html);
+    console.log(
+        `\nDone: ${done} assets, ${(bytes / 1048576).toFixed(1)} MB in ${Math.round((Date.now() - started) / 1000)}s, ${failed.length} failed${checkOnly ? "" : " (see assets/cacheFailures)"}`,
     );
+    if (failed.length) throw new Error(`${failed.length} client assets are missing; client index was not published${checkOnly ? `: ${failed.slice(0, 20).join(", ")}` : ""}`);
+};
 
-    clearInterval(report);
-    await fs.writeFile(path.join(CACHE_PATH, "..", "cacheFailures"), failed.join("\n"));
-    console.log(`\nDone: ${done} assets, ${(bytes / 1048576).toFixed(1)} MB in ${Math.round((Date.now() - started) / 1000)}s, ${failed.length} failed (see assets/cacheFailures)`);
-})();
+module.exports = { chunkNames, references, patch };
+if (require.main === module)
+    main().catch((error) => {
+        console.error(error.message);
+        process.exitCode = 1;
+    });
