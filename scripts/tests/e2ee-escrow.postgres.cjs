@@ -242,3 +242,55 @@ test("reset deletes escrow and prevents recovering the previous identity", optio
     assert.equal(await entities.E2eeKeyBackup.countBy({ user_id: fixture.user.id }), 0);
     await assert.rejects(invoke(recover, fixture, { password }), (error) => error.code === util.E2eeErrors.NO_BACKUP.code);
 });
+
+test("ordinary backup and encryption-state reads never expose the escrow secret", options, async () => {
+    await invoke(put, fixture, upload());
+    const backupGet = handler(require("../../dist/api/routes/users/@me/e2ee/backup").default, "get");
+    const stateGet = handler(require("../../dist/api/routes/users/@me/e2ee").default, "get");
+    const backup = await invoke(backupGet);
+    let state;
+    await stateGet({ user_id: fixture.user.id, session: fixture.session, query: {} }, { json: (value) => (state = value) });
+    const secret = fixture.secret.toString("base64url");
+    for (const value of [backup.body, state]) {
+        assert.equal(JSON.stringify(value).includes(secret), false);
+        assert.equal(Object.hasOwn(value, "backup_secret"), false);
+        assert.equal(Object.hasOwn(value, "encrypted_secret"), false);
+    }
+});
+
+test("reset waits for an in-flight signed upload and removes its escrow before completing", options, async () => {
+    let announce, release;
+    const entered = new Promise((resolve) => (announce = resolve));
+    const resume = new Promise((resolve) => (release = resolve));
+    const original = helper.sealRecoverySecret;
+    const wrapped = mock.method(helper, "sealRecoverySecret", async (...args) => {
+        announce();
+        await resume;
+        return original(...args);
+    });
+    let uploading, resetting;
+    try {
+        uploading = invoke(put, fixture, upload());
+        await entered;
+        resetting = invoke(reset, fixture, { password, public_key: keypair("ed25519").public });
+        let waiting = false;
+        for (let attempt = 0; attempt < 80 && !waiting; attempt++) {
+            const rows = await db.query(
+                "SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid() AND wait_event_type = 'Lock' AND query LIKE '%e2ee_identities%') AS waiting",
+            );
+            waiting = rows[0].waiting;
+            if (!waiting) await new Promise((resolve) => setTimeout(resolve, 25));
+        }
+        assert.equal(waiting, true, "reset reaches the identity lock while upload holds it");
+        release();
+        const [saved] = await Promise.all([uploading, resetting]);
+        assert.equal(saved.status, 204);
+        assert.equal(await entities.E2eeRecovery.countBy({ user_id: fixture.user.id }), 0);
+        assert.equal(await entities.E2eeKeyBackup.countBy({ user_id: fixture.user.id }), 0);
+        await assert.rejects(invoke(recover, fixture, { password }), (error) => error.code === util.E2eeErrors.NO_BACKUP.code);
+    } finally {
+        release();
+        await Promise.allSettled([uploading, resetting].filter(Boolean));
+        wrapped.mock.restore();
+    }
+});
