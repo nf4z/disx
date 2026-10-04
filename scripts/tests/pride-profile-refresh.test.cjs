@@ -33,8 +33,9 @@ const harness = () => {
         module,
         exports: module.exports,
         require(name) {
-            if (name === "@utils/types") return { __esModule: true, default: (value) => value };
+            if (name === "@utils/types") return { __esModule: true, default: (value) => value, StartAt: { DOMContentLoaded: "DOMContentLoaded" } };
             if (name === "../fosscordCore/shared") return { FosscordAuthor: {} };
+            if (name === "../fosscordCore/ui") return { Button: () => null, Field: () => null, SettingsSection: () => null };
             if (name === "./style.css?managed") return {};
             if (name === "@webpack/common")
                 return {

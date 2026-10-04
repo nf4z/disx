@@ -1,13 +1,7 @@
 {
     "generated_at": "2026-10-04",
-    "source_revision": "Generated OpenAPI after combined Cap/GIF/customization integration on 2026-10-04",
-    "sources": [
-        "assets/openapi.json",
-        "assets/cache/*.js",
-        "src/api/routes/admin",
-        "assets/public/admin/admin.js",
-        "client/plugins"
-    ],
+    "source_revision": "d83a973a8",
+    "sources": ["assets/openapi.json", "assets/cache/*.js", "src/api/routes/admin", "assets/public/admin/admin.js", "client/plugins"],
     "scope_note": "Server operations inventoried exhaustively from generated OpenAPI. Native static and directly returned template URL builders are extracted separately, with plugin/E2EE literal route calls. Arbitrary function-built URLs, lazy client code and external client services are not fully enumerated. Covered means explicit matching admin operation; partial and missing are conservative classifications requiring deeper route-by-route verification. Protected flows do not authorize impersonation or secret access.",
     "counts": {
         "server_operations": 736,
@@ -6962,37 +6956,45 @@
         {
             "method": "GET",
             "path": "/api/admin/users/{user_id}/settings",
-            "status": "implemented_pending_live_verification"
+            "status": "implemented_live_verified"
         },
         {
             "method": "PATCH",
             "path": "/api/admin/users/{user_id}/settings",
-            "status": "implemented_pending_live_verification"
+            "status": "implemented_live_verified"
         },
         {
             "method": "GET",
             "path": "/api/admin/users/{user_id}/pride-badges",
-            "status": "implemented_pending_live_verification"
+            "status": "implemented_live_verified"
         },
         {
             "method": "PATCH",
             "path": "/api/admin/users/{user_id}/pride-badges",
-            "status": "implemented_pending_live_verification"
+            "status": "implemented_live_verified"
         },
         {
             "method": "GET",
             "path": "/api/admin/users/{user_id}/widgets",
-            "status": "implemented_pending_live_verification"
+            "status": "implemented_live_verified"
         },
         {
             "method": "PUT",
             "path": "/api/admin/users/{user_id}/widgets",
-            "status": "implemented_pending_live_verification"
+            "status": "implemented_live_verified"
         },
         {
             "method": "GET",
             "path": "/api/admin/users/{user_id}/customization-audit",
-            "status": "implemented_pending_live_verification"
+            "status": "implemented_live_verified"
         }
-    ]
+    ],
+    "verification": {
+        "admin_browser_and_api": "scripts/dev/admin-user-customization-smoke.mjs: passed; fixtures restored",
+        "postgres_preferences": "2 real database fixtures passed; removed",
+        "authorization_eligibility_audit_units": "5 passed",
+        "gif_provider_units": "6 passed",
+        "native_gif_browser": "root verified Tenor live HTTP200 and masked admin-key form",
+        "screenshot": "docs/qa/admin-user-customization.png"
+    }
 }
