@@ -21,13 +21,13 @@ import { Request, Response, Router } from "express";
 import { HTTPError } from "lambert-server/HTTPError";
 import crypto from "node:crypto";
 import { ILike, MoreThan } from "typeorm";
-import { checkRegistrationCaptcha } from "@spacebar/api/util";
+import { checkRegistrationCaptcha, registrationCapEndpoint } from "@spacebar/api/util";
 import { route } from "@spacebar/api/middlewares";
 import { Invite, User, ValidRegistrationToken } from "@spacebar/database";
 import { Config, FieldErrors, generateToken, IpDataClient, AbuseIpDbClient } from "@spacebar/util";
 import { RegisterSchema } from "@spacebar/schemas";
 import { BcryptWorkerPool } from "@spacebar/util/util/workers/bcrypt/BcryptWorkerPool";
-import { Stopwatch, TimeSpan } from "@spacebar/extensions";
+import { Stopwatch, TimeSpan, trimSpecial } from "@spacebar/extensions";
 
 const router: Router = Router({ mergeParams: true });
 
@@ -62,7 +62,7 @@ router.post(
         const { register, limits } = Config.get();
         const ip = req.ip!;
 
-        const captcha = await checkRegistrationCaptcha(body.captcha_key);
+        const captcha = await checkRegistrationCaptcha(body.captcha_key, false);
         if (captcha) return res.status(400).json(captcha);
 
         // Reg tokens
@@ -344,6 +344,21 @@ router.post(
                     message: `Must be between 2 and ${maxUsername} in length.`,
                 },
             });
+        }
+
+        body.username = trimSpecial(body.username);
+        User.assertUsernameAllowed(body.username);
+        if (await User.isUsernameTaken(body.username))
+            throw FieldErrors({
+                username: {
+                    code: "USERNAME_ALREADY_TAKEN",
+                    message: "Username is unavailable. Try adding numbers, letters, underscores _ , or periods.",
+                },
+            });
+
+        if (register.requireCaptcha && registrationCapEndpoint() === "/api/v9/auth/cap/") {
+            const claimed = await checkRegistrationCaptcha(body.captcha_key);
+            if (claimed) return res.status(400).json(claimed);
         }
 
         const user = await User.register({ ...body, username: body.username, req });

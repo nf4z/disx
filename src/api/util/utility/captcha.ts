@@ -109,7 +109,7 @@ export function registrationCapEndpoint() {
     return capEndpoint()!;
 }
 
-export async function checkRegistrationCaptcha(response: string | null | undefined): Promise<CaptchaRequiredResponse | null> {
+export async function checkRegistrationCaptcha(response: string | null | undefined, consume = true): Promise<CaptchaRequiredResponse | null> {
     if (!Config.get().register.requireCaptcha) return null;
     const endpoint = registrationCapEndpoint();
     const local = endpoint === "/api/v9/auth/cap/";
@@ -117,8 +117,8 @@ export async function checkRegistrationCaptcha(response: string | null | undefin
     const challenge = (codes: string[]): CaptchaRequiredResponse => ({ captcha_key: codes, captcha_sitekey: sitekey, captcha_service: "cap" });
     if (!response || typeof response !== "string" || response.length > 512) return challenge(["captcha-required"]);
     if (local) {
-        const { consumeRegistrationToken } = await import("./localCap.js");
-        return (await consumeRegistrationToken(response)) ? null : challenge(["invalid-input-response"]);
+        const { consumeRegistrationToken, registrationTokenAvailable } = await import("./localCap.js");
+        return (await (consume ? consumeRegistrationToken(response) : registrationTokenAvailable(response))) ? null : challenge(["invalid-input-response"]);
     }
     const verified = await verifyCap(response, Config.get().security.captcha.secret!);
     return verified.success ? null : challenge(verified["error-codes"] ?? ["invalid-input-response"]);

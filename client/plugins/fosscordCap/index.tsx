@@ -24,7 +24,7 @@ import managedStyle from "./style.css?managed";
 
 type CapConfiguration = { service?: string; endpoint?: string; register?: boolean };
 type CapElement = HTMLElement & { reset(): void };
-type CapController = { takeToken(): string | undefined };
+type CapController = { takeToken(): string | undefined; rejectToken(): void };
 let current: CapController | undefined;
 let widgetLoader: Promise<void> | undefined;
 
@@ -65,12 +65,12 @@ function SignupVerification() {
         const form = container.current?.closest("form");
         const controller: CapController = {
             takeToken() {
-                const result = token;
-                if (required) {
-                    token = undefined;
-                    widget?.reset();
-                }
-                return result;
+                return token;
+            },
+            rejectToken() {
+                token = undefined;
+                widget?.reset();
+                setError("Verification expired or was already used. Verify again, then create your account.");
             },
         };
         current = controller;
@@ -100,6 +100,7 @@ function SignupVerification() {
                 widget.setAttribute("aria-label", "Required account verification");
                 widget.setAttribute("aria-describedby", "fosscord-cap-status fosscord-cap-error");
                 widget.setAttribute("data-cap-disable-haptics", "");
+                widget.setAttribute("data-cap-worker-count", String(Math.max(1, Math.min(navigator.hardwareConcurrency || 2, matchMedia("(pointer: coarse)").matches ? 2 : 4))));
                 widget.addEventListener("solve", (event) => {
                     token = (event as CustomEvent<{ token: string }>).detail.token;
                     widget?.removeAttribute("aria-invalid");
@@ -177,7 +178,19 @@ export default definePlugin({
         </>
     ),
     takeToken: () => current?.takeToken(),
+    handleChallenge(body: { captcha_service?: string } | undefined) {
+        if (body?.captcha_service !== "cap" || !current) return false;
+        current.rejectToken();
+        return true;
+    },
     patches: [
+        {
+            find: "interceptResponse(",
+            replacement: {
+                match: /interceptResponse\((\i),(\i),(\i)\)\{/,
+                replace: "$&if($self.handleChallenge($1.body))return!1;",
+            },
+        },
         {
             find: "REGISTER_PROMO_EMAIL_CHECKBOX_WEB",
             replacement: [

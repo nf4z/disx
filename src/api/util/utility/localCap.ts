@@ -58,3 +58,9 @@ export async function consumeRegistrationToken(token: string) {
     const [rows] = await RateLimit.query(`DELETE FROM rate_limits WHERE id = $1 AND expires_at > $2 RETURNING id`, [tokenKey(token), new Date()]);
     return rows.length === 1;
 }
+
+export async function registrationTokenAvailable(token: string) {
+    if (!token || token.length > 512) return false;
+    const rows = await RateLimit.query(`SELECT 1 FROM rate_limits WHERE id = $1 AND expires_at > $2 LIMIT 1`, [tokenKey(token), new Date()]);
+    return rows.length === 1;
+}

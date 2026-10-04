@@ -186,3 +186,60 @@ test("registration invitation tokens never bypass the required Cap challenge", o
     assert.equal(response.captcha_service, "cap");
     assert.deepEqual(response.captcha_key, ["captcha-required"]);
 });
+
+test("preflight verification preserves a solved token until atomic registration claim", options, async () => {
+    cfg.security.captcha = { enabled: false };
+    const result = await redeem(await solvedChallenge());
+    const checks = await Promise.all(Array.from({ length: 16 }, () => captcha.checkRegistrationCaptcha(result.token, false)));
+    assert(checks.every((value) => value === null));
+    assert.equal(await cap.registrationTokenAvailable(result.token), true);
+    const claims = await Promise.all(Array.from({ length: 16 }, () => captcha.checkRegistrationCaptcha(result.token)));
+    assert.equal(claims.filter((value) => value === null).length, 1);
+    assert.equal(await cap.registrationTokenAvailable(result.token), false);
+});
+
+test("correctable password and username errors do not consume the solved registration token", options, async () => {
+    const savedRegister = cfg.register;
+    const savedLimit = cfg.limits.absoluteRate.register;
+    cfg.limits.absoluteRate.register = { ...savedLimit, enabled: false };
+    cfg.register = {
+        ...originalRegister,
+        requireCaptcha: true,
+        allowNewRegistration: true,
+        disabled: false,
+        allowMultipleAccounts: true,
+        enableAbuseIpDb: false,
+        enableIpData: false,
+        requireInvite: false,
+        guestsRequireInvite: false,
+        email: { ...originalRegister.email, required: false },
+    };
+    cfg.security.captcha = { enabled: false };
+    const router = require("../../dist/api/routes/auth/register").default;
+    const handler = router.stack.find((layer) => layer.route?.methods.post).route.stack.at(-1).handle;
+    const result = await redeem(await solvedChallenge());
+    try {
+        for (const [field, body] of [
+            ["password", { username: "capfixture", password: "a" }],
+            ["username", { username: "x".repeat(cfg.limits.user.maxUsername + 1), password: "fixture-long-password-9" }],
+        ]) {
+            await assert.rejects(
+                handler(
+                    { body: { ...body, consent: true, captcha_key: result.token }, ip: "192.0.2.124", get: () => undefined, t: (key) => key },
+                    {
+                        status() {
+                            throw new Error("A valid solved proof should reach form validation");
+                        },
+                    },
+                ),
+                (error) => error.code === 50035 && !!error.errors?.[field],
+            );
+            assert.equal(await cap.registrationTokenAvailable(result.token), true);
+        }
+        assert.equal(await captcha.checkRegistrationCaptcha(result.token), null);
+        assert.equal(await cap.registrationTokenAvailable(result.token), false);
+    } finally {
+        cfg.register = savedRegister;
+        cfg.limits.absoluteRate.register = savedLimit;
+    }
+});
