@@ -47,7 +47,10 @@ const before = await api("GET", "/users/@me/pride-badges");
 const profile = await api("GET", "/users/@me/profile");
 const catalogIds = new Set(before.catalog.map((badge) => badge.id));
 const assigned = profile.badges.filter((badge) => !catalogIds.has(badge.id));
-assert.equal(before.catalog.length, 33);
+const manifest = JSON.parse(readFileSync(path.join(root, "assets/badge-icons/twemoji-flags/manifest.json")));
+const count = manifest.flags.length + manifest.supplementalSlugs.length;
+assert.equal(before.catalog.length, count);
+assert.equal(before.catalog.filter((badge) => badge.source === "twemoji-flags").length, manifest.flags.length);
 const browser = await playwright.chromium.launch({ executablePath: process.env.CHROME_PATH || "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser", headless: true });
 try {
     const open = async (token) => {
@@ -70,27 +73,27 @@ try {
     await page.getByText("Edit Profiles", { exact: true }).click();
     const picker = page.getByRole("region", { name: "Pride badges", exact: true });
     await picker.getByRole("checkbox").first().waitFor();
-    assert.equal(await picker.getByRole("checkbox").count(), 33);
+    assert.equal(await picker.getByRole("checkbox").count(), count);
     for (const checkbox of await picker.getByRole("checkbox").all()) await checkbox.check();
     await picker.getByRole("button", { name: "Save pride badges", exact: true }).click();
     await picker.getByText("Pride badges saved.", { exact: true }).waitFor();
-    assert.equal((await api("GET", "/users/@me/pride-badges")).flags.length, 33);
+    assert.equal((await api("GET", "/users/@me/pride-badges")).flags.length, count);
     const savedProfile = await api("GET", "/users/@me/profile");
-    assert.equal(savedProfile.badges.filter((badge) => catalogIds.has(badge.id)).length, 33);
+    assert.equal(savedProfile.badges.filter((badge) => catalogIds.has(badge.id)).length, count);
     assert.deepEqual(
         savedProfile.badges.filter((badge) => !catalogIds.has(badge.id)),
         assigned,
     );
     await friendPage.waitForFunction(
-        (id) =>
+        ({ id, count }) =>
             Vencord.Webpack.findStore("UserProfileStore")
                 .getUserProfile(id)
-                ?.badges?.filter((badge) => badge.icon?.startsWith("pride_")).length === 33,
-        profile.user.id,
+                ?.badges?.filter((badge) => badge.icon?.startsWith("pride_")).length === count,
+        { id: profile.user.id, count },
         { timeout: 15000 },
     );
     const icons = friendPage.locator('img[src*="badge-icons/pride_"]');
-    assert.equal(await icons.count(), 33, "ordinary friend profile renders every flag");
+    assert.equal(await icons.count(), count, "ordinary friend profile renders every flag");
     assert.ok(await icons.evaluateAll((images) => images.every((image) => image.complete && image.naturalWidth > 0)), "flag images load locally");
     assert.ok(
         await icons.evaluateAll((images) =>
@@ -121,9 +124,10 @@ try {
     assert.deepEqual((await api("GET", "/users/@me/pride-badges")).flags, ["transgender"]);
     console.log(
         JSON.stringify({
-            catalog: 33,
-            selectedAll: 33,
-            ordinaryProfileImages: 33,
+            catalog: count,
+            upstreamFlags: manifest.flags.length,
+            selectedAll: count,
+            ordinaryProfileImages: count,
             cachedFriendUpdated: true,
             cleared: true,
             searchSubsetSaved: true,

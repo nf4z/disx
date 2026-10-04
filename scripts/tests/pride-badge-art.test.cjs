@@ -24,69 +24,64 @@ const { execFileSync } = require("node:child_process");
 const sharp = require("sharp");
 const root = path.resolve(__dirname, "../..");
 const svg = (slug) => fs.readFileSync(path.join(root, "assets/badge-icons", `pride_${slug}.svg`));
-const raster = async (slug) => sharp(svg(slug)).resize(1500, 1000).removeAlpha().raw().toBuffer();
-const pixel = (data, x, y) =>
-    `#${data
-        .subarray((y * 1500 + x) * 3, (y * 1500 + x) * 3 + 3)
-        .toString("hex")
-        .toUpperCase()}`;
+test("all 40 upstream flags match their pinned checksums and remain selectable", async () => {
+    const manifest = JSON.parse(fs.readFileSync(path.join(root, "assets/badge-icons/twemoji-flags/manifest.json"), "utf8"));
+    const { createHash } = require("node:crypto");
+    assert.equal(manifest.commit, "1eee036f2567edc1f56f7dcb4105eae5a347cc7b");
+    assert.equal(manifest.flags.length, 40);
+    assert.equal(manifest.supplementalFlags.length, 10);
+    assert.deepEqual(manifest.excluded, ["TEMPLATE_FLAG.svg"]);
+    assert.equal(new Set(manifest.flags.map((flag) => flag.file)).size, 40);
+    assert.deepEqual(fs.readdirSync(path.join(root, "assets/badge-icons/twemoji-flags/flags")).sort(), [...manifest.flags.map((flag) => flag.file), manifest.template.file].sort());
+    for (const flag of manifest.supplementalFlags) {
+        assert.equal(
+            createHash("sha256")
+                .update(svg(flag.slug.replaceAll("-", "_")))
+                .digest("hex"),
+            flag.sha256,
+        );
+        assert.equal(flag.derivedFrom, "TEMPLATE_FLAG.svg");
+    }
+    const catalog = fs.readFileSync(path.join(root, "src/api/util/utility/prideBadges.ts"), "utf8");
+    for (const flag of manifest.flags) {
+        const original = fs.readFileSync(path.join(root, "assets/badge-icons/twemoji-flags/flags", flag.file));
+        assert.equal(createHash("sha256").update(original).digest("hex"), flag.sha256);
+        assert.deepEqual(svg(flag.slug.replaceAll("-", "_")), original);
+        assert.ok(catalog.includes(`slug: "${flag.slug}"`));
+        assert.ok(catalog.includes(`icon: "${flag.icon}"`));
+    }
+});
 
-test("all 33 local SVGs match their offline generator and render without external resources", async () => {
+test("all 50 local SVGs regenerate offline and render without external resources", async () => {
     execFileSync(process.execPath, ["scripts/pride-badge-art.cjs", "--check"], { cwd: root });
     const files = fs.readdirSync(path.join(root, "assets/badge-icons")).filter((file) => /^pride_.*\.svg$/.test(file));
-    assert.equal(files.length, 33);
+    assert.equal(files.length, 50);
     for (const file of files) {
         const content = fs.readFileSync(path.join(root, "assets/badge-icons", file));
-        assert.doesNotMatch(content.toString(), /<(?:script|image|foreignObject)\b|href\s*=|url\((?!#flag\))/i);
-        assert.match(content.toString(), /viewBox="0 0 150 100"/);
-        assert.match(content.toString(), /<clipPath id="flag"><rect width="150" height="100" rx="10"/);
-        const cornerPixels = await sharp(content).resize(150, 100).ensureAlpha().raw().toBuffer();
-        assert.equal(cornerPixels[3], 0);
-        assert.equal(cornerPixels[(50 * 150 + 75) * 4 + 3], 255);
-        const rendered = await sharp(content).resize(30, 20).png().toBuffer();
-        assert.ok(rendered.length > 50);
+        assert.doesNotMatch(content.toString(), /<(?:script|image|foreignObject)\b|(?:xlink:)?href\s*=\s*["'](?:https?:|\/\/)|url\((?!#)/i);
+        assert.match(content.toString(), /viewBox="0 0 36 36"/);
+        const rendered = await sharp(content).resize(30, 30).ensureAlpha().raw().toBuffer();
+        assert.equal(rendered.length, 30 * 30 * 4);
+        assert.ok(rendered.some((value, index) => index % 4 === 3 && value > 0));
     }
 });
 
-test("Progress chevron leaves the correct narrower white triangle and rainbow field", async () => {
-    const image = await raster("progress");
-    for (const [x, color] of [
-        [100, "#FFFFFF"],
-        [300, "#F5A9B8"],
-        [420, "#5BCEFA"],
-        [540, "#784F17"],
-        [660, "#000000"],
-        [900, "#008026"],
-    ]) {
-        assert.equal(pixel(image, x, 505), color);
+test("supplemental flags use the upstream silhouette and keep the intersex circle round and visible", async () => {
+    const template = fs.readFileSync(path.join(root, "assets/badge-icons/twemoji-flags/flags/TEMPLATE_FLAG.svg"), "utf8");
+    const silhouette = template.match(/\bd="([^"]+)"/)[1];
+    const manifest = JSON.parse(fs.readFileSync(path.join(root, "assets/badge-icons/twemoji-flags/manifest.json"), "utf8"));
+    for (const slug of manifest.supplementalSlugs) {
+        const content = svg(slug.replaceAll("-", "_")).toString();
+        assert.ok(content.includes(`d="${silhouette}"`));
+        assert.match(content, /viewBox="0 0 36 36"/);
     }
-});
-
-test("intersex-inclusive Progress has an unbroken unclipped circle inside the yellow chevron", async () => {
-    const image = await raster("intersex_progress");
-    for (const [x, color] of [
-        [20, "#FFD800"],
-        [35, "#7902AA"],
-        [135, "#FFD800"],
-        [235, "#7902AA"],
-        [300, "#FFD800"],
-        [420, "#FFFFFF"],
-        [510, "#F5A9B8"],
-        [600, "#5BCEFA"],
-        [700, "#784F17"],
-        [790, "#000000"],
-        [1000, "#008026"],
-    ]) {
-        assert.equal(pixel(image, x, 505), color);
-    }
-    assert.equal(pixel(image, 135, 400), "#7902AA");
-    assert.equal(pixel(image, 135, 600), "#7902AA");
-});
-
-test("standalone intersex preserves creator colors and circle proportions", async () => {
-    const image = await raster("intersex");
-    assert.equal(pixel(image, 750, 500), "#FFD800");
-    assert.equal(pixel(image, 750, 255), "#7902AA");
-    assert.equal(pixel(image, 750, 200), "#FFD800");
-    assert.match(svg("intersex").toString(), /r="24.5".*stroke="#7902AA" stroke-width="8.9375"/);
+    const content = svg("intersex_progress");
+    assert.match(content.toString(), /circle cx="3.24" cy="18" r="2.4"/);
+    const image = await sharp(content).resize(360, 360).removeAlpha().raw().toBuffer();
+    const color = (x, y) => image.subarray((y * 360 + x) * 3, (y * 360 + x) * 3 + 3).toString("hex");
+    assert.equal(color(32, 180), "ffd800");
+    assert.equal(color(32, 156), "7902aa");
+    assert.equal(color(32, 204), "7902aa");
+    assert.equal(color(8, 180), "7902aa");
+    assert.equal(color(56, 180), "7902aa");
 });

@@ -182,3 +182,12 @@
         min-height: 40px;
     }
 }
+.fosscord-pride-credit {
+    text-wrap: pretty;
+}
+.fosscord-pride-credit a {
+    color: var(--text-link);
+    text-decoration: underline;
+    text-underline-position: from-font;
+    text-decoration-skip-ink: auto;
+}

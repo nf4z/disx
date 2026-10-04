@@ -93,15 +93,15 @@ const harness = () => {
     return { invoke, writes, broadcasts, user };
 };
 
-test("catalog has 33 unique locally hosted flag icons and valid badge identifiers", () => {
-    assert.equal(catalog.PRIDE_BADGES.length, 33);
-    for (const field of ["slug", "id", "icon"]) assert.equal(new Set(catalog.PRIDE_BADGES.map((b) => b[field])).size, 33);
+test("catalog has every upstream flag plus preserved supplemental flags and unique locally hosted flag icons and valid badge identifiers", () => {
+    assert.equal(catalog.PRIDE_BADGES.length, 50);
+    for (const field of ["slug", "id", "icon"]) assert.equal(new Set(catalog.PRIDE_BADGES.map((b) => b[field])).size, 50);
     for (const badge of catalog.PRIDE_BADGES) {
         assert.match(badge.id, /^[0-9]+$/);
         assert.ok(BigInt(badge.id) <= 9223372036854775807n);
         const svg = fs.readFileSync(`assets/badge-icons/${badge.icon}.svg`, "utf8");
-        assert.match(svg, /viewBox="0 0 150 100"/);
-        assert.doesNotMatch(svg, /(?:href|script|foreignObject|https?:\/\/[^w])/i);
+        assert.match(svg, /viewBox="0 0 36 36"/);
+        assert.doesNotMatch(svg, /<(?:script|image|foreignObject)\b|(?:xlink:)?href\s*=\s*["\'](?:https?:|\/\/)/i);
     }
 });
 
@@ -138,7 +138,7 @@ test("clearing selections preserves admin badges and GET returns the persisted e
 });
 
 test("unknown flags, admin IDs, invalid shapes and oversized arrays never write or broadcast", async () => {
-    for (const flags of [["operator"], [catalog.PRIDE_BADGES[0].id], [null], [1], "rainbow", null, Array(34).fill("rainbow")]) {
+    for (const flags of [["operator"], [catalog.PRIDE_BADGES[0].id], [null], [1], "rainbow", null, Array(catalog.PRIDE_BADGES.length + 1).fill("rainbow")]) {
         const h = harness();
         await assert.rejects(h.invoke("patch", { flags }), /invalid flags/);
         assert.equal(h.writes.length, 0);
@@ -176,11 +176,62 @@ test("unchanged selections perform no write and no observer fanout", async () =>
     assert.equal(h.broadcasts.length, 0);
 });
 
-test("all 33 catalog flags can be selected together without changing assigned badges", async () => {
+test("all catalog flags can be selected together without changing assigned badges", async () => {
     const h = harness();
     const flags = Array.from(catalog.PRIDE_BADGES, (badge) => badge.slug);
     const result = await h.invoke("patch", { flags });
     assert.deepEqual(Array.from(result.flags), flags);
-    assert.equal(h.user.pride_badges.length, 33);
+    assert.equal(h.user.pride_badges.length, 50);
     assert.deepEqual(Array.from(h.user.badge_ids), ["operator"]);
+});
+
+test("all 33 existing flag slugs and badge IDs remain stable", () => {
+    const slugs = [
+        "rainbow",
+        "original-rainbow",
+        "philadelphia",
+        "progress",
+        "intersex-progress",
+        "transgender",
+        "bisexual",
+        "pansexual",
+        "lesbian-five",
+        "lesbian-seven",
+        "gay-five",
+        "gay-seven",
+        "asexual",
+        "aromantic",
+        "aroace",
+        "agender",
+        "nonbinary",
+        "genderqueer",
+        "genderfluid",
+        "demiboy",
+        "demigirl",
+        "demigender",
+        "demisexual",
+        "demiromantic",
+        "gray-asexual",
+        "grayromantic",
+        "polysexual",
+        "omnisexual",
+        "intersex",
+        "abrosexual",
+        "unlabeled",
+        "neutrois",
+        "androgyne",
+    ];
+    slugs.forEach((slug, index) => {
+        const badge = catalog.PRIDE_BADGES.find((item) => item.slug === slug);
+        assert.equal(badge.id, String(8000000000000000001n + BigInt(index)));
+    });
+});
+
+test("stored unknown selections remain visible to their owner and are never silently discarded", async () => {
+    const h = harness();
+    h.user.pride_badges = ["rainbow", "future-custom-flag"];
+    assert.deepEqual(Array.from((await h.invoke("get")).flags), ["rainbow", "future-custom-flag"]);
+    await assert.rejects(h.invoke("patch", { flags: ["rainbow", "future-custom-flag", "transgender"] }), /invalid flags/);
+    assert.equal(h.writes.length, 0);
+    assert.deepEqual(h.user.pride_badges, ["rainbow", "future-custom-flag"]);
 });

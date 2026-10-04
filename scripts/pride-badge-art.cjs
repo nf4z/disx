@@ -18,6 +18,7 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
+const { createHash } = require("node:crypto");
 
 const flags = [
     ["rainbow", "Rainbow", ["E40303", "FF8C00", "FFED00", "008026", "004DFF", "750787"]],
@@ -57,10 +58,18 @@ const flags = [
 
 const root = path.resolve(__dirname, "..");
 const check = process.argv.includes("--check");
+const vendor = path.join(root, "assets", "badge-icons", "twemoji-flags");
+const manifest = JSON.parse(fs.readFileSync(path.join(vendor, "manifest.json"), "utf8"));
+const upstreamSlugs = new Set(manifest.flags.map((flag) => flag.slug));
+const template = fs.readFileSync(path.join(vendor, "flags", manifest.template.file), "utf8");
+if (createHash("sha256").update(template).digest("hex") !== manifest.template.sha256) throw new Error("Vendored template checksum mismatch");
+const silhouette = template.match(/\bd="([^"]+)"/)[1];
 const number = (value) => Number(value.toFixed(6));
 let stale = 0;
 for (const [slug, title, colors] of flags) {
+    if (upstreamSlugs.has(slug)) continue;
     const parts = [];
+    let symbol = "";
     const sizes = slug === "bisexual" ? [40, 20, 40] : ["demisexual", "demiromantic"].includes(slug) ? [37.5, 25, 37.5] : colors.map(() => 100 / colors.length);
     let offset = 0;
     for (const [index, color] of colors.entries()) {
@@ -81,10 +90,10 @@ for (const [slug, title, colors] of flags) {
             const span = tip * (inclusive ? 17 / 15 : 25 / 24);
             parts.push(`<path d="M0 ${number(50 - span)}L${tip} 50L0 ${number(50 + span)}Z" fill="#${chevronColors[index]}"/>`);
         });
-        if (inclusive) parts.push('<circle cx="13.5" cy="50" r="10" fill="none" stroke="#7902AA" stroke-width="2.3"/>');
+        if (inclusive) symbol = '<circle cx="3.24" cy="18" r="2.4" fill="none" stroke="#7902AA" stroke-width="0.552"/>';
     }
     if (slug === "intersex") parts.push('<circle cx="75" cy="50" r="24.5" fill="none" stroke="#7902AA" stroke-width="8.9375"/>');
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 150 100" role="img"><title>${title}</title><defs><clipPath id="flag"><rect width="150" height="100" rx="10"/></clipPath></defs><g clip-path="url(#flag)">${parts.join("")}</g><rect x="0.75" y="0.75" width="148.5" height="98.5" rx="9.25" fill="none" stroke="#000000" stroke-opacity="0.08" stroke-width="1.5"/></svg>\n`;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36" role="img"><title>${title}</title><defs><clipPath id="flag"><path d="${silhouette}"/></clipPath></defs><g clip-path="url(#flag)"><g transform="translate(0 5) scale(.24 .26)">${parts.join("")}</g>${symbol}</g></svg>\n`;
     const file = path.join(root, "assets", "badge-icons", `pride_${slug.replaceAll("-", "_")}.svg`);
     if (check) {
         if (!fs.existsSync(file) || fs.readFileSync(file, "utf8") !== svg) {
@@ -93,5 +102,41 @@ for (const [slug, title, colors] of flags) {
         }
     } else fs.writeFileSync(file, svg);
 }
+for (const flag of manifest.flags) {
+    const source = fs.readFileSync(path.join(vendor, "flags", flag.file));
+    if (createHash("sha256").update(source).digest("hex") !== flag.sha256) throw new Error(`Vendored artwork checksum mismatch: ${flag.file}`);
+    const file = path.join(root, "assets", "badge-icons", `${flag.icon}.svg`);
+    if (check) {
+        if (!fs.existsSync(file) || !source.equals(fs.readFileSync(file))) {
+            console.error(`Out of date: ${path.relative(root, file)}`);
+            stale++;
+        }
+    } else fs.writeFileSync(file, source);
+}
+const supplemental = flags
+    .filter(([slug]) => !upstreamSlugs.has(slug))
+    .map(([slug]) => {
+        const icon = `pride_${slug.replaceAll("-", "_")}`;
+        return {
+            slug,
+            icon,
+            sha256: createHash("sha256")
+                .update(fs.readFileSync(path.join(root, "assets", "badge-icons", `${icon}.svg`)))
+                .digest("hex"),
+            derivedFrom: manifest.template.file,
+        };
+    });
+if (check) {
+    if (JSON.stringify(supplemental) !== JSON.stringify(manifest.supplementalFlags)) {
+        console.error("Supplemental artwork manifest is out of date");
+        stale++;
+    }
+} else {
+    manifest.supplementalFlags = supplemental;
+    fs.writeFileSync(path.join(vendor, "manifest.json"), `${JSON.stringify(manifest, null, 4)}\n`);
+}
 if (stale) process.exitCode = 1;
-else console.log(`${check ? "Verified" : "Generated"} ${flags.length} local pride badge SVGs.`);
+else
+    console.log(
+        `${check ? "Verified" : "Generated"} ${manifest.flags.length} Twemoji flags and ${flags.filter(([slug]) => !upstreamSlugs.has(slug)).length} supplemental badge SVGs.`,
+    );

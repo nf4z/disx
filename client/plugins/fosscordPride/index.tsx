@@ -23,7 +23,7 @@ import { FosscordAuthor } from "../fosscordCore/shared";
 import { SettingsSection, Field, Button } from "../fosscordCore/ui";
 import managedStyle from "./style.css?managed";
 
-type Badge = { slug: string; id: string; description: string; icon: string };
+type Badge = { slug: string; id: string; description: string; icon: string; source?: "twemoji-flags" | "supplemental" };
 type Selection = { flags: string[]; catalog: Badge[] };
 const pending = new Map<string, { signature?: string; dirty: boolean; promise: Promise<void> }>();
 
@@ -177,7 +177,7 @@ function PridePicker() {
                                         <img
                                             src={`${location.protocol}//${(window as any).GLOBAL_ENV?.CDN_HOST || location.host}/badge-icons/${badge.icon}.png`}
                                             width="30"
-                                            height="20"
+                                            height="30"
                                             alt=""
                                         />
                                         <Text variant="text-sm/medium">{badge.description}</Text>
@@ -198,6 +198,20 @@ function PridePicker() {
                         </Text>
                     </div>
                 </>
+            )}
+            {!loading && (
+                <Text variant="text-xs/normal" color="text-muted" className="fosscord-pride-credit">
+                    {catalog.filter((badge) => badge.source === "twemoji-flags").length} Twemoji flags and {catalog.filter((badge) => badge.source === "supplemental").length}{" "}
+                    additional flags. Artwork by{" "}
+                    <a href="https://github.com/b3yc0d3/twemoji-flags" target="_blank" rel="noreferrer">
+                        b3yc0d3 and contributors
+                    </a>{" "}
+                    (
+                    <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noreferrer">
+                        CC BY 4.0
+                    </a>
+                    ).
+                </Text>
             )}
             {error && <p role="alert">{error}</p>}
             {message && <p role="status">{message}</p>}
