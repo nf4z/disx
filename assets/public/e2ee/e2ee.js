@@ -29,6 +29,30 @@
     mod2
   ));
 
+  // client/e2ee/src/attachmentUrl.ts
+  var attachmentCiphertextUrl = (value, channelId, filename, origin) => {
+    let url;
+    try {
+      url = new URL(value, origin);
+    } catch {
+      return null;
+    }
+    if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) return null;
+    const opened = new URL(origin);
+    const localHost = /^(?:localhost|[\w.-]+\.localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0|\[::1\])$/i.test(url.hostname);
+    if (url.host !== opened.host && !localHost) return value;
+    if (!/^\d+$/.test(channelId)) return null;
+    const path = /^\/attachments\/(\d+)\/(\d+)\/([^/]+)$/.exec(url.pathname);
+    if (!path || path[1] !== channelId) return null;
+    try {
+      const decoded = decodeURIComponent(path[3]);
+      if (/[/\\\0]/.test(decoded) || decoded !== filename) return null;
+    } catch {
+      return null;
+    }
+    return `${opened.origin}${url.pathname}${url.search}${url.hash}`;
+  };
+
   // client/e2ee/src/bytes.ts
   var encoder = new TextEncoder();
   var decoder = new TextDecoder();
@@ -301,9 +325,11 @@ ${final ? 1 : 0}`);
         message.attachments = message.attachments.map((attachment) => {
           const meta = metas.find((m) => m.name === attachment.filename);
           if (!meta || typeof attachment.url !== "string") return attachment;
+          const ciphertextUrl = attachmentCiphertextUrl(attachment.url, message.channel_id, meta.name, location.origin);
+          if (!ciphertextUrl) return attachment;
           const path = new URL(`${FILE_PREFIX}${message.channel_id}/${attachment.id}/${encodeURIComponent(meta.filename)}`, location.origin).pathname;
           names.set(String(attachment.id), meta.name);
-          registry.set(path, { url: attachment.url, key: meta.key, iv: meta.iv, content_type: meta.content_type, filename: meta.filename, size: meta.size });
+          registry.set(path, { url: ciphertextUrl, key: meta.key, iv: meta.iv, content_type: meta.content_type, filename: meta.filename, size: meta.size });
           const url = `${location.origin}${path}`;
           const spoiler = meta.spoiler && !meta.filename.startsWith("SPOILER_");
           const decrypted = {

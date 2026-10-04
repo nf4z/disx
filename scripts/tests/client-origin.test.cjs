@@ -85,6 +85,9 @@ function harness(origin = "https://meowcord.example:8443") {
         URL,
         Request,
     });
+    assert.equal(window.GLOBAL_ENV.CDN_HOST, location.host);
+    assert.equal(window.GLOBAL_ENV.MEDIA_PROXY_ENDPOINT, `//${location.host}`);
+    assert.equal(window.GLOBAL_ENV.ASSET_ENDPOINT, `//${location.host}`);
     return { window, HTMLImageElement, CSSStyleDeclaration, XMLHttpRequest };
 }
 test("loopback clan badges follow current host, scheme and port at DOM/CSS/network boundaries", () => {

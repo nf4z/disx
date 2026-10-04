@@ -16,6 +16,7 @@
 	along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+import { attachmentCiphertextUrl } from "./attachmentUrl";
 import { Bytes, randomBytes, toB64u } from "./bytes";
 import { RawMessage } from "./engine";
 import { encryptedSize, encryptFile, FILE_PREFIX, FileEntry, FileMeta, Payload, SW_PATH } from "./files";
@@ -250,9 +251,11 @@ export const createAttachments = () => {
             message.attachments = message.attachments.map((attachment) => {
                 const meta = metas.find((m) => m.name === attachment.filename);
                 if (!meta || typeof attachment.url !== "string") return attachment;
+                const ciphertextUrl = attachmentCiphertextUrl(attachment.url, message.channel_id, meta.name, location.origin);
+                if (!ciphertextUrl) return attachment;
                 const path = new URL(`${FILE_PREFIX}${message.channel_id}/${attachment.id}/${encodeURIComponent(meta.filename)}`, location.origin).pathname;
                 names.set(String(attachment.id), meta.name);
-                registry.set(path, { url: attachment.url, key: meta.key, iv: meta.iv, content_type: meta.content_type, filename: meta.filename, size: meta.size });
+                registry.set(path, { url: ciphertextUrl, key: meta.key, iv: meta.iv, content_type: meta.content_type, filename: meta.filename, size: meta.size });
                 const url = `${location.origin}${path}`;
                 const spoiler = meta.spoiler && !meta.filename.startsWith("SPOILER_");
                 const decrypted: Record<string, unknown> = {
