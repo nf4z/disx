@@ -1,0 +1,15 @@
+{
+    "status": "passed",
+    "adminPatch": 200,
+    "normalPatch": 200,
+    "sequential": [200, 429],
+    "retryCode": 20016,
+    "edit": 200,
+    "deletedMessageStillLimited": 429,
+    "typingCooldown": true,
+    "afterExpiry": 200,
+    "concurrentAccepted": 1,
+    "concurrentRejected": 15,
+    "operatorAccepted": 2,
+    "disable": 200
+}

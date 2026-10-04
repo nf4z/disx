@@ -1,0 +1,19 @@
+{
+    "fixtureRows": 100000,
+    "before": {
+        "executionMs": 5.305,
+        "sharedHitBlocks": 1763,
+        "scanRows": 25000,
+        "plan": "Index Scan and Sort"
+    },
+    "after": {
+        "executionMs": 0.028,
+        "sharedHitBlocks": 2,
+        "sharedReadBlocks": 3,
+        "scanRows": 1,
+        "plan": "Index Only Scan",
+        "index": "IDX_messages_slowmode_channel_author_timestamp"
+    },
+    "indexIdempotent": true,
+    "fixturesRemoved": true
+}

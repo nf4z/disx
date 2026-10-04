@@ -1,0 +1,16 @@
+{
+    "fixed": true,
+    "hiddenIdentityExposed": false,
+    "publicKeys": ["score"],
+    "selfPreviewAvailable": true,
+    "otherWriterStatus": 400,
+    "linkedBotStatus": 200,
+    "otherApplicationBotStatus": 400,
+    "ownerFullPrivateData": true,
+    "anonymousStatus": 401,
+    "remoteImageRejectedStatus": 400,
+    "localImageUploadedStatus": 201,
+    "invalidArrayStatus": 400,
+    "invalidStringStatus": 400,
+    "invalidNullBodyStatus": 400
+}
