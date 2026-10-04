@@ -49,5 +49,5 @@ assets/detectable.json
 scripts/dev/.test-bot
 extra/pion-sfu/pion-sfu
 .vencord/
-assets/vencord/
+assets/vencord
 scripts/dev/.scale-tokens.json

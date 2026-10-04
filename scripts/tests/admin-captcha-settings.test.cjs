@@ -30,7 +30,7 @@ function fixture() {
         passwordReset: {},
         security: { captcha: { capMode: "core", service: "cap", enabled: false, instance: "https://stored.example.test", sitekey: "stored-key", secret: "stored-secret" } },
         limits: { rate: { ip: {}, global: {}, error: {}, routes: { auth: { login: {}, register: {} } } }, e2ee: {}, user: {}, guild: {}, message: {}, channel: {} },
-        guild: {},
+        guild: { discovery: { hideJoinedGuilds: false } },
         externalRequests: {},
     };
     const writes = [];

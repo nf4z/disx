@@ -1,0 +1,121 @@
+{
+  "sampled_at": "2026-10-04T12:56:10.040Z",
+  "origin": "http://localhost:3290",
+  "revision": "5a7b1cec82451e1ef17a7111b4d52830a15c8645",
+  "node": "v26.9.0",
+  "cpu_parallelism": 8,
+  "results": [
+    {
+      "path": "/admin",
+      "concurrency": 1,
+      "requests": 50,
+      "elapsed_ms": 127.79570899999999,
+      "requests_per_second": 391.24944328138594,
+      "p50_ms": 1.8677079999999933,
+      "p95_ms": 6.0116669999999885,
+      "p99_ms": 7.481958999999961,
+      "max_ms": 7.481958999999961,
+      "statuses": {
+        "200": 50
+      }
+    },
+    {
+      "path": "/admin",
+      "concurrency": 16,
+      "requests": 50,
+      "elapsed_ms": 46.17562499999997,
+      "requests_per_second": 1082.8223765244115,
+      "p50_ms": 9.537792000000081,
+      "p95_ms": 32.86445800000001,
+      "p99_ms": 44.44158399999992,
+      "max_ms": 44.44158399999992,
+      "statuses": {
+        "200": 50
+      }
+    },
+    {
+      "path": "/admin/users?limit=50",
+      "concurrency": 1,
+      "requests": 50,
+      "elapsed_ms": 124.2382080000001,
+      "requests_per_second": 402.4526818674007,
+      "p50_ms": 2.2320419999999785,
+      "p95_ms": 3.3751669999999194,
+      "p99_ms": 8.876959000000056,
+      "max_ms": 8.876959000000056,
+      "statuses": {
+        "200": 50
+      }
+    },
+    {
+      "path": "/admin/users?limit=50",
+      "concurrency": 16,
+      "requests": 50,
+      "elapsed_ms": 63.913249999999834,
+      "requests_per_second": 782.3103972963373,
+      "p50_ms": 18.602540999999974,
+      "p95_ms": 23.83454199999983,
+      "p99_ms": 27.0205840000001,
+      "max_ms": 27.0205840000001,
+      "statuses": {
+        "200": 50
+      }
+    },
+    {
+      "path": "/admin/guilds?limit=50",
+      "concurrency": 1,
+      "requests": 50,
+      "elapsed_ms": 144.1255000000001,
+      "requests_per_second": 346.91987191718306,
+      "p50_ms": 2.7915830000001733,
+      "p95_ms": 3.880583000000115,
+      "p99_ms": 7.507082999999966,
+      "max_ms": 7.507082999999966,
+      "statuses": {
+        "200": 50
+      }
+    },
+    {
+      "path": "/admin/guilds?limit=50",
+      "concurrency": 16,
+      "requests": 50,
+      "elapsed_ms": 67.13358300000004,
+      "requests_per_second": 744.7837247119667,
+      "p50_ms": 18.49895800000013,
+      "p95_ms": 27.99391700000001,
+      "p99_ms": 32.01995800000009,
+      "max_ms": 32.01995800000009,
+      "statuses": {
+        "200": 50
+      }
+    },
+    {
+      "path": "/admin/store",
+      "concurrency": 1,
+      "requests": 50,
+      "elapsed_ms": 122.059708,
+      "requests_per_second": 409.635585888834,
+      "p50_ms": 2.0263750000001437,
+      "p95_ms": 4.02475000000004,
+      "p99_ms": 8.96008299999994,
+      "max_ms": 8.96008299999994,
+      "statuses": {
+        "200": 50
+      }
+    },
+    {
+      "path": "/admin/store",
+      "concurrency": 16,
+      "requests": 50,
+      "elapsed_ms": 69.80791700000009,
+      "requests_per_second": 716.2511381051513,
+      "p50_ms": 17.398833000000195,
+      "p95_ms": 37.61149999999998,
+      "p99_ms": 40.252333000000135,
+      "max_ms": 40.252333000000135,
+      "statuses": {
+        "200": 50
+      }
+    }
+  ]
+}
