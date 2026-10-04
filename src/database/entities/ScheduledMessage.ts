@@ -77,4 +77,10 @@ export class ScheduledMessage extends BaseClass {
 
     @Column({ type: "int2", default: ScheduledMessageState.SCHEDULED })
     state: ScheduledMessageState;
+
+    @Column({ type: "uuid", nullable: true, select: false })
+    claim_token: string | null;
+
+    @Column({ type: "timestamp with time zone", nullable: true, select: false })
+    claim_until: Date | null;
 }

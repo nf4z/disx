@@ -16,14 +16,14 @@
 	along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-import { LessThanOrEqual } from "typeorm";
-import { Channel, ScheduledMessage, ScheduledMessagePayload, ScheduledMessageState, User } from "@spacebar/database";
+import { Channel, ScheduledMessage, ScheduledMessagePayload, ScheduledMessageState, User, getDatabase } from "@spacebar/database";
 import { Config, DiscordApiErrors, FieldErrors, getPermission, getRights, Snowflake } from "@spacebar/util";
 import { MessageCreateSchema, MessageType } from "@spacebar/schemas";
 import { MessageOptionAttachment } from "@spacebar/util/dtos/MessageOptions";
 import { assertCanSendDirectMessage } from "./DirectMessage";
 import { publishUserMessage } from "./UserMessage";
 import { checkAutomod } from "../utility/automod";
+import { dispatchClaimedScheduledMessage } from "./ScheduledMessageDispatch";
 
 export const SCHEDULED_MESSAGE_MIN_DELAY_MS = 600_000;
 export const SCHEDULED_MESSAGE_MAX_DELAY_MS = 691_200_000;
@@ -120,25 +120,31 @@ export async function sendScheduledMessage(scheduled: ScheduledMessage) {
     }
 }
 
-export async function dispatchScheduledMessage(scheduled: ScheduledMessage) {
-    const { affected } = await ScheduledMessage.delete({ id: scheduled.id, state: ScheduledMessageState.SCHEDULED });
-    if (!affected) return false;
-    const failure = await sendScheduledMessage(scheduled);
-    if (failure === null) return true;
-    await ScheduledMessage.insert({
-        id: scheduled.id,
-        user_id: scheduled.user_id,
-        channel_id: scheduled.channel_id,
-        send_at: scheduled.send_at,
-        payload: scheduled.payload,
-        state: failure,
-    });
-    return false;
+export async function dispatchScheduledMessage(scheduled: ScheduledMessage, onlyDue = false) {
+    const database = getDatabase()!;
+    return dispatchClaimedScheduledMessage((sql, parameters) => database.query(sql, parameters), scheduled.id, sendScheduledMessage, onlyDue);
 }
 
-async function sendDueScheduledMessages() {
-    const due = await ScheduledMessage.find({ where: { state: ScheduledMessageState.SCHEDULED, send_at: LessThanOrEqual(new Date()) }, order: { send_at: "ASC" }, take: 100 });
-    for (const scheduled of due) await dispatchScheduledMessage(scheduled);
+let sendingDue: Promise<void> | undefined;
+
+export function sendDueScheduledMessages() {
+    if (sendingDue) return sendingDue;
+    sendingDue = (async () => {
+        const due = await ScheduledMessage.createQueryBuilder("scheduled")
+            .select("scheduled.id")
+            .where("scheduled.state = :state", { state: ScheduledMessageState.SCHEDULED })
+            .andWhere("scheduled.send_at <= now()")
+            .andWhere("(scheduled.claim_until IS NULL OR scheduled.claim_until <= now())")
+            .orderBy("scheduled.send_at", "ASC")
+            .addOrderBy("scheduled.id", "ASC")
+            .take(100)
+            .getMany();
+        for (const scheduled of due)
+            await dispatchScheduledMessage(scheduled, true).catch((error) => console.error(`[ScheduledMessages] dispatch failed for ${scheduled.id}`, error));
+    })().finally(() => {
+        sendingDue = undefined;
+    });
+    return sendingDue;
 }
 
 export function startScheduledMessageSender() {
