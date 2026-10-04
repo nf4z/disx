@@ -19,9 +19,9 @@
 import { Request, Response, Router } from "express";
 import { In } from "typeorm";
 import { route } from "@spacebar/api/middlewares";
-import { profileMetadata, resolveProfileCollectibles } from "@spacebar/api/util";
+import { authenticatorTypes, profileMetadata, resolveProfileCollectibles } from "@spacebar/api/util";
 import { Badge, Member, Relationship, User } from "@spacebar/database";
-import { Config, DiscordApiErrors, emitEvent, FieldErrors, handleFile, UserUpdateEvent } from "@spacebar/util";
+import { broadcastUserUpdate, Config, DiscordApiErrors, emitEvent, FieldErrors, handleFile, UserUpdateEvent } from "@spacebar/util";
 import { PartialConnectedAccountResponse, PrivateUserProjection, PublicUserProjection, RelationshipType, UserProfileModifySchema } from "@spacebar/schemas";
 
 import { profileApplication } from "@spacebar/api/util/handlers/Application";
@@ -150,7 +150,9 @@ router.patch("/", route({ requestBody: "UserProfileModifySchema" }), async (req:
     const user = await User.findOneOrFail({
         where: { id: req.user_id },
         select: Object.fromEntries([...PrivateUserProjection, "profile_collectibles"].map((i) => [i, true])),
+        relations: { avatar_decoration: true },
     });
+    const publicBefore = JSON.stringify(user.toPublicUser());
 
     const { maxBio, maxPronouns } = Config.get().limits.user;
     if (body.bio && body.bio.length > maxBio)
@@ -182,8 +184,9 @@ router.patch("/", route({ requestBody: "UserProfileModifySchema" }), async (req:
     await emitEvent({
         event: "USER_UPDATE",
         user_id: req.user_id,
-        data: user,
-    } satisfies UserUpdateEvent);
+        data: { ...user.toPrivateUser(), authenticator_types: await authenticatorTypes(req.user_id) },
+    } as unknown as UserUpdateEvent);
+    if (JSON.stringify(user.toPublicUser()) !== publicBefore) await broadcastUserUpdate(req.user_id);
 
     res.json(profileMetadata(user));
 });
