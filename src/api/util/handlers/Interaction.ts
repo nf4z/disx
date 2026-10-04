@@ -128,7 +128,9 @@ async function emitToAudience(message: Message, event: "MESSAGE_CREATE" | "MESSA
     await emitEvent({
         event,
         ...(ephemeral ? { user_id: userId } : { channel_id: message.channel_id }),
-        data: message.toJSON(),
+        // toJSON leaves the nonce out. The client needs it on the response to replace its "used /command" placeholder,
+        // otherwise the placeholder stays behind as a ghost message, the same way sent messages carry theirs.
+        data: { ...message.toJSON(), nonce: event === "MESSAGE_CREATE" ? (message.nonce ?? undefined) : undefined },
     } as MessageCreateEvent | MessageUpdateEvent);
 }
 

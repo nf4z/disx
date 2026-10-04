@@ -19,9 +19,9 @@
 import { Request, Response, Router } from "express";
 import { In, IsNull } from "typeorm";
 import { route } from "@spacebar/api/middlewares";
-import { Application, ApplicationCommand, ApplicationCommandPermission, ApplicationCommandPermissionOverwrite, Member } from "@spacebar/database";
+import { Application, ApplicationAuthorization, ApplicationCommand, ApplicationCommandPermission, ApplicationCommandPermissionOverwrite, Member } from "@spacebar/database";
 import { ApplicationCommandCreateSchema, ApplicationCommandType } from "@spacebar/schemas";
-import { ApiError, DiscordApiErrors, emitEvent, FieldErrors, getPermission, Snowflake } from "@spacebar/util";
+import { ApiError, DiscordApiErrors, emitEvent, FieldErrors, getPermission, Snowflake, UserApplicationUpdateEvent } from "@spacebar/util";
 
 const NAME_PATTERN = /^[-_'\p{L}\p{N}\p{sc=Deva}\p{sc=Thai}]{1,32}$/u;
 
@@ -109,6 +109,15 @@ async function upsert(applicationId: string, guildId: string | undefined, body: 
 }
 
 export async function emitCommandIndexUpdate(applicationId: string, guildId?: string) {
+    // Global commands also reach everyone who installed the app on their account, whose index only refreshes on this event.
+    if (!guildId) {
+        const installs = await ApplicationAuthorization.find({ where: { application_id: applicationId, integration_type: 1 }, select: { user_id: true } });
+        await Promise.all(
+            installs.map((install) =>
+                emitEvent({ event: "USER_APPLICATION_UPDATE", user_id: install.user_id, data: { application_id: applicationId } } satisfies UserApplicationUpdateEvent),
+            ),
+        );
+    }
     const guildIds = guildId ? [guildId] : (await Member.find({ where: { id: applicationId }, select: { guild_id: true } })).map((m) => m.guild_id);
     await Promise.all(
         guildIds.map(async (id) => {
