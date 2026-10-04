@@ -24,7 +24,7 @@ const router = Router({ mergeParams: true });
 
 router.get("/", route({ responses: { 200: {} } }), async (req: Request, res: Response) => {
     const userId = req.params.user_id === "@me" ? req.user_id : (req.params.user_id as string);
-    res.json({ identities: await listUserIdentities(userId) });
+    res.json({ identities: await listUserIdentities(userId, req.user_id) });
 });
 
 export default router;

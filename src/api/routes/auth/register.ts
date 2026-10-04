@@ -21,7 +21,7 @@ import { Request, Response, Router } from "express";
 import { HTTPError } from "lambert-server/HTTPError";
 import crypto from "node:crypto";
 import { ILike, MoreThan } from "typeorm";
-import { checkCaptcha } from "@spacebar/api/util";
+import { checkRegistrationCaptcha } from "@spacebar/api/util";
 import { route } from "@spacebar/api/middlewares";
 import { Invite, User, ValidRegistrationToken } from "@spacebar/database";
 import { Config, FieldErrors, generateToken, IpDataClient, AbuseIpDbClient } from "@spacebar/util";
@@ -62,6 +62,9 @@ router.post(
         const { register, limits } = Config.get();
         const ip = req.ip!;
 
+        const captcha = await checkRegistrationCaptcha(body.captcha_key);
+        if (captcha) return res.status(400).json(captcha);
+
         // Reg tokens
         // They're a one time use token that bypasses registration limits ( rates, disabled reg, etc )
         let regTokenUsed = false;
@@ -74,9 +77,9 @@ router.post(
                 });
                 await regToken.remove();
                 regTokenUsed = true;
-                console.log(`[REGISTER] Registration token ${token} used for registration!`);
+                console.log("[REGISTER] Registration invitation used");
             } else {
-                console.log(`[REGISTER] Invalid registration token ${token} used for registration by ${ip}!`);
+                console.log("[REGISTER] Invalid registration invitation");
             }
         }
 
@@ -108,9 +111,6 @@ router.post(
                 },
             });
         }
-
-        const captcha = await checkCaptcha(!regTokenUsed && register.requireCaptcha, body.captcha_key, ip);
-        if (captcha) return res.status(400).json(captcha);
 
         if (!regTokenUsed && !register.allowMultipleAccounts) {
             // TODO: check if fingerprint was eligible generated

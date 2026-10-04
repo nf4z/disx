@@ -1,3 +1,4 @@
+import { solveCap } from "./cap-token.mjs";
 import { createRequire } from "node:module";
 import { homedir, tmpdir } from "node:os";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -27,6 +28,7 @@ const shot = (s, name) => shots && s.page.screenshot({ path: join(shots, `${name
 const log = (...args) => console.log(`[${((Date.now() - started) / 1000).toFixed(1)}s]`, ...args);
 
 const call = async (method, path, token, body) => {
+    if (method === "POST" && path === "/auth/register" && body && !body.captcha_key) body = { ...body, captcha_key: await solveCap({ origin: `http://localhost:${port}` }) };
     const res = await fetch(`${api}${path}`, {
         method,
         headers: { "content-type": "application/json", ...(token && { authorization: token }) },
@@ -806,7 +808,7 @@ try {
             const login = await call("POST", "/auth/login", null, { login: tester.email, password: tester.password });
             restored = await restore(login.body?.token);
         }
-        if (restored.status !== 200) console.error(`couldn't restore the tester password, it is now ${tester.password}`);
+        if (restored.status !== 200) console.error("couldn't restore the local tester password; reset the isolated test account before rerunning");
     }
     try {
         rmSync(profiles, { recursive: true, force: true, maxRetries: 5, retryDelay: 500 });

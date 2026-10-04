@@ -1111,6 +1111,22 @@
         ],
         "$schema": "http://json-schema.org/draft-07/schema#"
     },
+    "PrideBadgesSchema": {
+        "type": "object",
+        "properties": {
+            "flags": {
+                "type": "array",
+                "items": {
+                    "type": "string"
+                }
+            }
+        },
+        "additionalProperties": false,
+        "required": [
+            "flags"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+    },
     "GuildAvailableSchema": {
         "type": "object",
         "properties": {
@@ -6941,6 +6957,7 @@
                             14,
                             15,
                             16,
+                            17,
                             2,
                             3,
                             4,
@@ -11071,12 +11088,44 @@
             "hidden": {
                 "description": "Take the pack out of the shop; people who already have its items keep them",
                 "type": "boolean"
+            },
+            "name": {
+                "minLength": 1,
+                "maxLength": 100,
+                "type": [
+                    "null",
+                    "string"
+                ]
+            },
+            "summary": {
+                "maxLength": 500,
+                "type": [
+                    "null",
+                    "string"
+                ]
+            },
+            "position": {
+                "type": "integer",
+                "minimum": -2147483648,
+                "maximum": 2147483647
+            },
+            "banner_data": {
+                "type": [
+                    "null",
+                    "string"
+                ]
+            },
+            "logo_data": {
+                "type": [
+                    "null",
+                    "string"
+                ]
+            },
+            "reset": {
+                "type": "boolean"
             }
         },
         "additionalProperties": false,
-        "required": [
-            "hidden"
-        ],
         "$schema": "http://json-schema.org/draft-07/schema#"
     },
     "AdminStoreItemCreateSchema": {
@@ -11150,6 +11199,10 @@
     "AdminStoreItemUpdateSchema": {
         "type": "object",
         "properties": {
+            "pack_id": {
+                "pattern": "^[0-9]{1,20}$",
+                "type": "string"
+            },
             "name": {
                 "minLength": 1,
                 "maxLength": 100,
@@ -11577,6 +11630,95 @@
             }
         },
         "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "AdminChannelCreateSchema": {
+        "type": "object",
+        "properties": {
+            "name": {
+                "minLength": 1,
+                "maxLength": 100,
+                "type": "string"
+            },
+            "type": {
+                "enum": [
+                    0,
+                    13,
+                    15,
+                    16,
+                    2,
+                    4,
+                    5
+                ],
+                "type": "number"
+            },
+            "parent_id": {
+                "pattern": "^[0-9]{15,20}$",
+                "type": [
+                    "null",
+                    "string"
+                ]
+            },
+            "bitrate": {
+                "minimum": 8000,
+                "maximum": 384000,
+                "type": "integer"
+            },
+            "user_limit": {
+                "minimum": 0,
+                "maximum": 99,
+                "type": "integer"
+            },
+            "topic": {
+                "maxLength": 4096,
+                "type": [
+                    "null",
+                    "string"
+                ]
+            },
+            "nsfw": {
+                "type": "boolean"
+            },
+            "rate_limit_per_user": {
+                "minimum": 0,
+                "maximum": 21600,
+                "type": "integer"
+            }
+        },
+        "additionalProperties": false,
+        "required": [
+            "name"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "AdminRoleCreateSchema": {
+        "type": "object",
+        "properties": {
+            "name": {
+                "minLength": 1,
+                "maxLength": 100,
+                "type": "string"
+            },
+            "color": {
+                "minimum": 0,
+                "maximum": 16777215,
+                "type": "integer"
+            },
+            "permissions": {
+                "pattern": "^[0-9]{1,20}$",
+                "type": "string"
+            },
+            "hoist": {
+                "type": "boolean"
+            },
+            "mentionable": {
+                "type": "boolean"
+            }
+        },
+        "additionalProperties": false,
+        "required": [
+            "name"
+        ],
         "$schema": "http://json-schema.org/draft-07/schema#"
     },
     "AttachmentListResponse": {
@@ -12018,9 +12160,7 @@
                 "additionalProperties": false
             },
             "intents": {
-                "type": "number",
-                "properties": {},
-                "additionalProperties": false
+                "type": "bigint"
             },
             "presence": {
                 "$ref": "#/definitions/ActivitySchema"
@@ -12039,9 +12179,7 @@
                 "maxItems": 2,
                 "type": "array",
                 "items": {
-                    "type": "number",
-                    "properties": {},
-                    "additionalProperties": false
+                    "type": "bigint"
                 }
             },
             "guild_subscriptions": {
@@ -14806,6 +14944,12 @@
                         "type": "null"
                     }
                 ]
+            },
+            "pride_badges": {
+                "type": "array",
+                "items": {
+                    "type": "string"
+                }
             },
             "profile_widgets": {
                 "anyOf": [

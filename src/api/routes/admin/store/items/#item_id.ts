@@ -19,7 +19,7 @@
 import { Request, Response, Router } from "express";
 import { HTTPError } from "lambert-server/HTTPError";
 import { route } from "@spacebar/api/middlewares";
-import { StoreItem } from "@spacebar/database";
+import { StoreItem, StorePack } from "@spacebar/database";
 import { Collectibles } from "@spacebar/util";
 import { AdminStoreItemUpdateSchema } from "@spacebar/schemas";
 import { applyStoreArt, applyStoreItemSettings, assertKeepsMainArt, deleteAllStoreArt, serializeStoreItem } from "@spacebar/api/util";
@@ -30,10 +30,22 @@ const findItem = (req: Request) => StoreItem.findOneOrFail({ where: { id: req.pa
 
 router.patch(
     "/",
-    route({ right: "OPERATOR", spacebarOnly: true, requestBody: "AdminStoreItemUpdateSchema", description: "Change a store item's details or art" }),
+    route({
+        right: "OPERATOR",
+        spacebarOnly: true,
+        requestBody: "AdminStoreItemUpdateSchema",
+        description: "Change a store item's details or art, or move it to another custom pack",
+    }),
     async (req: Request, res: Response) => {
         const body = req.body as AdminStoreItemUpdateSchema;
         const item = await findItem(req);
+        if (body.pack_id !== undefined && body.pack_id !== item.pack_id) {
+            if (typeof body.pack_id !== "string" || !/^\d{1,20}$/.test(body.pack_id) || BigInt(body.pack_id) > 9223372036854775807n)
+                throw new HTTPError("pack_id must be a valid custom pack id", 400);
+            const destinationId = BigInt(body.pack_id).toString();
+            if (destinationId !== item.pack_id && !(await StorePack.existsBy({ id: destinationId }))) throw new HTTPError("The destination custom pack does not exist", 404);
+            item.pack_id = destinationId;
+        }
         if (body.name !== undefined) {
             if (!body.name.trim()) throw new HTTPError("An item needs a name", 400);
             item.name = body.name.trim();

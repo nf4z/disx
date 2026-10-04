@@ -24,7 +24,6 @@ import { resolveSoundmoji } from "../utility/Soundboard";
 import { getDatabase, Application, Attachment, Channel, CloudAttachment, Guild, Member, Message, ReadState, Role, Sticker, User, Webhook } from "@spacebar/database";
 import { Stopwatch, Random } from "@spacebar/extensions";
 import {
-    ApiError,
     Config,
     DiscordApiErrors,
     emitEvent,
@@ -66,6 +65,7 @@ import {
     v1CompTypes,
 } from "@spacebar/schemas";
 import { addPendingPoll } from "../utility/polls";
+import { assertMessageSlowmode } from "./Slowmode";
 import { applyE2eeToMessage } from "../utility/e2ee";
 import { getMentionedUsers } from "../utility/notifications";
 import { MessageOptionAttachment, MessageOptions } from "@spacebar/util/dtos/MessageOptions";
@@ -347,7 +347,7 @@ function checkMessageLimits(opts: MessageOptions) {
     if (Object.keys(errors).length) throw FieldErrors(errors);
 }
 
-export async function handleMessage(opts: MessageOptions, known: { channel?: Channel; permission?: Permissions } = {}): Promise<Message> {
+export async function handleMessage(opts: MessageOptions, known: { channel?: Channel; permission?: Permissions; deferChannelUpdates?: boolean } = {}): Promise<Message> {
     const conf = Config.get();
     checkMessageLimits(opts);
     const handle = opts.components ? handleComps(opts.components, opts.flags || 0) : undefined;
@@ -366,16 +366,9 @@ export async function handleMessage(opts: MessageOptions, known: { channel?: Cha
     const limit = channel.rate_limit_per_user;
     const isEdit = !!opts.edited_timestamp;
 
-    if (limit && !isEdit) {
-        const lastMsgTime = (await Message.findOne({ where: { channel_id: channel.id, author_id: opts.author_id }, select: { timestamp: true }, order: { timestamp: "DESC" } }))
-            ?.timestamp;
-        if (lastMsgTime && Date.now() - limit * 1000 < +lastMsgTime) {
-            permission = authorPermission ?? (await getPermission(opts.author_id, channel.guild_id, channel));
-            //FIXME MANAGE_MESSAGES and MANAGE_CHANNELS will need to be removed once they're gone as checks
-            if (!permission.has("MANAGE_MESSAGES") && !permission.has("MANAGE_CHANNELS") && !permission.has("BYPASS_SLOWMODE")) {
-                throw Object.assign(new ApiError("You are being rate limited.", 20016, 429), { retry_after: (limit * 1000 - (Date.now() - +lastMsgTime)) / 1000 });
-            }
-        }
+    if (limit && !isEdit && !opts.webhook_id && !opts.interaction_metadata && opts.author_id) {
+        permission = authorPermission ?? (await getPermission(opts.author_id, channel.guild_id, channel));
+        await assertMessageSlowmode(channel, opts.author_id, permission);
     }
 
     const stickers = opts.sticker_ids ? await Sticker.find({ where: { id: In(opts.sticker_ids) } }) : undefined;
@@ -408,14 +401,14 @@ export async function handleMessage(opts: MessageOptions, known: { channel?: Cha
     }
 
     const ephermal = (message.flags & (1 << 6)) !== 0;
-    if (!isEdit && !ephermal && channel.isThread() && message.type !== MessageType.THREAD_STARTER_MESSAGE && message.id !== channel.id) {
+    if (!known.deferChannelUpdates && !isEdit && !ephermal && channel.isThread() && message.type !== MessageType.THREAD_STARTER_MESSAGE && message.id !== channel.id) {
         const rep = Channel.getRepository();
         await rep.increment({ id: channel.id }, "message_count", 1);
         await rep.increment({ id: channel.id }, "total_message_sent", 1);
         channel.message_count = (channel.message_count ?? 0) + 1;
         channel.total_message_sent = (channel.total_message_sent ?? 0) + 1;
     }
-    if (!isEdit && !ephermal) {
+    if (!known.deferChannelUpdates && !isEdit && !ephermal) {
         channel.last_message_id = message.id;
         await Channel.update({ id: channel.id }, { last_message_id: message.id });
     }

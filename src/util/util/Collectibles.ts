@@ -91,7 +91,8 @@ let refreshTimer: NodeJS.Timeout | undefined;
 
 // the admin panel's own packs, and the mirrored packs it took out of the shop. The api registers this, since the
 // database isn't reachable from here
-export type CustomCollectibles = { categories: CollectibleCategory[]; hidden: string[] };
+export type BuiltinCollectibleOverride = { name?: string; summary?: string; position?: number; banner_url?: string; logo_url?: string };
+export type CustomCollectibles = { categories: CollectibleCategory[]; hidden: string[]; overrides?: Record<string, BuiltinCollectibleOverride> };
 let customSource: (() => Promise<CustomCollectibles>) | undefined;
 
 const withCustom = async (base: Catalog): Promise<Catalog> => {
@@ -109,7 +110,31 @@ const withCustom = async (base: Catalog): Promise<Catalog> => {
         }
     // hidden packs only leave the shop, so people who already have their items can keep using them
     const hidden = new Set(custom.hidden);
-    return { categories: [...custom.categories, ...base.categories.filter((x) => !hidden.has(x.sku_id))], products, items, builtin: base.categories };
+    const builtin = base.categories
+        .map((category, index) => {
+            const override = custom.overrides?.[category.sku_id];
+            const result: CollectibleCategory & { position: number; customized: boolean } = {
+                ...category,
+                position: override?.position ?? index,
+                customized: !!override && Object.keys(override).length > 0,
+            };
+            if (override?.name !== undefined) {
+                result.name = override.name;
+                result.hero_block_title = override.name;
+            }
+            if (override?.summary !== undefined) result.summary = override.summary;
+            if (override?.banner_url !== undefined) {
+                for (const field of ["hero_banner_url", "catalog_banner_url", "featured_block_url", "mobile_banner_url", "mobile_hero_url"]) result[field] = override.banner_url;
+                result.hero_banner_animated_url = null;
+            }
+            if (override?.logo_url !== undefined) {
+                result.logo_url = override.logo_url;
+                result.hero_logo_url = override.logo_url;
+            }
+            return result;
+        })
+        .sort((a, b) => a.position - b.position);
+    return { categories: [...custom.categories, ...builtin.filter((x) => !hidden.has(x.sku_id))], products, items, builtin };
 };
 
 const localize = (raw: string) => {
@@ -310,6 +335,37 @@ const searchText = (product: CollectibleProduct, category: CollectibleCategory) 
         .join(" ")
         .toLowerCase();
 
+type SearchEntry = { product: CollectibleProduct; category: CollectibleCategory; type: CollectibleItemType; text?: string; name?: string; recency?: bigint };
+let searchIndex: { snapshot: Catalog; entries: SearchEntry[]; sorted: Map<string, SearchEntry[]> } | undefined;
+const searchableTypes = new Set(Object.values(SEARCH_TYPES));
+const getSearchIndex = (snapshot: Catalog) => {
+    if (searchIndex?.snapshot === snapshot) return searchIndex;
+    const seen = new Set<string>();
+    const entries: SearchEntry[] = [];
+    for (const category of snapshot.categories)
+        for (const product of category.products) {
+            if (seen.has(product.sku_id)) continue;
+            seen.add(product.sku_id);
+            const type = searchType(product);
+            if (type !== undefined && searchableTypes.has(type)) entries.push({ product, category, type });
+        }
+    return (searchIndex = { snapshot, entries, sorted: new Map() });
+};
+const compareRecency = (a: SearchEntry, b: SearchEntry) => {
+    const left = (a.recency ??= BigInt(a.product.sku_id));
+    const right = (b.recency ??= BigInt(b.product.sku_id));
+    return left > right ? 1 : left < right ? -1 : 0;
+};
+const orderedSearchEntries = (index: ReturnType<typeof getSearchIndex>, alphabetical: boolean, direction: number) => {
+    const key = `${alphabetical ? "name" : "recency"}:${direction}`;
+    let ordered = index.sorted.get(key);
+    if (!ordered) {
+        ordered = index.entries.slice().sort((a, b) => direction * (alphabetical ? a.product.name.localeCompare(b.product.name) : compareRecency(a, b)));
+        index.sorted.set(key, ordered);
+    }
+    return ordered;
+};
+
 export const Collectibles = {
     get: () => (catalog ??= load()),
 
@@ -371,48 +427,38 @@ export const Collectibles = {
     async search(options: CollectibleSearchOptions) {
         const wanted = new Set((options.item_types ?? []).flatMap((type) => (type in SEARCH_TYPES ? [SEARCH_TYPES[type as CollectibleSearchItemType]] : [])));
         const terms = (options.search ?? "").toLowerCase().split(/\s+/).filter(Boolean);
-        const seen = new Set<string>();
-        const found: { product: CollectibleProduct; order: number; score: number }[] = [];
-        for (const category of await Collectibles.categories())
-            for (const product of category.products) {
-                if (seen.has(product.sku_id)) continue;
-                seen.add(product.sku_id);
-                const type = searchType(product);
-                // only cosmetics: not nitro credit and the like
-                if (type === undefined || ![...Object.values(SEARCH_TYPES)].includes(type)) continue;
-                if (wanted.size && !wanted.has(type)) continue;
-                if (options.first_party === false && product.is_first_party !== false) continue;
-                let score = 0;
-                if (terms.length) {
-                    const text = searchText(product, category);
-                    if (!terms.every((term) => text.includes(term))) continue;
-                    const name = product.name.toLowerCase();
+        const direction = options.sort_direction === "asc" ? 1 : -1;
+        const index = getSearchIndex(await Collectibles.get());
+        const relevance = options.sort_type === "relevance";
+        const entries =
+            options.sort_type === "popularity"
+                ? direction === -1
+                    ? index.entries
+                    : index.entries.slice().reverse()
+                : relevance && terms.length
+                  ? index.entries
+                  : orderedSearchEntries(index, options.sort_type === "alphabetical" || options.sort_type === "price", relevance ? -1 : direction);
+        const found: { entry: SearchEntry; score: number }[] = [];
+        for (const entry of entries) {
+            if (wanted.size && !wanted.has(entry.type)) continue;
+            if (options.first_party === false && entry.product.is_first_party !== false) continue;
+            let score = 0;
+            if (terms.length) {
+                const text = (entry.text ??= searchText(entry.product, entry.category));
+                if (!terms.every((term) => text.includes(term))) continue;
+                if (relevance) {
+                    const name = (entry.name ??= entry.product.name.toLowerCase());
                     score = terms.reduce((sum, term) => sum + (name === term ? 4 : name.startsWith(term) ? 3 : name.includes(term) ? 2 : 1), 0);
                 }
-                found.push({ product, order: found.length, score });
             }
-
-        const direction = options.sort_direction === "asc" ? 1 : -1;
-        const byName = (a: CollectibleProduct, b: CollectibleProduct) => a.name.localeCompare(b.name);
-        const byRecency = (a: CollectibleProduct, b: CollectibleProduct) => (BigInt(a.sku_id) > BigInt(b.sku_id) ? 1 : BigInt(a.sku_id) < BigInt(b.sku_id) ? -1 : 0);
-        found.sort((a, b) => {
-            switch (options.sort_type) {
-                case "alphabetical":
-                case "price": // everything is free here, so price can only fall back to the name
-                    return direction * byName(a.product, b.product);
-                case "popularity": // no sales to count; the shop's own order stands in
-                    return -direction * (a.order - b.order);
-                case "relevance":
-                    return direction * (a.score - b.score) || -byRecency(a.product, b.product);
-                default:
-                    return direction * byRecency(a.product, b.product);
-            }
-        });
+            found.push({ entry, score });
+        }
+        if (relevance && terms.length) found.sort((a, b) => direction * (a.score - b.score) || -compareRecency(a.entry, b.entry));
 
         const offset = Math.max(0, options.offset ?? 0);
         const limit = Math.min(Math.max(1, options.limit ?? 50), 200);
         return {
-            skus: found.slice(offset, offset + limit).map((x) => x.product.sku_id),
+            skus: found.slice(offset, offset + limit).map((x) => x.entry.product.sku_id),
             pagination: { offset, limit, total: found.length, has_more: offset + limit < found.length },
         };
     },

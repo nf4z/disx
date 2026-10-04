@@ -24,3 +24,5 @@ export * from "./SessionsSchemas";
 export * from "./Status";
 export * from "./User";
 export * from "./UserSettings";
+
+export * from "./PrideBadgesSchema";

@@ -114,7 +114,7 @@ test("self-hosted Cap remains usable while third-party policy is disabled", asyn
             requests++;
             assert.equal(url, "http://127.0.0.1:3000/local-key/siteverify");
             assert.ok(options.signal);
-            return { json: async () => ({ success: true }) };
+            return { ok: true, json: async () => ({ success: true }) };
         },
     });
     assert.equal(captchaEnabled(), true);

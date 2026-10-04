@@ -16,7 +16,7 @@
 	along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-import { AfterLoad, Column, Entity, JoinColumn, ManyToOne, OneToMany } from "typeorm";
+import { AfterLoad, Column, Entity, EntityManager, JoinColumn, ManyToOne, OneToMany } from "typeorm";
 import { arrayRemove } from "@spacebar/extensions";
 import { Config, emitEvent, handleFile, Snowflake } from "@spacebar/util";
 import { GuildUpdateEvent } from "../../util/interfaces/Event";
@@ -582,12 +582,12 @@ export class Guild extends BaseClass {
     }
 
     /** Insert a channel into the guild ordering by parent channel id or position */
-    static async insertChannelInOrder(guild_id: string, channel_id: string, position: number, guild?: Guild): Promise<number>;
-    static async insertChannelInOrder(guild_id: string, channel_id: string, parent_id: string, guild?: Guild): Promise<number>;
-    static async insertChannelInOrder(guild_id: string, channel_id: string, insertPoint: string | number, guild?: Guild): Promise<number>;
-    static async insertChannelInOrder(guild_id: string, channel_id: string, insertPoint: string | number, guild?: Guild): Promise<number> {
+    static async insertChannelInOrder(guild_id: string, channel_id: string, position: number, guild?: Guild, manager?: EntityManager): Promise<number>;
+    static async insertChannelInOrder(guild_id: string, channel_id: string, parent_id: string, guild?: Guild, manager?: EntityManager): Promise<number>;
+    static async insertChannelInOrder(guild_id: string, channel_id: string, insertPoint: string | number, guild?: Guild, manager?: EntityManager): Promise<number>;
+    static async insertChannelInOrder(guild_id: string, channel_id: string, insertPoint: string | number, guild?: Guild, manager?: EntityManager): Promise<number> {
         if (!guild)
-            guild = await Guild.findOneOrFail({
+            guild = await (manager?.getRepository(Guild) ?? Guild.getRepository()).findOneOrFail({
                 where: { id: guild_id },
                 select: { channel_ordering: true },
             });
@@ -601,7 +601,7 @@ export class Guild extends BaseClass {
         arrayRemove(guild.channel_ordering, channel_id);
 
         guild.channel_ordering.splice(position, 0, channel_id);
-        await Guild.update({ id: guild_id }, { channel_ordering: guild.channel_ordering });
+        await (manager?.getRepository(Guild) ?? Guild.getRepository()).update({ id: guild_id }, { channel_ordering: guild.channel_ordering });
         return position;
     }
 

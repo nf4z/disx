@@ -51,7 +51,7 @@ const verifyCap = async (response: string, secret: string): Promise<CaptchaVerif
     }).catch(() => null);
     if (!res) return { success: false, "error-codes": ["captcha-unreachable"] };
     const body = (await res.json().catch(() => ({}))) as { success?: boolean; error?: string; "error-codes"?: string[] };
-    if (body.success === true) return { success: true };
+    if (res.ok && body.success === true) return { success: true };
     return { success: false, "error-codes": body["error-codes"] ?? [body.error ?? "invalid-input-response"] };
 };
 
@@ -85,4 +85,24 @@ export async function checkCaptcha(required: boolean, response: string | null | 
     if (!response) return challenge(["captcha-required"]);
     const verify = await verifyCaptcha(response, ip);
     return verify.success ? null : challenge(verify["error-codes"] ?? ["invalid-input-response"]);
+}
+
+export function registrationCapEndpoint() {
+    const captcha = Config.get().security.captcha;
+    return captcha.enabled && captcha.service === "cap" && captcha.instance && captcha.sitekey && captcha.secret ? capEndpoint()! : "/api/v9/auth/cap/";
+}
+
+export async function checkRegistrationCaptcha(response: string | null | undefined): Promise<CaptchaRequiredResponse | null> {
+    if (!Config.get().register.requireCaptcha) return null;
+    const endpoint = registrationCapEndpoint();
+    const local = endpoint === "/api/v9/auth/cap/";
+    const sitekey = local ? "fosscord" : Config.get().security.captcha.sitekey!;
+    const challenge = (codes: string[]): CaptchaRequiredResponse => ({ captcha_key: codes, captcha_sitekey: sitekey, captcha_service: "cap" });
+    if (!response || typeof response !== "string" || response.length > 512) return challenge(["captcha-required"]);
+    if (local) {
+        const { consumeRegistrationToken } = await import("./localCap.js");
+        return (await consumeRegistrationToken(response)) ? null : challenge(["invalid-input-response"]);
+    }
+    const verified = await verifyCaptcha(response);
+    return verified.success ? null : challenge(verified["error-codes"] ?? ["invalid-input-response"]);
 }

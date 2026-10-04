@@ -19,10 +19,12 @@
 import { Request, Response, Router } from "express";
 import { In } from "typeorm";
 import { route } from "@spacebar/api/middlewares";
-import { profileMetadata, resolveProfileCollectibles } from "@spacebar/api/util";
+import { authenticatorTypes, profileMetadata, resolveProfileCollectibles } from "@spacebar/api/util";
 import { Badge, Member, Relationship, User } from "@spacebar/database";
-import { Config, DiscordApiErrors, emitEvent, FieldErrors, handleFile, UserUpdateEvent } from "@spacebar/util";
+import { broadcastUserUpdate, Config, DiscordApiErrors, emitEvent, FieldErrors, handleFile, UserUpdateEvent } from "@spacebar/util";
 import { PartialConnectedAccountResponse, PrivateUserProjection, PublicUserProjection, RelationshipType, UserProfileModifySchema } from "@spacebar/schemas";
+
+import { prideBadges } from "@spacebar/api/util/utility/prideBadges";
 
 import { profileApplication } from "@spacebar/api/util/handlers/Application";
 
@@ -49,21 +51,21 @@ router.get("/", route({ responses: { 200: { body: "UserProfileResponse" } } }), 
     const { guild_id, with_mutual_guilds, with_mutual_friends, with_mutual_friends_count } = req.query as Record<string, string | undefined>;
     const { user_id } = req.params as { [key: string]: string };
 
-    const user = await User.findOneOrFail({
-        where: { id: user_id },
-        relations: { connected_accounts: true, avatar_decoration: true },
-        select: {
-            connected_accounts: {
-                id: true,
-                type: true,
-                name: true,
-                verified: true,
-                metadata_: true,
-                metadata_visibility: true,
-                visibility: true,
-            },
-        },
-    });
+    const user = await User.createQueryBuilder("user")
+        .leftJoin("user.connected_accounts", "connected_accounts")
+        .addSelect([
+            "connected_accounts.id",
+            "connected_accounts.type",
+            "connected_accounts.name",
+            "connected_accounts.verified",
+            "connected_accounts.metadata_",
+            "connected_accounts.metadata_visibility",
+            "connected_accounts.visibility",
+        ])
+        .addSelect("user.pride_badges")
+        .leftJoinAndSelect("user.avatar_decoration", "avatar_decoration")
+        .where("user.id = :user_id", { user_id })
+        .getOneOrFail();
 
     const memberships = await Member.find({ where: { id: user_id }, select: { guild_id: true, nick: true, premium_since: true } });
     const premium_guild_since = memberships
@@ -73,18 +75,24 @@ router.get("/", route({ responses: { 200: { body: "UserProfileResponse" } } }), 
 
     let mutual_guilds: { id: string; nick: string | null }[] | undefined;
     if (with_mutual_guilds === "true") {
-        const own = new Set((await Member.find({ where: { id: req.user_id }, select: { guild_id: true } })).map((x) => x.guild_id));
-        mutual_guilds = user_id === req.user_id ? [] : memberships.filter((x) => own.has(x.guild_id)).map((x) => ({ id: x.guild_id, nick: x.nick ?? null }));
+        mutual_guilds = [];
+        if (user_id !== req.user_id) {
+            const own = new Set((await Member.find({ where: { id: req.user_id }, select: { guild_id: true } })).map((x) => x.guild_id));
+            mutual_guilds = memberships.filter((x) => own.has(x.guild_id)).map((x) => ({ id: x.guild_id, nick: x.nick ?? null }));
+        }
     }
 
     let mutual_friends;
     let mutual_friends_count;
     if (with_mutual_friends === "true" || with_mutual_friends_count === "true") {
-        const [mine, theirs] = await Promise.all(
-            [req.user_id, user_id].map((from_id) => Relationship.find({ where: { from_id, type: RelationshipType.FRIEND }, select: { to_id: true } })),
-        );
-        const theirIds = new Set(theirs.map((x) => x.to_id));
-        const mutualIds = user_id === req.user_id ? [] : mine.map((x) => x.to_id).filter((x) => theirIds.has(x));
+        let mutualIds: string[] = [];
+        if (user_id !== req.user_id) {
+            const [mine, theirs] = await Promise.all(
+                [req.user_id, user_id].map((from_id) => Relationship.find({ where: { from_id, type: RelationshipType.FRIEND }, select: { to_id: true } })),
+            );
+            const theirIds = new Set(theirs.map((x) => x.to_id));
+            mutualIds = mine.map((x) => x.to_id).filter((x) => theirIds.has(x));
+        }
         mutual_friends_count = mutualIds.length;
         if (with_mutual_friends === "true")
             mutual_friends = mutualIds.length
@@ -107,6 +115,8 @@ router.get("/", route({ responses: { 200: { body: "UserProfileResponse" } } }), 
     const badges = [];
     if (user.premium_type > 0 && !user.hide_premium_badge) badges.push(premiumBadge(new Date(user.created_at)));
     if (user.badge_ids?.length) badges.push(...(await Badge.find({ where: { id: In(user.badge_ids) } })));
+
+    badges.push(...prideBadges(user.pride_badges));
 
     const connected_accounts: PartialConnectedAccountResponse[] = user.connected_accounts
         .filter((x) => x.visibility != 0)
@@ -150,7 +160,9 @@ router.patch("/", route({ requestBody: "UserProfileModifySchema" }), async (req:
     const user = await User.findOneOrFail({
         where: { id: req.user_id },
         select: Object.fromEntries([...PrivateUserProjection, "profile_collectibles"].map((i) => [i, true])),
+        relations: { avatar_decoration: true },
     });
+    const publicBefore = JSON.stringify(user.toPublicUser());
 
     const { maxBio, maxPronouns } = Config.get().limits.user;
     if (body.bio && body.bio.length > maxBio)
@@ -182,8 +194,9 @@ router.patch("/", route({ requestBody: "UserProfileModifySchema" }), async (req:
     await emitEvent({
         event: "USER_UPDATE",
         user_id: req.user_id,
-        data: user,
-    } satisfies UserUpdateEvent);
+        data: { ...user.toPrivateUser(), authenticator_types: await authenticatorTypes(req.user_id) },
+    } as unknown as UserUpdateEvent);
+    if (JSON.stringify(user.toPublicUser()) !== publicBefore) await broadcastUserUpdate(req.user_id);
 
     res.json(profileMetadata(user));
 });

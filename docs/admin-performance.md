@@ -10,6 +10,20 @@ The dashboard now has searchable grouped navigation (Command/Ctrl+K), accessible
 
 Server controls include artwork, descriptions, locale, verification/content filtering, notifications, premium tier, NSFW/AFK settings and feature flags. Expand “Manage channels and roles” for channel names/topics/categories/slow mode and role names/colors/permission bits. Lists explicitly report truncation above 1,000 resources. Customization retains the existing storefront/catalog editors and adds local profile assignment metadata. Site settings expose user, guild, message and channel limits, default server features, and external-request policy.
 
+The next dashboard pass adds these controls. Browser checks exercised saving, artwork uploads, reset, dirty-change protection and refreshed resource lists on desktop and at 390 pixels wide.
+
+| Before                                                   | After                                                                                                           |
+| -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Mirrored packs could only be hidden                      | Edit local names, summaries, order, banners and logos; restore vendor defaults while retaining visibility       |
+| Custom items lacked ordering and pack movement controls  | Edit item position or move it to another custom pack while retaining IDs, artwork and settings                  |
+| Channel and role controls only edited existing resources | Create categories, text/voice/community channel types and roles, with validated permissions and instance limits |
+| Rapid saves accumulated notifications over controls      | At most three notifications, with pointer events passing through                                                |
+| Finishing a save could reopen a drawer after closing it  | Detached or closed editors stop their asynchronous navigation                                                   |
+
+Mirrored pack customization overlays the local catalog and leaves vendor item metadata intact. Uploaded artwork is served locally. Profile changes now notify observers through the public user projection as well as updating the account's own private state; a live friend profile received and displayed its changed banner.
+
+Inspected browser captures: [desktop resources](qa/admin-performance/admin-resources-desktop.png), [mobile resources](qa/admin-performance/admin-resources-mobile.png). Benchmark reports: [user indexes](qa/admin-performance/admin-users-indexes.json), [catalog before](qa/admin-performance/collectibles-search-before.json), [catalog after](qa/admin-performance/collectibles-search-after.json).
+
 The operator-only Performance page reports this process's uptime, memory, event-loop delay, database connectivity, route mean latency, request counts, 5xx errors and rate limiting. These are process-lifetime measurements, not distributed telemetry or per-route percentiles. Overview counts are exact snapshots refreshed every 30 seconds; revision information is fixed at process startup.
 
 ## External services
@@ -50,6 +64,46 @@ The extended warmed run consumed 1,000 responses at each concurrency level and v
 
 Scheduled messages now claim work atomically with a renewable five-minute PostgreSQL lease, send without reserving a database connection, and acknowledge only their own claim. Delivery failures keep the original row; interrupted sends become eligible after lease expiry. Seven real PostgreSQL checks passed, including delivery with a one-connection pool, concurrent-worker exclusion, expiry recovery, stale acknowledgments and idempotent migration up/down. A crash after publishing but before acknowledgment can still cause a duplicate: this is at-least-once delivery. The real fresh-database initialization path also passed: initial schema plus all 148 migrations, with zero migrations reapplied on the repeat run. An earlier standalone test failed because it omitted the initial schema; no migration repair was needed.
 
+Additional database and catalog measurements use disposable fixtures or bounded handler runs. These measure SQL/handler work, not HTTP throughput or production capacity.
+
+| Measurement                                                   |                 Before |               After |
+| ------------------------------------------------------------- | ---------------------: | ------------------: |
+| Admin user list, 100,000 users                                |              11.348 ms |            0.013 ms |
+| Admin username substring count, 100,000 users                 |              86.991 ms |            0.068 ms |
+| Permission resolution, median over 35 checks                  |    4.19 ms / 5 queries | 2.11 ms / 3 queries |
+| Own profile, median over 50 warm handler calls                |    2.11 ms / 6 queries | 1.08 ms / 2 queries |
+| Shop browse, 100,000 cosmetics, warm                          |              229.93 ms |             1.75 ms |
+| Shop relevance search, 100,000 cosmetics, warm                |               74.58 ms |             7.77 ms |
+| Historical insights retention, 100 days / 200,000 memberships | 585.4 ms / 100 queries |   15.9 ms / 1 query |
+
+User search validates scalar inputs and pagination, treats wildcard characters literally, and uses deterministic ordering with B-tree and optional trigram indices. Permission hydration retains complete member data and immediate revocation behavior. Own-profile requests skip redundant mutual queries. Catalog indices belong to one current snapshot with at most four cached sort arrays; seven live search responses retained exactly the same IDs, totals and pagination, and all 140 warm HTTP requests succeeded. Insights retain recorded zeroes and guild isolation while grouping historical cohort queries; UTC boundaries also remain stable when the host timezone changes.
+
+Database initialization now shares an in-flight attempt, releases migration locks even after failures and destroys failed pools before retrying. Six real PostgreSQL cleanup and retry checks passed.
+
+## Slowmode
+
+The old last-message check allowed concurrent sends to pass before either saved its message, and deleting the last message erased the cooldown evidence. Governed sends now serialize per user/channel across processes using a PostgreSQL transaction advisory lock, recheck the cooldown, and save the message, read state, member/channel pointers and successful-send marker in one short transaction. Failure rolls back those writes and consumes no cooldown. The marker expires after six hours, the maximum channel slowmode duration; current settings determine the remaining cooldown.
+
+Owners and members with Manage messages, Manage channels or Bypass slowmode remain exempt. Message edits and webhook messages do not consume user slowmode. Disabled slowmode avoids an additional permission lookup. Typing responses use the same retained timestamp, including after a message is deleted. The existing Discord client displays the countdown, blocks another Enter while preserving the draft, and honors HTTP 429 code 20016 with `retry_after` in seconds; those behaviors were checked with an ordinary member in Brave.
+
+Eleven real PostgreSQL checks cover those cases, transaction rollback, ephemeral thread exclusions, read-state preservation and concurrent exempt/disabled sends. The live API run accepted exactly one of 16 governed sends and rejected the other 15 with code 20016; two simultaneous owner sends both succeeded. A separate generic API rate limiter was bypassed only for that concurrency fixture, with the account's original rights restored afterward. The message lookup uses a partial channel/author/timestamp index: on 100,000 rows, it fell from 5.305 ms and 1,763 buffer hits to 0.028 ms and five buffer hits. [Live API report](qa/admin-performance/slowmode-live.json), [index plan comparison](qa/admin-performance/slowmode-index.json).
+
+The live check also exposed a preexisting race where simultaneous messages both inserted the first read-state row and one returned HTTP 500. The sender now uses a conflict-safe insert, retains the existing row ID, flags, acknowledgment and badge fields, and advances the private marker to the greatest sent message ID. It also removes one read-state lookup per send.
+
+## Pride badges
+
+Profiles settings now includes a searchable picker for 33 local pride flags, with save and remove controls. Selections have their own validated column and cannot grant or remove admin-assigned badges. No-op saves avoid database writes and observer broadcasts. Public update markers refresh already-cached profiles through a bounded client refetch; generic user projections do not select the storage column.
+
+The Brave smoke selected all 33, verified local artwork on an ordinary friend's profile without overflow, changed and removed badges while that profile remained open, checked search/subset selection, and restored the original selections. All existing badges remained intact. [Rendered profile](qa/admin-performance/pride-profile.png), [artwork contact sheet](qa/admin-performance/pride-art-contact.png), [flag references and offline generator](pride-badges.md).
+
+Eight controlled client regressions also cover rapid selection changes during a pending profile response. The refresh loop records the latest marker, coalesces changes, shares its completion promise and permits at most 32 active profiles. This repairs a stale result after an A/B/A/B sequence, without allocating a queue entry per event.
+
+## Profile widget integration
+
+Origin gained application profile widgets while this batch was running. The normal merge retains those commits, including the developer portal, bot-supplied values and native Your Profile Widgets picker. The combined client checker passed, and a browser checked that picker plus the pride controls without modifying persisted widgets.
+
+The API review reproduced two issues: another viewer could read an unselected widget's identity and unused stored values, and array/string data could pass validation after being converted into an object. Public identity responses now include only selected application widgets and data keys used by their public render surfaces. Own-profile requests retain picker candidates and preview fields; the application owner's or linked bot's management endpoint retains the full stored values. Inputs are validated before merging, with bounded keys and values. Identity lookup also uses Maps instead of repeated linear searches. Six real PostgreSQL privacy, authorization and validation checks passed. The final live API run preserved self previews, kept unrelated identities/values private, rejected malformed inputs and unauthorized writes, accepted local artwork and rejected external image URLs. Fixtures were cleaned. [Pre-fix API report](qa/admin-performance/widget-privacy-before.json), [fixed API report](qa/admin-performance/widget-privacy-after.json), [native widget picker](qa/admin-performance/widgets-own-tab.png).
+
 ## Audit coverage and fixes
 
 Twenty-five specialist review agents covered messages/search, authentication, gateway lifecycle/members/permissions, database indexes, background jobs, CDN/storage, voice, storefronts, optional integrations, client loading, encryption, bots/interactions and OpenAPI discovery. Additional implementation passes followed the reviews.
@@ -75,20 +129,21 @@ These are source-review findings, not verified fixes:
 
 - Gateway outbound/replay byte budgets, distributed resume state, bot intents, and lazy member lists beyond 5,000 members.
 - Concurrent message last-message/nonce ordering and very short search terms with expensive exact counts.
-- Durable scheduled-message publish deduplication, insights computation, bounded startup poll recovery, thread archiver overlap and fair purge scheduling.
-- User listing/search indexes and database migration lock cleanup on exceptions.
+- Durable scheduled-message publish deduplication, further insights computation, bounded startup poll recovery, thread archiver overlap and fair purge scheduling.
 - CDN cache quotas, streaming large uploads, bounded ffmpeg queues and API-to-CDN upload deadlines.
 - SFU subscriber indexing instead of all-peer snapshots, replaced-track reader cancellation and H.264 negotiation compatibility. Microbenchmarks do not settle real audio/video capacity.
 - Process-local interaction records/timers prevent reliable horizontal scaling; entity permission resolution remains N+1, and remote HTTP interaction validation needs an end-to-end deadline.
 - Encryption backup failure markers, bounded plaintext caches, batching key lookups and negative-cache behavior.
 - Publishing client assets as one complete versioned snapshot, rather than individual atomic files plus a final index update.
-- OpenAPI discovery now finds 542 paths and 589 schemas, but still reports five routes without the route middleware, 21 unresolved response schemas and 261 missing response declarations.
+- OpenAPI discovery now finds 550 paths and 594 schemas. It still reports five routes without route middleware, 21 unresolved response schemas and 260 missing response declarations.
 
 The broad dashboard has more coverage, but it does not yet expose every database field or solve every compatibility issue. Add controls deliberately with validation, rights checks, persistence and gateway event verification rather than a raw unrestricted database editor.
 
 ## Verification status
 
-The source build, scoped TypeScript lint, generated schemas/OpenAPI, 61 focused JavaScript regressions across the generic and downloader runs and 17 compiled TypeScript regressions passed. Two PostgreSQL suites are skipped by the generic command and passed when explicitly enabled; the separate real-database member/read-state suites passed all seven checks. Six SFU tests passed with `go test -race -count=3`. Dashboard browser checks, API persistence checks, all text-encryption browser checks and the parity probe passed (151 passed, one optional integration skipped).
+The current focused JavaScript command passed 100 tests, skipped eight database-dependent cases, and failed none. The relevant database suites were enabled separately, including eleven slowmode/concurrent-send checks, six widget privacy checks, six fresh-database cleanup/retry checks and five historical insights checks. Source builds, scoped lint/formatting, generated schemas/OpenAPI, dashboard persistence/browser checks and the Vencord patch check passed. The earlier 17 compiled TypeScript and six SFU race tests also passed. On source revision `43e3c61f7`, the final integrated encryption browser run passed in 219.4 seconds, and the compatibility probe passed 151 checks with one optional integration skipped and no failures. The forwarding probe uses a fresh plaintext fixture because the preceding encryption test enables encryption in the existing DM; encryption enforcement remains intact. The probe supports an explicit isolated account file, redacts credentials in diagnostics, and exits nonzero on failures.
+
+The full Vencord typecheck separately reports five existing errors in ClanBadges/Frames/TemplateLinks JSX types and the E2EE settings component signature. It has no diagnostics in the new pride plugin. The production web bundle builds and the required client patch checker passes; that does not imply the broader typecheck is clean.
 
 The initial stricter voice probe reached connected ICE but produced zero outbound RTP with both current and pre-change SFU binaries. Instrumenting the encryption worker traced this to missing cached `importScripts` dependencies, which prevented the encryption handler and audio pipeline from starting. The client downloader now expands runtime chunk maps in every JavaScript file, including workers, and refuses to publish a new index when any dependency fails. Individual asset writes are atomic; publication of the entire asset directory is still not atomic. The local snapshot was repaired using exact official Discord static assets, with runtime external-request policy unchanged. Its read-only, network-free `node scripts/client.js --check` verifies 12,027 reachable assets with zero missing files; five downloader regressions pass.
 

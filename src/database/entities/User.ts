@@ -251,6 +251,9 @@ export class User extends BaseClass {
     @Column({ type: "jsonb", nullable: true, select: false })
     private_channel_settings?: UserGuildSettings | null;
 
+    @Column({ type: "text", array: true, default: "{}", select: false })
+    pride_badges?: string[];
+
     @Column({ type: "jsonb", nullable: true })
     profile_widgets?: ProfileWidget[] | null;
 

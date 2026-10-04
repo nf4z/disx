@@ -17,8 +17,9 @@
 */
 
 import { Request, Response, Router } from "express";
+import { messageSlowmodeCooldown } from "@spacebar/api/util/handlers/Slowmode";
 import { route } from "@spacebar/api/middlewares";
-import { Channel, Member, Message } from "@spacebar/database";
+import { Channel, Member } from "@spacebar/database";
 import { emitEvent, getPermission, TypingStartEvent } from "@spacebar/util";
 
 const router: Router = Router({ mergeParams: true });
@@ -42,32 +43,10 @@ router.post(
             where: { id: channel_id },
         });
 
-        const limit = channel.rate_limit_per_user;
-        if (limit) {
-            const lastMsgTime = (
-                await Message.findOne({
-                    where: {
-                        channel_id: channel.id,
-                        author_id: user_id,
-                    },
-                    select: { timestamp: true },
-                    order: { timestamp: "DESC" },
-                })
-            )?.timestamp;
-
-            if (lastMsgTime) {
-                const cooldown = +lastMsgTime + limit * 1000 - Date.now();
-
-                if (cooldown > 0) {
-                    const permission = await getPermission(user_id, channel.guild_id, channel);
-
-                    if (!permission.has("MANAGE_MESSAGES") && !permission.has("MANAGE_CHANNELS") && !permission.has("BYPASS_SLOWMODE")) {
-                        return res.status(200).json({
-                            message_send_cooldown_ms: cooldown,
-                        });
-                    }
-                }
-            }
+        if (channel.rate_limit_per_user) {
+            const permission = req.permission ?? (await getPermission(user_id, channel.guild_id, channel));
+            const cooldown = await messageSlowmodeCooldown(channel, user_id, permission);
+            if (cooldown > 0) return res.status(200).json({ message_send_cooldown_ms: cooldown });
         }
 
         const member = await Member.findOne({

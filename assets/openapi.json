@@ -1072,6 +1072,20 @@
                     "view_nsfw_guilds"
                 ]
             },
+            "PrideBadgesSchema": {
+                "type": "object",
+                "properties": {
+                    "flags": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "required": [
+                    "flags"
+                ]
+            },
             "GuildAvailableSchema": {
                 "type": "object",
                 "properties": {
@@ -6387,6 +6401,7 @@
                                     14,
                                     15,
                                     16,
+                                    17,
                                     2,
                                     3,
                                     4,
@@ -10125,11 +10140,35 @@
                     "hidden": {
                         "description": "Take the pack out of the shop; people who already have its items keep them",
                         "type": "boolean"
+                    },
+                    "name": {
+                        "minLength": 1,
+                        "maxLength": 100,
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "summary": {
+                        "maxLength": 500,
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "position": {
+                        "type": "integer",
+                        "minimum": -2147483648,
+                        "maximum": 2147483647
+                    },
+                    "banner_data": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "logo_data": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "reset": {
+                        "type": "boolean"
                     }
-                },
-                "required": [
-                    "hidden"
-                ]
+                }
             },
             "AdminStoreItemCreateSchema": {
                 "type": "object",
@@ -10200,6 +10239,10 @@
             "AdminStoreItemUpdateSchema": {
                 "type": "object",
                 "properties": {
+                    "pack_id": {
+                        "pattern": "^[0-9]{1,20}$",
+                        "type": "string"
+                    },
                     "name": {
                         "minLength": 1,
                         "maxLength": 100,
@@ -10594,6 +10637,87 @@
                         "type": "boolean"
                     }
                 }
+            },
+            "AdminChannelCreateSchema": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "minLength": 1,
+                        "maxLength": 100,
+                        "type": "string"
+                    },
+                    "type": {
+                        "enum": [
+                            0,
+                            13,
+                            15,
+                            16,
+                            2,
+                            4,
+                            5
+                        ],
+                        "type": "number"
+                    },
+                    "parent_id": {
+                        "pattern": "^[0-9]{15,20}$",
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "bitrate": {
+                        "minimum": 8000,
+                        "maximum": 384000,
+                        "type": "integer"
+                    },
+                    "user_limit": {
+                        "minimum": 0,
+                        "maximum": 99,
+                        "type": "integer"
+                    },
+                    "topic": {
+                        "maxLength": 4096,
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "nsfw": {
+                        "type": "boolean"
+                    },
+                    "rate_limit_per_user": {
+                        "minimum": 0,
+                        "maximum": 21600,
+                        "type": "integer"
+                    }
+                },
+                "required": [
+                    "name"
+                ]
+            },
+            "AdminRoleCreateSchema": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "minLength": 1,
+                        "maxLength": 100,
+                        "type": "string"
+                    },
+                    "color": {
+                        "minimum": 0,
+                        "maximum": 16777215,
+                        "type": "integer"
+                    },
+                    "permissions": {
+                        "pattern": "^[0-9]{1,20}$",
+                        "type": "string"
+                    },
+                    "hoist": {
+                        "type": "boolean"
+                    },
+                    "mentionable": {
+                        "type": "boolean"
+                    }
+                },
+                "required": [
+                    "name"
+                ]
             },
             "AttachmentListResponse": {
                 "type": "object",
@@ -11016,9 +11140,7 @@
                         "additionalProperties": false
                     },
                     "intents": {
-                        "type": "number",
-                        "properties": {},
-                        "additionalProperties": false
+                        "type": "number"
                     },
                     "presence": {
                         "$ref": "#/components/schemas/ActivitySchema"
@@ -11037,9 +11159,7 @@
                         "maxItems": 2,
                         "type": "array",
                         "items": {
-                            "type": "number",
-                            "properties": {},
-                            "additionalProperties": false
+                            "type": "number"
                         }
                     },
                     "guild_subscriptions": {
@@ -13616,6 +13736,12 @@
                                 "type": "null"
                             }
                         ]
+                    },
+                    "pride_badges": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
                     },
                     "profile_widgets": {
                         "anyOf": [
@@ -24626,6 +24752,58 @@
                 "responses": {
                     "default": {
                         "description": "No description available"
+                    }
+                },
+                "tags": [
+                    "api"
+                ]
+            }
+        },
+        "/api/users/@me/pride-badges/": {
+            "get": {
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No description available"
+                    }
+                },
+                "tags": [
+                    "api"
+                ]
+            },
+            "patch": {
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/PrideBadgesSchema"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "No description available"
+                    },
+                    "400": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/APIErrorResponse"
+                                }
+                            }
+                        }
                     }
                 },
                 "tags": [
@@ -43845,6 +44023,62 @@
                 ]
             }
         },
+        "/api/auth/cap/{asset}": {
+            "get": {
+                "security": [
+                    {}
+                ],
+                "responses": {
+                    "default": {
+                        "description": "No description available"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "asset",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "asset"
+                    }
+                ],
+                "tags": [
+                    "api"
+                ]
+            }
+        },
+        "/api/auth/cap/challenge": {
+            "post": {
+                "security": [
+                    {}
+                ],
+                "responses": {
+                    "default": {
+                        "description": "No description available"
+                    }
+                },
+                "tags": [
+                    "api"
+                ]
+            }
+        },
+        "/api/auth/cap/redeem": {
+            "post": {
+                "security": [
+                    {}
+                ],
+                "responses": {
+                    "default": {
+                        "description": "No description available"
+                    }
+                },
+                "tags": [
+                    "api"
+                ]
+            }
+        },
         "/api/attachments/sender-report-false-positive/": {
             "post": {
                 "security": [
@@ -47300,7 +47534,7 @@
                         "bearer": []
                     }
                 ],
-                "description": "Change a store item's details or art",
+                "description": "Change a store item's details or art, or move it to another custom pack",
                 "requestBody": {
                     "required": true,
                     "content": {
@@ -47430,7 +47664,7 @@
                         "bearer": []
                     }
                 ],
-                "description": "Take a mirrored discord pack out of the shop or put it back; people who have its items keep them",
+                "description": "Customize a mirrored pack locally, change visibility or restore its original metadata and artwork",
                 "requestBody": {
                     "required": true,
                     "content": {
@@ -48161,6 +48395,57 @@
                         "color": "red"
                     }
                 ]
+            },
+            "post": {
+                "x-right-required": "MANAGE_GUILDS",
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "description": "Create a role in any server",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AdminRoleCreateSchema"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Role"
+                                }
+                            }
+                        }
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "guild_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "guild_id"
+                    }
+                ],
+                "tags": [
+                    "api"
+                ],
+                "x-badges": [
+                    {
+                        "label": "Spacebar-only",
+                        "color": "red"
+                    }
+                ]
             }
         },
         "/api/admin/guilds/{guild_id}/roles/{role_id}/": {
@@ -48344,6 +48629,57 @@
                 "responses": {
                     "default": {
                         "description": "No description available"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "guild_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "guild_id"
+                    }
+                ],
+                "tags": [
+                    "api"
+                ],
+                "x-badges": [
+                    {
+                        "label": "Spacebar-only",
+                        "color": "red"
+                    }
+                ]
+            },
+            "post": {
+                "x-right-required": "MANAGE_GUILDS",
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "description": "Create a channel in any server",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AdminChannelCreateSchema"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Channel"
+                                }
+                            }
+                        }
                     }
                 },
                 "parameters": [

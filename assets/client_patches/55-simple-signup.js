@@ -1,12 +1,11 @@
 (() => {
-    const CAP_WIDGET_SRC = "https://cdn.jsdelivr.net/npm/cap-widget@0.1";
+    const CAP_WIDGET_SRC = "/api/v9/auth/cap/widget.js";
     const rules = [
         [/\(0,[\w$]+\.jsx\)\([\w$.]+,\{autoFocus:!0,className:[\w$.]+,label:[^,]+,name:"email",[^]*?onBlur:\(\)=>[\w$]+\("email"\)\}\),/g, ""],
         [/\{label:([^,]+),className:([\w$.]+),name:"global_name"/g, "{autoFocus:!0,label:$1,className:$2,name:\"global_name\""],
         [/\(0,[\w$]+\.jsx\)\([\w$.]+,\{label:[^,]+,wrapperClassName:[\w$.]+,name:"date_of_birth",[^]*?\}\),/g, ""],
         [/(let ([\w$]+)=!1;)0===[\w$]+\.length&&\([\w$]+\([\w$]+\.intl\.string\([\w$.]+\)\),\2=!0\),(?=0===[\w$]+\.length&&[^;]*?0===[\w$]+\.length&&)/g, "$1"],
         [/null==[\w$]+&&\([\w$]+\([\w$]+\.intl\.string\([\w$.]+\)\),[\w$]+=!0\),/g, ""],
-        [/\(0,([\w$]+)\.jsx\)\([\w$]+,\{\}\),(\(0,\1\.jsx\)\([\w$]+,\{consent:)/g, '(0,$1.jsx)("div",{ref:window.fcCapSlot}),$2'],
         [/"tUjnxr":\["Email or Phone Number"\]/g, '"tUjnxr":["Email or Username"]'],
         [/isClaimed\(\)\{return null!=this\.email\|\|null!=this\.phone\}/g, "isClaimed(){return!0}"],
         [/if\(null!=([\w$]+)&&[\w$]+\)return\(0,([\w$]+)\.jsx\)\(([\w$]+),\{invite:\1,authBoxClassName:/g, "if(!1)return(0,$2.jsx)($3,{invite:$1,authBoxClassName:"],
@@ -67,6 +66,10 @@
     let capScript = null;
     const loadCap = () =>
         (capScript ??= new Promise((resolve, reject) => {
+            window.CAP_CUSTOM_WASM_URL = "/api/v9/auth/cap/cap_wasm_bg.wasm";
+            window.CAP_CUSTOM_HASHWX_URL = "/api/v9/auth/cap/hashwx.wasm";
+            window.CAP_PAKO_URL = "/api/v9/auth/cap/pako.js";
+            window.CAP_DISABLE_WIDGET_REF = true;
             if (window.Cap) return resolve();
             const script = Object.assign(document.createElement("script"), { src: CAP_WIDGET_SRC, async: true, onload: resolve });
             script.onerror = () => {
@@ -79,14 +82,10 @@
 
     const style = document.createElement("style");
     style.textContent = `
-.fc-cap-slot {
-    margin-top: 20px;
-}
 .fc-cap-challenge {
     width: 304px;
     max-width: 100%;
 }
-.fc-cap-slot cap-widget,
 .fc-cap-challenge cap-widget {
     display: block;
     --cap-widget-width: 100%;
@@ -112,24 +111,7 @@
 `;
     document.documentElement.append(style);
 
-    let widget = null;
     let hiddenWidget = null;
-    window.fcCapSlot = (slot) => {
-        if (!slot) return;
-        captchaConfig()
-            .then(async (captcha) => {
-                if (captcha?.service !== "cap" || !captcha.register) return;
-                await loadCap();
-                if (!slot.isConnected) return;
-                widget = document.createElement("cap-widget");
-                widget.setAttribute("data-cap-api-endpoint", captcha.endpoint);
-                widget.setAttribute("data-cap-i18n-initial-state", "Verify you're human");
-                slot.className = "fc-cap-slot";
-                slot.replaceChildren(widget);
-            })
-            .catch((e) => console.error("[simple-signup]", e));
-    };
-
     window.fcCapChallenge = (onVerify, onError) => (slot) => {
         if (!slot || slot.firstChild) return;
         captchaConfig()
@@ -149,7 +131,7 @@
 
     const solve = async (captcha) => {
         await loadCap();
-        const target = widget?.isConnected ? widget : (hiddenWidget ??= new window.Cap({ apiEndpoint: captcha.endpoint }).widget);
+        const target = (hiddenWidget ??= new window.Cap({ apiEndpoint: captcha.endpoint }).widget);
         const token =
             target.token ||
             (await new Promise((resolve) => {
@@ -184,7 +166,7 @@
             delete data.promotional_email_opt_in;
         }
         const captcha = await captchaConfig();
-        if (captcha?.service === "cap" && captcha[flows[path]] && !data.captcha_key) data.captcha_key = (await solve(captcha).catch(() => null)) ?? undefined;
+        if (path !== "/auth/register" && captcha?.service === "cap" && captcha[flows[path]] && !data.captcha_key) data.captcha_key = (await solve(captcha).catch(() => null)) ?? undefined;
         return JSON.stringify(data);
     };
 

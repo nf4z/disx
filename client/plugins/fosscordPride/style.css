@@ -1,0 +1,83 @@
+.fosscord-pride {
+    color: var(--text-normal);
+    border-bottom: 1px solid var(--background-modifier-accent);
+    padding: 24px 0;
+    display: grid;
+    gap: 12px;
+}
+.fosscord-pride-search {
+    display: grid;
+    gap: 6px;
+}
+.fosscord-pride-search input {
+    border: 1px solid var(--background-modifier-accent);
+    border-radius: 4px;
+    padding: 10px;
+    color: var(--text-normal);
+    background: var(--input-background, var(--background-secondary));
+    font: inherit;
+}
+.fosscord-pride-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 4px;
+    max-height: 280px;
+    overflow: auto;
+}
+.fosscord-pride-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+}
+@media (hover: hover) {
+    .fosscord-pride-option:hover {
+        background: var(--background-modifier-hover);
+    }
+}
+.fosscord-pride-option input {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    accent-color: var(--button-filled-brand-background, var(--text-normal));
+}
+.fosscord-pride-option img {
+    object-fit: contain;
+    outline: 1px solid rgb(255 255 255 / 8%);
+    outline-offset: -1px;
+}
+.fosscord-pride-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    font-size: 14px;
+}
+.fosscord-pride-actions button {
+    border: 0;
+    border-radius: 4px;
+    padding: 10px 14px;
+    color: var(--button-filled-brand-text, var(--text-normal));
+    background: var(--button-filled-brand-background, var(--background-modifier-selected));
+    font: inherit;
+    cursor: pointer;
+}
+.fosscord-pride-actions button:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+.fosscord-pride input:focus-visible,
+.fosscord-pride button:focus-visible {
+    outline: 2px solid var(--focus-primary, var(--text-normal));
+    outline-offset: 2px;
+}
+
+.theme-light .fosscord-pride-option img {
+    outline-color: rgb(0 0 0 / 8%);
+}
+.fosscord-pride-actions button:not(:disabled):active {
+    scale: 0.97;
+}

@@ -227,8 +227,9 @@ export async function broadcastPresence(userId: string, user?: PublicUser) {
     return presence;
 }
 
-export async function broadcastUserUpdate(userId: string) {
+export async function broadcastUserUpdate(userId: string, pride_badges?: readonly string[]) {
     const [user, members] = await Promise.all([User.getPublicUser(userId), Member.find({ where: { id: userId }, relations: { roles: true } })]);
+    if (pride_badges !== undefined) Object.assign(user, { pride_badges: [...pride_badges] });
     await Promise.all(
         members.map((member) =>
             emitEvent({
