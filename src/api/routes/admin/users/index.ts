@@ -83,6 +83,18 @@ export const applyUserTag = (user: User, tag: AdminUserTag) => {
     user.flags = Number((BigInt(user.flags ?? 0) & ~BigInt(mask)) | BigInt(wanted));
 };
 
+const scalarQuery = (value: unknown, name: string, fallback: string): string => {
+    if (value === undefined) return fallback;
+    if (typeof value !== "string") throw new HTTPError(`${name} must be supplied once as a string`, 400);
+    return value;
+};
+
+const paginationQuery = (value: unknown, name: string, fallback: number): number => {
+    const text = scalarQuery(value, name, String(fallback));
+    if (!/^\d+$/.test(text) || !Number.isSafeInteger(Number(text))) throw new HTTPError(`${name} must be a non-negative safe integer`, 400);
+    return Number(text);
+};
+
 router.get(
     "/",
     route({
@@ -97,28 +109,35 @@ router.get(
         },
     }),
     async (req: Request, res: Response) => {
-        const q = String(req.query.q ?? "").trim();
-        const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 100);
-        const offset = Math.max(Number(req.query.offset) || 0, 0);
+        const q = scalarQuery(req.query.q, "q", "").trim();
+        if (q.length > 256) throw new HTTPError("q must be no longer than 256 characters", 400);
+        const filter = scalarQuery(req.query.filter, "filter", "all");
+        if (!["all", "disabled", "bots", "verified", "unverified"].includes(filter)) throw new HTTPError("filter must be all, disabled, bots, verified or unverified", 400);
+        const limit = Math.min(Math.max(paginationQuery(req.query.limit, "limit", 50), 1), 100);
+        const offset = paginationQuery(req.query.offset, "offset", 0);
+        const searchPattern = `%${q.replace(/[\\%_]/g, "\\$&")}%`;
 
         const query = User.createQueryBuilder("user")
             .select(ADMIN_USER_COLUMNS.map((c) => `user.${c}`))
             .orderBy("user.created_at", "DESC")
+            .addOrderBy("user.id", "DESC")
             .take(limit)
             .skip(offset);
 
-        if (/^\d{15,20}$/.test(q)) query.where("user.id = :id", { id: q });
-        else if (q)
+        if (/^\d{15,20}$/.test(q)) {
+            if (BigInt(q) > 9223372036854775807n) throw new HTTPError("The user id is outside the supported range", 400);
+            query.where("user.id = :id", { id: q });
+        } else if (q)
             query.where(
                 new Brackets((qb) =>
                     qb
-                        .where("user.username ILIKE :q", { q: `%${q}%` })
-                        .orWhere("user.global_name ILIKE :q", { q: `%${q}%` })
-                        .orWhere("user.email ILIKE :q", { q: `%${q}%` }),
+                        .where("user.username ILIKE :q", { q: searchPattern })
+                        .orWhere("user.global_name ILIKE :q", { q: searchPattern })
+                        .orWhere("user.email ILIKE :q", { q: searchPattern }),
                 ),
             );
 
-        switch (req.query.filter) {
+        switch (filter) {
             case "disabled":
                 query.andWhere("user.disabled = true");
                 break;
