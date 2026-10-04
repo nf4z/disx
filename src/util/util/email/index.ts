@@ -162,7 +162,7 @@ export const Email: {
      */
     sendMail: async function (type, user, email) {
         if (!this.transporter) {
-            if (type !== MailTypes.changePassword) console.log(`[Email] No email provider configured, ${type} link for ${user.id}: ${await this.generateLink(type, user.id)}`);
+            console.log(`[Email] Skipped ${type} delivery for user ${user.id}: no email provider configured`);
             return;
         }
 

@@ -29,7 +29,7 @@ router.put("/", route({ responses: { 204: {} } }), async (req: Request, res: Res
     const code = EmailChange.createCode(req.user_id);
 
     if (!Email.transporter || !user.email) {
-        console.log(`[Email] no mail provider configured, email change code for ${user.username} (${user.id}) is ${code}`);
+        console.log(`[Email] Skipped email change verification delivery for user ${user.id}: email delivery is unavailable`);
         return res.sendStatus(204);
     }
 

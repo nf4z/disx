@@ -243,8 +243,8 @@ export async function createHarvest(user_id: string, requested: unknown) {
                 backends: Object.fromEntries(Object.keys(harvest.backends).map((x) => [x, "EXTRACTED"])),
             };
             await save(user_id, finished);
+            if (!Email.transporter || !user.email) return console.log(`[Harvest] Data package ${harvest.harvest_id} for user ${user_id} is ready; email delivery is unavailable`);
             const url = downloadUrl(user_id, harvest.harvest_id);
-            if (!Email.transporter || !user.email) return console.log(`[Email] no mail provider configured, data package for ${user.username} (${user_id}) is ready at ${url}`);
             const { instanceName } = Config.get().general;
             await Email.transporter.sendMail({
                 from: Config.get().email.senderAddress || Config.get().general.correspondenceEmail || "noreply@localhost",
@@ -253,8 +253,8 @@ export async function createHarvest(user_id: string, requested: unknown) {
                 text: `Hey ${user.username},\n\nYour data package is ready. Download it here within 14 days: ${url}`,
                 html: `<p>Hey ${user.username},</p><p>Your data package is ready. <a href="${url}">Download it here</a> within 14 days.</p>`,
             });
-        } catch (e) {
-            console.error(`[Harvest] failed to build data package for ${user_id}`, e);
+        } catch {
+            console.error(`[Harvest] Failed to build or deliver data package for user ${user_id}`);
             await save(user_id, { ...harvest, state: "FAILED", status: HarvestStatus.FAILED, updated_at: new Date().toISOString() }).catch(() => undefined);
         }
     });

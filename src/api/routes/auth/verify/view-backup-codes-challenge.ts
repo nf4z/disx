@@ -54,7 +54,7 @@ router.post(
 
         const key = crypto.randomBytes(4).toString("hex");
         const kh = hashKey(key);
-        if (!Email.transporter || !user.email) console.log(`[Email] no mail provider configured, backup codes verification key for ${user.username} (${user.id}) is ${key}`);
+        if (!Email.transporter || !user.email) console.log(`[Email] Skipped backup codes verification delivery for user ${user.id}: email delivery is unavailable`);
         else {
             const { instanceName } = Config.get().general;
             await Email.transporter.sendMail({
