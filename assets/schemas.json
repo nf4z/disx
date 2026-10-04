@@ -9345,6 +9345,48 @@
         ],
         "$schema": "http://json-schema.org/draft-07/schema#"
     },
+    "E2eeRecoverySchema": {
+        "type": "object",
+        "properties": {
+            "identity_key": {
+                "type": "string"
+            },
+            "backup_version": {
+                "type": "integer"
+            },
+            "device_id": {
+                "type": "string"
+            },
+            "backup_secret": {
+                "type": "string"
+            },
+            "signature": {
+                "type": "string"
+            }
+        },
+        "additionalProperties": false,
+        "required": [
+            "backup_secret",
+            "backup_version",
+            "device_id",
+            "identity_key",
+            "signature"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "E2eeRecoveryResponse": {
+        "type": "object",
+        "properties": {
+            "backup_secret": {
+                "type": "string"
+            }
+        },
+        "additionalProperties": false,
+        "required": [
+            "backup_secret"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+    },
     "AuditLogResponse": {
         "type": "object",
         "properties": {

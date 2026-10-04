@@ -32,11 +32,10 @@ import {
     emitE2eeUserEvent,
     passwordMismatch,
     pruneE2eeDevices,
-    revokeE2eeDevices,
     verifyEd25519,
     withE2eeSessions,
 } from "@spacebar/api/util";
-import { E2eeBackupKey, E2eeDevice, E2eeIdentity, E2eeKeyBackup, User } from "@spacebar/database";
+import { E2eeBackupKey, E2eeDevice, E2eeIdentity, E2eeKeyBackup, E2eeRecovery, User } from "@spacebar/database";
 import { E2eeIdentityUpdateSchema, E2eePasswordSchema, E2eeResetSchema, E2eeStateResponse } from "@spacebar/schemas";
 
 const router: Router = Router({ mergeParams: true });
@@ -93,11 +92,15 @@ router.post(
         const { password, public_key } = req.body as E2eeResetSchema;
         await checkPassword(req.user_id, password);
         if (!decodeKey(public_key, 32)) throw E2eeErrors.INVALID_SIGNATURE;
-        await revokeE2eeDevices(await E2eeDevice.find({ where: { user_id: req.user_id, status: Not("revoked") } }));
-        await E2eeBackupKey.delete({ user_id: req.user_id });
-        await E2eeKeyBackup.delete({ user_id: req.user_id });
-        await E2eeIdentity.delete({ user_id: req.user_id });
-        await E2eeIdentity.create({ user_id: req.user_id, public_key, previous_key: null, rotation_signature: null, created_at: new Date() }).save();
+        await User.getRepository().manager.transaction(async (manager) => {
+            await manager.findOne(E2eeIdentity, { where: { user_id: req.user_id }, lock: { mode: "pessimistic_write" } });
+            await manager.update(E2eeDevice, { user_id: req.user_id, status: Not("revoked") }, { status: "revoked", revoked_at: new Date() });
+            await manager.delete(E2eeRecovery, { user_id: req.user_id });
+            await manager.delete(E2eeBackupKey, { user_id: req.user_id });
+            await manager.delete(E2eeKeyBackup, { user_id: req.user_id });
+            await manager.delete(E2eeIdentity, { user_id: req.user_id });
+            await manager.insert(E2eeIdentity, { user_id: req.user_id, public_key, previous_key: null, rotation_signature: null, created_at: new Date() });
+        });
         await emitE2eeUserEvent("E2EE_IDENTITY_UPDATE", req.user_id);
         await emitE2eeUserEvent("E2EE_DEVICES_UPDATE", req.user_id);
         res.json(await state(req.user_id));

@@ -212,3 +212,15 @@ export interface ChannelE2eeResponse {
     enabled: boolean;
     enabled_at: string | null;
 }
+
+export interface E2eeRecoverySchema {
+    identity_key: string;
+    backup_version: number;
+    device_id: string;
+    backup_secret: string;
+    signature: string;
+}
+
+export interface E2eeRecoveryResponse {
+    backup_secret: string;
+}

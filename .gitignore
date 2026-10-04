@@ -51,3 +51,5 @@ extra/pion-sfu/pion-sfu
 .vencord/
 assets/vencord
 scripts/dev/.scale-tokens.json
+
+.e2ee-recovery.key*

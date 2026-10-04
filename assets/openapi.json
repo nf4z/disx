@@ -8549,6 +8549,44 @@
                     "enabled_at"
                 ]
             },
+            "E2eeRecoverySchema": {
+                "type": "object",
+                "properties": {
+                    "identity_key": {
+                        "type": "string"
+                    },
+                    "backup_version": {
+                        "type": "integer"
+                    },
+                    "device_id": {
+                        "type": "string"
+                    },
+                    "backup_secret": {
+                        "type": "string"
+                    },
+                    "signature": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "backup_secret",
+                    "backup_version",
+                    "device_id",
+                    "identity_key",
+                    "signature"
+                ]
+            },
+            "E2eeRecoveryResponse": {
+                "type": "object",
+                "properties": {
+                    "backup_secret": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "backup_secret"
+                ]
+            },
             "AuditLogResponse": {
                 "type": "object",
                 "properties": {
@@ -26759,6 +26797,119 @@
                         }
                     },
                     "409": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/APIErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "tags": [
+                    "api"
+                ],
+                "x-badges": [
+                    {
+                        "label": "Spacebar-only",
+                        "color": "red"
+                    }
+                ]
+            }
+        },
+        "/api/users/@me/e2ee/backup/escrow/": {
+            "put": {
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/E2eeRecoverySchema"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "204": {
+                        "description": "No description available"
+                    },
+                    "400": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/APIErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/APIErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "tags": [
+                    "api"
+                ],
+                "x-badges": [
+                    {
+                        "label": "Spacebar-only",
+                        "color": "red"
+                    }
+                ]
+            }
+        },
+        "/api/users/@me/e2ee/backup/escrow/recover": {
+            "post": {
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/E2eePasswordSchema"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/E2eeRecoveryResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/APIErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
                         "description": "",
                         "content": {
                             "application/json": {

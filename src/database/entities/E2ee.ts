@@ -198,3 +198,28 @@ export class E2eeBackupKey extends BaseClassWithoutId {
     @Column({ type: "timestamp with time zone" })
     created_at: Date;
 }
+
+@Entity({ name: "e2ee_recovery" })
+export class E2eeRecovery extends BaseClassWithoutId {
+    @PrimaryColumn({ type: "int8" })
+    user_id: string;
+
+    @JoinColumn({ name: "user_id", foreignKeyConstraintName: "FK_e2ee_recovery_user_id" })
+    @ManyToOne(() => User, { onDelete: "CASCADE" })
+    user: User;
+
+    @Column()
+    identity_key: string;
+
+    @Column()
+    backup_public_key: string;
+
+    @Column({ type: "int" })
+    backup_version: number;
+
+    @Column()
+    encrypted_secret: string;
+
+    @Column({ type: "timestamp with time zone" })
+    updated_at: Date;
+}

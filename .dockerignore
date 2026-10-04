@@ -25,3 +25,5 @@ assets/detectable.json
 extra/pion-sfu/pion-sfu
 **/.DS_Store
 **/node_modules
+
+.e2ee-recovery.key*
