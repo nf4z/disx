@@ -1,0 +1,119 @@
+{
+    "route_unchanged": true,
+    "rounds": [
+        {
+            "sampled_at": "2026-10-04T15:58:12.267Z",
+            "origin": "http://localhost:3290",
+            "revision": "a008e9e6881aca68bac98c9fb8919486af4e1116",
+            "node": "v26.9.0",
+            "cpu_parallelism": 8,
+            "results": [
+                {
+                    "path": "/admin/users?limit=50",
+                    "concurrency": 1,
+                    "requests": 100,
+                    "elapsed_ms": 362.360625,
+                    "requests_per_second": 275.96817397033686,
+                    "p50_ms": 3.066000000000031,
+                    "p95_ms": 6.470124999999996,
+                    "p99_ms": 7.658624999999972,
+                    "max_ms": 10.784999999999997,
+                    "statuses": {
+                        "200": 100
+                    }
+                },
+                {
+                    "path": "/admin/users?limit=50",
+                    "concurrency": 16,
+                    "requests": 100,
+                    "elapsed_ms": 206.87687499999998,
+                    "requests_per_second": 483.37930471929263,
+                    "p50_ms": 30.930875000000015,
+                    "p95_ms": 45.716791,
+                    "p99_ms": 75.09300000000002,
+                    "max_ms": 76.70137499999998,
+                    "statuses": {
+                        "200": 100
+                    }
+                }
+            ]
+        },
+        {
+            "sampled_at": "2026-10-04T15:58:13.133Z",
+            "origin": "http://localhost:3290",
+            "revision": "a008e9e6881aca68bac98c9fb8919486af4e1116",
+            "node": "v26.9.0",
+            "cpu_parallelism": 8,
+            "results": [
+                {
+                    "path": "/admin/users?limit=50",
+                    "concurrency": 1,
+                    "requests": 100,
+                    "elapsed_ms": 546.154791,
+                    "requests_per_second": 183.09827478928037,
+                    "p50_ms": 4.854666000000009,
+                    "p95_ms": 10.607625000000013,
+                    "p99_ms": 12.469957999999963,
+                    "max_ms": 12.64612500000004,
+                    "statuses": {
+                        "200": 100
+                    }
+                },
+                {
+                    "path": "/admin/users?limit=50",
+                    "concurrency": 16,
+                    "requests": 100,
+                    "elapsed_ms": 165.6429579999999,
+                    "requests_per_second": 603.7081274532665,
+                    "p50_ms": 21.70520799999997,
+                    "p95_ms": 60.96283299999993,
+                    "p99_ms": 69.782333,
+                    "max_ms": 70.04433400000005,
+                    "statuses": {
+                        "200": 100
+                    }
+                }
+            ]
+        },
+        {
+            "sampled_at": "2026-10-04T15:58:14.089Z",
+            "origin": "http://localhost:3290",
+            "revision": "a008e9e6881aca68bac98c9fb8919486af4e1116",
+            "node": "v26.9.0",
+            "cpu_parallelism": 8,
+            "results": [
+                {
+                    "path": "/admin/users?limit=50",
+                    "concurrency": 1,
+                    "requests": 100,
+                    "elapsed_ms": 622.212792,
+                    "requests_per_second": 160.71672149099757,
+                    "p50_ms": 5.6045409999999265,
+                    "p95_ms": 10.47912500000001,
+                    "p99_ms": 13.983666999999969,
+                    "max_ms": 14.145040999999992,
+                    "statuses": {
+                        "200": 100
+                    }
+                },
+                {
+                    "path": "/admin/users?limit=50",
+                    "concurrency": 16,
+                    "requests": 100,
+                    "elapsed_ms": 177.44383300000004,
+                    "requests_per_second": 563.5586106844298,
+                    "p50_ms": 24.271875000000023,
+                    "p95_ms": 47.948375000000055,
+                    "p99_ms": 54.22604100000001,
+                    "max_ms": 60.46395800000005,
+                    "statuses": {
+                        "200": 100
+                    }
+                }
+            ]
+        }
+    ],
+    "requests": 600,
+    "session_cleanup": "Disposable fixture login session revoked with HTTP 204",
+    "limits": ["Small isolated localhost dataset", "Concurrent local work and GC may affect tails", "No source optimization applied between rounds"]
+}
