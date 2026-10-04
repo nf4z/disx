@@ -23,10 +23,8 @@ import managedStyle from "./style.css?managed";
 
 export default definePlugin({
     name: "FosscordModals",
-    description: "Keeps the dimmed backdrop under its modals when a modal such as User Settings is closed and reopened quickly, so it never blocks clicks.",
+    description: "Keeps active dialogs and their popouts above the backdrop, and lets outside clicks close nested dialogs.",
     authors: [FosscordAuthor],
     required: true,
-    // the backdrop goes under the whole layer stack instead of every modal going over it: raising the modals
-    // also buried the popouts opened from them (color pickers, dropdowns, menus), which share their container
     managedStyle,
 });
