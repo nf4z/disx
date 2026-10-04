@@ -66,6 +66,7 @@ import {
 } from "@spacebar/schemas";
 import { addPendingPoll } from "../utility/polls";
 import { assertMessageSlowmode } from "./Slowmode";
+import { downloadRemoteMedia } from "../utility/remoteMedia";
 import { applyE2eeToMessage } from "../utility/e2ee";
 import { getMentionedUsers } from "../utility/notifications";
 import { MessageOptionAttachment, MessageOptions } from "@spacebar/util/dtos/MessageOptions";
@@ -106,104 +107,125 @@ function checkActionRow(row: ActionRowComponent, knownComponentIds: string[], er
         }
     }
 }
-async function processMedia(media: UnfurledMediaItem, messageId: string, batchId: string, user: User, channel: Channel, id: string): Promise<(() => void) | void> {
+async function processMedia(media: UnfurledMediaItem, messageId: string, batchId: string, user: User, channel: Channel, id: string): Promise<(() => Promise<void>) | void> {
     if (Object.keys(media).length > 1) throw new HTTPError("Extra keys for media items are not allowed");
     if (!URL.canParse(media.url)) throw new HTTPError("media URL must be a URI");
     const url = new URL(media.url);
     if (!["http:", "https:", "attachment:"].includes(url.protocol)) throw new HTTPError("invalid media protocol");
     let attEnt: CloudAttachment;
     let delWhenDone = false;
-    if (url.protocol === "attachment") {
-        attEnt = await CloudAttachment.findOneOrFail({
-            where: {
-                uploadFilename: url.hostname,
-            },
-        });
-    } else {
-        const res = await fetch(url);
-        if (!res.ok) throw new HTTPError("URL did not return OK");
-        const blob = await res.blob();
-        const name = url.pathname.split("/").findLast((_) => _) || id;
-        const uploadFilename = `${channel.id}/${batchId}/${id ?? "0"}/${name}`;
-        attEnt = CloudAttachment.create({
-            user: user,
-            channel: channel,
-            uploadFilename: uploadFilename,
-            userAttachmentId: id ?? "0",
-            userFilename: name,
-            userFileSize: blob.size,
-            userIsClip: false,
-        });
-        await attEnt.save();
-        const cdnUrl = Config.get().cdn.endpointPublic?.replace(/\/+$/, "");
-        const fetchUrl = `${cdnUrl}/attachments/${attEnt.uploadFilename}`;
-        await (
-            await fetch(fetchUrl, {
-                method: "PUT",
-                body: blob,
-            })
-        ).text();
-        // re-fetch due to changed DB entry
-        attEnt = await CloudAttachment.findOneOrFail({
-            where: {
-                id: attEnt.id,
-            },
-        });
-        delWhenDone = true;
-    }
-
-    const cloneResponse = await fetch(
-        `${Config.get().cdn.endpointPrivate?.replace(/\/+$/, "")}/attachments/${attEnt.uploadFilename}/clone_to_message/${messageId}?channel_id=${channel.id}`,
-        {
-            method: "POST",
-            headers: {
-                signature: Config.get().security.requestSignature || "",
-            },
-        },
-    );
-
-    if (!cloneResponse.ok) {
-        console.error(`[Message] Failed to clone attachment ${attEnt.userFilename} to message ${messageId}`);
-        throw new HTTPError("Failed to process attachment: " + (await cloneResponse.text()), 500);
-    }
-
-    const cloneRespBody = (await cloneResponse.json()) as { success: boolean; new_path: string };
-    media.proxy_url = `${Config.get().cdn.endpointPublic?.replace(/\/+$/, "")}/${cloneRespBody.new_path}`;
-    if (url.protocol === "attachment:") media.url = media.proxy_url;
-
-    const realAtt = Attachment.create({
-        filename: attEnt.userFilename,
-        size: attEnt.size,
-        height: attEnt.height,
-        width: attEnt.width,
-        content_type: attEnt.contentType || attEnt.userOriginalContentType,
-        channel_id: channel.id,
-        message_id: messageId,
-    });
-    await realAtt.save();
-
-    //TODO maybe this needs to be a new DB object? I don't see a reason to do this rn though, though this id *should* technically be different from the id of the attachment
-    media.id = realAtt.id;
-
-    media.height = attEnt.height;
-    media.width = attEnt.width;
-    media.content_type = attEnt.contentType;
-    //TODO flags?
-    media.attachment_id = attEnt.id;
-    //TODO preview stuff
-
-    if (delWhenDone) {
-        return () =>
-            fetch(`${Config.get().cdn.endpointPrivate?.replace(/\/+$/, "")}/attachments/${attEnt.uploadFilename}`, {
-                headers: {
-                    signature: Config.get().security.requestSignature,
-                },
+    const cleanup = async () => {
+        if (!delWhenDone) return;
+        try {
+            const deletion = await fetch(`${Config.get().cdn.endpointPrivate?.replace(/\/+$/, "")}/attachments/${attEnt.uploadFilename}`, {
+                headers: { signature: Config.get().security.requestSignature || "" },
                 method: "DELETE",
-            }).then(() => {
-                attEnt.remove();
+                signal: AbortSignal.timeout(15000),
             });
+            await deletion.body?.cancel();
+        } finally {
+            await attEnt.remove();
+        }
+    };
+    try {
+        if (url.protocol === "attachment:") {
+            const filename = decodeURIComponent(`${url.hostname}${url.pathname}`);
+            const owner = { userId: user.id, channelId: channel.id };
+            attEnt = await CloudAttachment.findOneOrFail({
+                where: [
+                    { ...owner, uploadFilename: filename },
+                    { ...owner, userFilename: filename },
+                ],
+            });
+        } else {
+            const limits = Config.get();
+            const ceiling = Math.min(
+                limits.cdn.maxAttachmentSize,
+                limits.limits.message.maxAttachmentSize,
+                limits.limits.message.maxEmbedDownloadSize > 0 ? limits.limits.message.maxEmbedDownloadSize : 5 * 1024 * 1024,
+            );
+            let blob: Blob;
+            try {
+                blob = await downloadRemoteMedia(url, ceiling);
+            } catch {
+                throw new HTTPError("Remote media must be public, respond promptly and fit the attachment download limit", 400);
+            }
+            const segment = url.pathname.split("/").findLast((part) => part) || id;
+            const safeName = segment.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 255);
+            const name = /^\.*$/.test(safeName) ? id : safeName;
+            const uploadFilename = `${channel.id}/${batchId}/${id ?? "0"}/${name}`;
+            attEnt = CloudAttachment.create({
+                user: user,
+                channel: channel,
+                uploadFilename: uploadFilename,
+                userAttachmentId: id ?? "0",
+                userFilename: name,
+                userFileSize: blob.size,
+                userIsClip: false,
+            });
+            await attEnt.save();
+            delWhenDone = true;
+            const cdnUrl = Config.get().cdn.endpointPublic?.replace(/\/+$/, "");
+            const fetchUrl = `${cdnUrl}/attachments/${attEnt.uploadFilename}`;
+            const upload = await fetch(fetchUrl, { method: "PUT", body: blob, signal: AbortSignal.timeout(15000) });
+            await upload.body?.cancel();
+            if (!upload.ok) throw new HTTPError("Failed to upload remote media", 500);
+            // re-fetch due to changed DB entry
+            attEnt = await CloudAttachment.findOneOrFail({
+                where: {
+                    id: attEnt.id,
+                },
+            });
+        }
+
+        const cloneResponse = await fetch(
+            `${Config.get().cdn.endpointPrivate?.replace(/\/+$/, "")}/attachments/${attEnt.uploadFilename}/clone_to_message/${messageId}?channel_id=${channel.id}`,
+            {
+                method: "POST",
+                signal: AbortSignal.timeout(15000),
+                headers: {
+                    signature: Config.get().security.requestSignature || "",
+                },
+            },
+        );
+
+        if (!cloneResponse.ok) {
+            console.error(`[Message] Failed to clone attachment ${attEnt.userFilename} to message ${messageId}`);
+            throw new HTTPError("Failed to process attachment: " + (await cloneResponse.text()), 500);
+        }
+
+        const cloneRespBody = (await cloneResponse.json()) as { success: boolean; new_path: string };
+        media.proxy_url = `${Config.get().cdn.endpointPublic?.replace(/\/+$/, "")}/${cloneRespBody.new_path}`;
+        if (url.protocol === "attachment:") media.url = media.proxy_url;
+
+        const realAtt = Attachment.create({
+            filename: attEnt.userFilename,
+            size: attEnt.size,
+            height: attEnt.height,
+            width: attEnt.width,
+            content_type: attEnt.contentType || attEnt.userOriginalContentType,
+            channel_id: channel.id,
+            message_id: messageId,
+        });
+        await realAtt.save();
+
+        //TODO maybe this needs to be a new DB object? I don't see a reason to do this rn though, though this id *should* technically be different from the id of the attachment
+        media.id = realAtt.id;
+
+        media.height = attEnt.height;
+        media.width = attEnt.width;
+        media.content_type = attEnt.contentType;
+        //TODO flags?
+        media.attachment_id = attEnt.id;
+        //TODO preview stuff
+
+        if (delWhenDone) return cleanup;
+    } catch (error) {
+        await cleanup().catch(() => {});
+        throw error;
     }
 }
+
 export function assignComponentIds(components: unknown[]) {
     type Node = { id?: number; components?: Node[]; accessory?: Node; component?: Node };
     const walk = (nodes: Node[], visit: (node: Node) => void) => {
@@ -315,13 +337,34 @@ export function handleComps(components: BaseMessageComponents[], flags: number) 
         }
     }
 
+    if (medias.length > Config.get().limits.message.maxAttachments)
+        errors.components = { code: "BASE_TYPE_MAX_LENGTH", message: `Must use ${Config.get().limits.message.maxAttachments} or fewer media attachments.` };
     if (Object.keys(errors).length > 0) {
         throw FieldErrors(errors);
     }
     assignComponentIds(components);
     return async (messageId: string, user: User, channel: Channel) => {
         const batchId = `CLOUD_compUploads_${Random.getString("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789", 128)}`;
-        (await Promise.all(medias.map((m, index) => processMedia(m, messageId, batchId, user, channel, index + "")))).forEach((_) => _?.());
+        const cleanups: (() => void | Promise<void>)[] = [];
+        const pending = medias.entries();
+        let stopped = false;
+        const results = await Promise.allSettled(
+            Array.from({ length: Math.min(4, medias.length) }, async () => {
+                for (const [index, media] of pending) {
+                    if (stopped) return;
+                    try {
+                        const cleanup = await processMedia(media, messageId, batchId, user, channel, String(index));
+                        if (cleanup) cleanups.push(cleanup);
+                    } catch (error) {
+                        stopped = true;
+                        throw error;
+                    }
+                }
+            }),
+        );
+        await Promise.allSettled(cleanups.map((cleanup) => cleanup()));
+        const failed = results.find((result) => result.status === "rejected");
+        if (failed?.status === "rejected") throw failed.reason;
     };
 }
 function checkMessageLimits(opts: MessageOptions) {
