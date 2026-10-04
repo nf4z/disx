@@ -56,10 +56,13 @@ try {
     assert.equal((await request(admin, "POST", `${path}/roles`, { name: "Invalid", permissions: "9223372036854775808" })).status, 400);
     const listed = await request(admin, "GET", `${path}/channels`);
     assert.ok([category.data.id, voice.data.id, ...channels.map((channel) => channel.data.id)].every((id) => listed.data.channels.some((channel) => channel.id === id)));
-    console.log(JSON.stringify({ status: "passed", channelCreates: 5, roleCreates: 1, concurrentChannelCreates: 3, unauthorizedStatus: 403, invalidInputStatus: 400 }));
 } finally {
     for (const id of guilds) {
-        const deleted = await request(friend, "DELETE", `/guilds/${id}`);
+        const deleted = await request(friend, "POST", `/guilds/${id}/delete`);
         assert.equal(deleted.status, 204);
     }
 }
+
+console.log(
+    JSON.stringify({ status: "passed", channelCreates: 5, roleCreates: 1, concurrentChannelCreates: 3, unauthorizedStatus: 403, invalidInputStatus: 400, cleanupStatus: 204 }),
+);

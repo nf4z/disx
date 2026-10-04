@@ -681,6 +681,7 @@ tbody tr:last-child td {
 
 /* toasts */
 .toasts {
+    pointer-events: none;
     position: fixed;
     bottom: 20px;
     right: 20px;

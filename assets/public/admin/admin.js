@@ -77,7 +77,9 @@ const toast = (message, kind = "ok") => {
     const el = document.createElement("div");
     el.className = `toast ${kind === "error" ? "error" : ""}`;
     el.textContent = message;
-    $("#toasts").append(el);
+    const container = $("#toasts");
+    container.append(el);
+    while (container.children.length > 3) container.firstElementChild.remove();
     setTimeout(() => el.remove(), kind === "error" ? 6000 : 3000);
 };
 
