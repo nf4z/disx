@@ -312,6 +312,66 @@
         input.focus();
     };
 
+    // A profile widget lives on an application, so this makes one named after you with your avatar, like the app header on the card.
+    const widgetDialog = async () => {
+        const me = await api("GET", "/users/@me").catch(() => null);
+        const input = el("input", { id: "new-widget-name", type: "text", maxlength: "32", required: true, autocomplete: "off", value: me?.global_name ?? me?.username ?? "" });
+        const avatar = avatarUrl(me);
+        const useAvatar = el("input", { id: "new-widget-avatar", type: "checkbox", checked: !!avatar, disabled: !avatar });
+        const error = errorLine();
+        error.id = "widget-create-error";
+        input.setAttribute("aria-describedby", "widget-create-error");
+        const submit = el("button", { class: "btn primary", type: "submit" }, "Create");
+        const dialog = el(
+            "dialog",
+            { "aria-labelledby": "widget-create-title" },
+            el(
+                "form",
+                {
+                    onsubmit: async (event) => {
+                        event.preventDefault();
+                        error.hidden = true;
+                        if (!input.value.trim()) {
+                            input.setAttribute("aria-invalid", "true");
+                            showError(error, "Give your widget a name.");
+                            input.focus();
+                            return;
+                        }
+                        submit.disabled = true;
+                        try {
+                            const app = await api("POST", "/applications", { name: input.value.trim() });
+                            if (useAvatar.checked && avatar) {
+                                const blob = await fetch(avatar).then((res) => (res.ok ? res.blob() : null)).catch(() => null);
+                                if (blob) await api("PATCH", `/applications/${app.id}`, { icon: await readFile(blob) }).catch(() => null);
+                            }
+                            dialog.close();
+                            navigate(`/developers/applications/${app.id}/widget`);
+                        } catch (e) {
+                            showError(error, e);
+                        } finally {
+                            submit.disabled = false;
+                        }
+                    },
+                },
+                el("h2", { id: "widget-create-title" }, "Create a profile widget"),
+                el("p", { class: "muted" }, "Your widget's name and icon show at the top of the card, so most people use their own."),
+                el(
+                    "div",
+                    { class: "fields", style: "margin-top:16px" },
+                    el("div", { class: "field" }, el("label", { for: "new-widget-name" }, "Name"), input),
+                    el("label", { class: "check" }, useAvatar, "Use my avatar as the icon"),
+                    error,
+                ),
+                el("div", { class: "actions" }, el("button", { class: "btn secondary", type: "button", onclick: () => dialog.close() }, "Cancel"), submit),
+            ),
+        );
+        dialog.addEventListener("close", () => dialog.remove());
+        document.body.append(dialog);
+        dialog.showModal();
+        input.focus();
+        input.select();
+    };
+
     const setNav = (app, section) => {
         const link = (href, label, current) => el("a", { href, "data-link": true, "aria-current": current ? "page" : null }, label);
         nav.replaceChildren(
@@ -324,6 +384,7 @@
                 app && link(`/developers/applications/${app.id}/bot`, "Bot", section === "bot"),
                 app && link(`/developers/applications/${app.id}/emojis`, "Emojis", section === "emojis"),
                 app && link(`/developers/applications/${app.id}/rich-presence`, "Rich Presence", section === "rich-presence"),
+                app && link(`/developers/applications/${app.id}/widget`, "Profile Widget", section === "widget"),
                 app && link(`/developers/applications/${app.id}/testers`, "App Testers", section === "testers"),
                 app && link(`/developers/applications/${app.id}/activities`, "Activities", section === "activities"),
             ].filter(Boolean),
@@ -339,9 +400,9 @@
             "div",
             { class: "page-head" },
             el("h1", {}, "Applications"),
-            el("button", { class: "btn primary", type: "button", onclick: createDialog }, "New application"),
+            el("div", { class: "actions page-actions" }, el("button", { class: "btn secondary", type: "button", onclick: widgetDialog }, "New profile widget"), el("button", { class: "btn primary", type: "button", onclick: createDialog }, "New application")),
         );
-        const lead = el("p", { class: "muted page-lead" }, "Create an application to get a bot, a token and an invite link for your servers.");
+        const lead = el("p", { class: "muted page-lead" }, "Create an application to get a bot, a token and an invite link for your servers, or to put your own widget on your profile.");
         const body = apps.length
             ? el(
                   "div",
@@ -354,8 +415,8 @@
                   "div",
                   { class: "empty" },
                   el("h2", {}, "No applications yet"),
-                  el("p", { class: "muted" }, "Your applications appear here. Create one to set up a bot."),
-                  el("button", { class: "btn primary", type: "button", onclick: createDialog }, "Create an application"),
+                  el("p", { class: "muted" }, "Your applications appear here. Create one to set up a bot, or make a widget for your profile."),
+                  el("div", { class: "actions empty-actions" }, el("button", { class: "btn secondary", type: "button", onclick: widgetDialog }, "New profile widget"), el("button", { class: "btn primary", type: "button", onclick: createDialog }, "Create an application")),
               );
         view.replaceChildren(head, lead, body);
     };
@@ -1724,6 +1785,640 @@
         return [settingsCard, mappingsCard, disableCard];
     };
 
+    // Profile widgets. Text fields hold fixed text, or {{key}} to show a value the app sets per user.
+    const DATA_FIELD = /^\{\{\s*([A-Za-z0-9_]{1,32})\s*\}\}$/;
+    const assetUrl = (app, asset, size = 256) => `${config.cdn}/app-assets/${app.id}/${asset.asset_id}.png?size=${size}`;
+
+    const textField = (text) => {
+        const value = (text ?? "").trim();
+        if (!value) return null;
+        const key = DATA_FIELD.exec(value)?.[1];
+        return key ? { value_type: "data", presentation_type: "text", value: key } : { value_type: "custom_string", presentation_type: "text", value };
+    };
+    const numberField = (text) => {
+        const key = DATA_FIELD.exec((text ?? "").trim())?.[1];
+        return key ? { value_type: "data", presentation_type: "number", value: key } : null;
+    };
+    const imageField = (key) => (key ? { value_type: "application_asset", presentation_type: "image", value: key } : null);
+    const fieldText = (field) => (!field ? "" : field.value_type === "data" ? `{{${field.value}}}` : field.value_type === "custom_string" ? field.value : "");
+    const fieldImage = (field) => (field?.value_type === "application_asset" ? field.value : null);
+    const component = (fields) => {
+        const kept = Object.fromEntries(Object.entries(fields).filter(([, field]) => field));
+        return Object.keys(kept).length ? { fields: kept } : null;
+    };
+
+    const widgetState = (surfaces = {}) => {
+        const top = surfaces.widget_top;
+        const bottom = surfaces.widget_bottom;
+        const mini = surfaces.mini_profile;
+        const c = (surface, name) => surface?.components?.[name]?.fields ?? {};
+        const topHero = top?.layout !== "widget_top_contained";
+        const miniHero = mini?.layout === "mini_profile_hero_stat";
+        return {
+            top: {
+                layout: topHero ? "hero" : "contained",
+                title: fieldText(c(top, "title").text),
+                subtitles: [1, 2, 3].map((i) => fieldText(c(top, `subtitle_${i}`).text)),
+                image: fieldImage(c(top, topHero ? "hero_image" : "contained_image").image),
+            },
+            bottom: {
+                layout: { widget_bottom_stats: "stats", widget_bottom_progress: "progress" }[bottom?.layout] ?? "collection",
+                items: [1, 2, 3, 4].map((i) => ({
+                    image: fieldImage(c(bottom, `item_${i}`).image),
+                    name: fieldText(c(bottom, `item_${i}`).name),
+                    description: fieldText(c(bottom, `item_${i}`).description),
+                })),
+                stats: [1, 2, 3, 4, 5, 6].map((i) => ({ value: fieldText(c(bottom, `stat_${i}`).value), label: fieldText(c(bottom, `stat_${i}`).label) })),
+                progress: {
+                    image: fieldImage(c(bottom, "objective").image),
+                    name: fieldText(c(bottom, "objective").name),
+                    description: fieldText(c(bottom, "objective").description),
+                    current: fieldText(c(bottom, "progress").current),
+                    max: fieldText(c(bottom, "progress").max),
+                },
+            },
+            mini: {
+                enabled: !top || !!mini,
+                layout: miniHero ? "hero" : "contained",
+                stat: fieldText(c(mini, "stat").text),
+                image: fieldImage(c(mini, miniHero ? "hero_image" : "contained_image").image),
+            },
+        };
+    };
+
+    const widgetSurfaces = (state) => {
+        const { top, bottom, mini } = state;
+        const topImage = top.layout === "hero" ? "hero_image" : "contained_image";
+        const bottomSurface =
+            bottom.layout === "stats"
+                ? { layout: "widget_bottom_stats", components: Object.fromEntries(bottom.stats.map((stat, i) => [`stat_${i + 1}`, component({ value: textField(stat.value), label: textField(stat.label) })])) }
+                : bottom.layout === "progress"
+                  ? {
+                        layout: "widget_bottom_progress",
+                        components: {
+                            objective: component({ image: imageField(bottom.progress.image), name: textField(bottom.progress.name), description: textField(bottom.progress.description) }),
+                            progress: component({ current: numberField(bottom.progress.current), max: numberField(bottom.progress.max) }),
+                        },
+                    }
+                  : {
+                        layout: "widget_bottom_collection",
+                        components: Object.fromEntries(
+                            bottom.items.map((item, i) => [`item_${i + 1}`, component({ image: imageField(item.image), name: textField(item.name), description: textField(item.description) })]),
+                        ),
+                    };
+        const miniImage = mini.layout === "hero" ? "hero_image" : "contained_image";
+        return {
+            widget_top: {
+                layout: top.layout === "hero" ? "widget_top_hero" : "widget_top_contained",
+                components: {
+                    title: component({ text: textField(top.title) }),
+                    ...Object.fromEntries(top.subtitles.map((text, i) => [`subtitle_${i + 1}`, component({ text: textField(text) })])),
+                    [topImage]: component({ image: imageField(top.image) }),
+                },
+            },
+            widget_bottom: bottomSurface,
+            mini_profile: mini.enabled
+                ? { layout: mini.layout === "hero" ? "mini_profile_hero_stat" : "mini_profile_contained_stat", components: { stat: component({ text: textField(mini.stat) }), [miniImage]: component({ image: imageField(mini.image ?? top.image) }) } }
+                : null,
+        };
+    };
+
+    // The client leaves a loading placeholder wherever a layout's required text is missing, so those are checked before saving.
+    const widgetProblems = (state) => {
+        const problems = [];
+        const blank = (text) => !(text ?? "").trim();
+        if (blank(state.top.title)) problems.push(["widget-title", "Give the top of your widget a title."]);
+        if (state.bottom.layout === "collection")
+            state.bottom.items.forEach((item, i) => {
+                if (blank(item.name)) problems.push([`widget-item-${i}-name`, `Give item ${i + 1} a name.`]);
+                else if (blank(item.description)) problems.push([`widget-item-${i}-description`, `Give item ${i + 1} a description.`]);
+            });
+        if (state.bottom.layout === "stats") state.bottom.stats.forEach((stat, i) => blank(stat.value) && problems.push([`widget-stat-${i}-value`, `Give stat ${i + 1} a value. This layout always shows six.`]));
+        if (state.bottom.layout === "progress") {
+            if (blank(state.bottom.progress.name)) problems.push(["widget-progress-name", "Name the goal."]);
+            else if (blank(state.bottom.progress.description)) problems.push(["widget-progress-description", "Describe the goal."]);
+            if (!numberField(state.bottom.progress.current)) problems.push(["widget-progress-current", "Progress comes from your data. Enter a key like {{level}}."]);
+            if (!blank(state.bottom.progress.max) && !numberField(state.bottom.progress.max)) problems.push(["widget-progress-max", "The goal comes from your data too. Enter a key like {{max_level}}."]);
+        }
+        if (state.mini.enabled && blank(state.mini.stat)) problems.push(["widget-mini-stat", "Add the line shown on your profile popout."]);
+        return problems;
+    };
+
+    const dataKeys = (state) => [...new Set(JSON.stringify(state).match(/\{\{\s*[A-Za-z0-9_]{1,32}\s*\}\}/g)?.map((x) => x.replace(/[{}\s]/g, "")) ?? [])];
+
+    const renderWidget = async (app) => {
+        const [saved, board, identity] = await Promise.all([
+            api("GET", `/applications/${app.id}/widget-config`),
+            api("GET", "/users/@me/widgets"),
+            api("GET", `/applications/${app.id}/users/@me/widget-data`),
+        ]);
+        let savedConfig = saved.config;
+        const assets = new Map((savedConfig?.assets ?? []).map((asset) => [asset.key, asset]));
+        const state = widgetState(savedConfig?.surfaces);
+        const isSaved = () => !!savedConfig?.surfaces?.widget_top;
+        let widgets = board.widgets ?? [];
+        const onProfile = () => widgets.some((widget) => widget.data?.type === "application" && widget.data.application_id === app.id);
+        const values = { ...identity.data };
+
+        // Preview, drawn after the client's own layouts.
+        const preview = el("div", { class: "wp-stage", "aria-label": "Preview" });
+        const resolveText = (text) => {
+            const key = DATA_FIELD.exec((text ?? "").trim())?.[1];
+            if (!key) return { text: (text ?? "").trim(), data: false };
+            return values[key] != null ? { text: String(values[key]), data: false } : { text: `{{${key}}}`, data: true };
+        };
+        const previewText = (tag, cls, text, fallback) => {
+            const { text: value, data } = resolveText(text);
+            if (!value && !fallback) return null;
+            return el(tag, { class: `${cls}${data ? " wp-data" : ""}${value ? "" : " wp-empty"}` }, value || fallback);
+        };
+        const previewImage = (key, cls) => {
+            const asset = key && assets.get(key);
+            return asset ? el("img", { class: cls, src: assetUrl(app, asset, 512), alt: "" }) : el("span", { class: `${cls} wp-placeholder`, "aria-hidden": "true" });
+        };
+        const previewHeader = () => el("div", { class: "wp-head" }, iconUrl(app) ? el("img", { class: "wp-app-icon", src: iconUrl(app), alt: "" }) : el("span", { class: "wp-app-icon" }), el("span", {}, app.name));
+        const drawPreview = () => {
+            const { top, bottom, mini } = state;
+            const headline = el(
+                "div",
+                { class: "wp-headline" },
+                previewText("strong", "wp-title", top.title, "Title"),
+                top.subtitles.map((text) => previewText("span", "wp-subtitle", text)),
+            );
+            const topBlock =
+                top.layout === "hero"
+                    ? el("div", { class: "wp-top wp-top-hero" }, el("div", { class: "wp-top-text" }, previewHeader(), headline), previewImage(top.image, "wp-hero-image"))
+                    : el("div", { class: "wp-top" }, previewHeader(), el("div", { class: "wp-top-row" }, headline, previewImage(top.image, "wp-contained-image")));
+            let bottomBlock;
+            if (bottom.layout === "stats")
+                bottomBlock = el(
+                    "div",
+                    { class: "wp-stats" },
+                    bottom.stats.map((stat) => el("div", { class: "wp-stat" }, previewText("strong", "wp-stat-value", stat.value, "Value"), previewText("span", "wp-muted", stat.label))),
+                );
+            else if (bottom.layout === "progress") {
+                const progress = bottom.progress;
+                const current = Number(resolveText(progress.current).text);
+                const max = Number(resolveText(progress.max).text);
+                const percent = Number.isFinite(current) ? Math.max(0, Math.min(100, Math.round(Number.isFinite(max) && max ? (current / max) * 100 : current * 100))) : 0;
+                bottomBlock = el(
+                    "div",
+                    { class: "wp-progress" },
+                    previewImage(progress.image, "wp-item-image"),
+                    el(
+                        "div",
+                        { class: "wp-progress-body" },
+                        el("div", { class: "wp-bar" }, el("span", { style: `width:${percent}%` })),
+                        el(
+                            "div",
+                            { class: "wp-progress-row" },
+                            el("div", { class: "wp-item-text" }, previewText("strong", "wp-item-name", progress.name, "Goal"), previewText("span", "wp-muted", progress.description, "Description")),
+                            el("span", { class: "wp-progress-count" }, progress.max.trim() ? `${resolveText(progress.current).text}/${resolveText(progress.max).text}` : `${percent}%`),
+                        ),
+                    ),
+                );
+            } else
+                bottomBlock = el(
+                    "div",
+                    { class: "wp-items" },
+                    bottom.items.map((item) =>
+                        el(
+                            "div",
+                            { class: "wp-item" },
+                            previewImage(item.image, "wp-item-image"),
+                            el("div", { class: "wp-item-text" }, previewText("strong", "wp-item-name", item.name, "Name"), previewText("span", "wp-muted", item.description, "Description")),
+                        ),
+                    ),
+                );
+            const miniImage = mini.image ?? top.image;
+            const miniCard = mini.enabled
+                ? el(
+                      "figure",
+                      { class: "wp-figure" },
+                      el(
+                          "div",
+                          { class: `wp-card wp-mini${mini.layout === "hero" ? " wp-mini-hero" : ""}` },
+                          el("div", { class: "wp-mini-text" }, previewHeader(), previewText("strong", "wp-mini-stat", mini.stat, "Your line"), el("span", { class: "wp-link" }, "View All Stats")),
+                          mini.layout === "hero" ? previewImage(miniImage, "wp-mini-hero-image") : previewImage(miniImage, "wp-mini-image"),
+                      ),
+                      el("figcaption", { class: "hint" }, "Profile popout"),
+                  )
+                : null;
+            preview.replaceChildren(
+                el("figure", { class: "wp-figure wp-figure-main" }, el("div", { class: "wp-card" }, topBlock, el("hr", { class: "wp-divider" }), bottomBlock), el("figcaption", { class: "hint" }, "Board tab of your profile")),
+                miniCard,
+            );
+        };
+
+        // Form controls.
+        const errorNode = errorLine();
+        const status = statusLine();
+        const text = (id, label, get, set, attrs = {}) => {
+            const input = el("input", { id, type: "text", maxlength: "256", autocomplete: "off", value: get(), ...attrs });
+            input.addEventListener("input", () => {
+                set(input.value);
+                input.removeAttribute("aria-invalid");
+                drawPreview();
+            });
+            return el("div", { class: "field" }, el("label", { for: id }, label), input);
+        };
+        const imagePicker = (id, label, get, set, hint) => {
+            const fileInput = el("input", { type: "file", accept: "image/png,image/jpeg,image/gif,image/webp", hidden: true });
+            const thumb = el("span", { class: "wp-thumb" });
+            const remove = el("button", { class: "btn secondary", type: "button", "aria-label": `Remove ${label.toLowerCase()}` }, "Remove");
+            const upload = el("button", { class: "btn secondary", type: "button", id, onclick: () => fileInput.click() }, "Upload image");
+            const sync = () => {
+                const asset = get() && assets.get(get());
+                thumb.replaceChildren(asset ? el("img", { src: assetUrl(app, asset, 128), alt: "" }) : el("span", { class: "wp-placeholder" }));
+                upload.textContent = asset ? "Replace" : "Upload image";
+                remove.hidden = !asset;
+            };
+            remove.addEventListener("click", () => {
+                set(null);
+                sync();
+                drawPreview();
+            });
+            fileInput.addEventListener("change", async () => {
+                const file = fileInput.files?.[0];
+                fileInput.value = "";
+                if (!file) return;
+                errorNode.hidden = true;
+                upload.disabled = true;
+                try {
+                    const asset = await api("POST", `/applications/${app.id}/widget-config/assets`, { image: await readFile(file) });
+                    assets.set(asset.key, asset);
+                    set(asset.key);
+                    sync();
+                    drawPreview();
+                } catch (e) {
+                    showError(errorNode, e);
+                } finally {
+                    upload.disabled = false;
+                }
+            });
+            sync();
+            return el("div", { class: "field" }, el("label", { for: id }, label), el("div", { class: "media-row compact" }, thumb, upload, remove, fileInput), hint && el("p", { class: "hint" }, hint));
+        };
+        const radios = (name, label, options, get, set, onChange) =>
+            el(
+                "div",
+                { class: "field" },
+                el("span", { class: "label", id: `${name}-label` }, label),
+                el(
+                    "div",
+                    { class: "radio-list", role: "radiogroup", "aria-labelledby": `${name}-label` },
+                    options.map(([value, text]) => {
+                        const radio = el("input", { type: "radio", name, value, checked: get() === value });
+                        radio.addEventListener("change", () => {
+                            set(value);
+                            onChange?.();
+                            drawPreview();
+                        });
+                        return el("label", { class: "check" }, radio, text);
+                    }),
+                ),
+            );
+
+        const topCard = el(
+            "section",
+            { class: "card" },
+            el("h2", {}, "Top"),
+            el("p", { class: "muted" }, "A greeting and up to three lines under it, with an image on the side."),
+            el(
+                "div",
+                { class: "fields" },
+                radios("widget-top-layout", "Image style", [["hero", "Large, cut out"], ["contained", "Square"]], () => state.top.layout, (v) => (state.top.layout = v)),
+                text("widget-title", "Title", () => state.top.title, (v) => (state.top.title = v), { placeholder: "Hello! 👋" }),
+                state.top.subtitles.map((_, i) => text(`widget-subtitle-${i}`, `Line ${i + 1}`, () => state.top.subtitles[i], (v) => (state.top.subtitles[i] = v), i === 0 ? { placeholder: "Welcome to my profile!" } : {})),
+                imagePicker("widget-top-image", "Image", () => state.top.image, (v) => (state.top.image = v), "PNGs with a transparent background work best for the large style."),
+            ),
+        );
+
+        const bottomFields = el("div", { class: "fields" });
+        const drawBottomFields = () => {
+            const { bottom } = state;
+            bottomFields.replaceChildren(
+                ...(bottom.layout === "collection"
+                    ? bottom.items.map((item, i) =>
+                          el(
+                              "fieldset",
+                              { class: "wp-group" },
+                              el("legend", {}, `Item ${i + 1}`),
+                              el(
+                                  "div",
+                                  { class: "fields" },
+                                  imagePicker(`widget-item-${i}-image`, "Icon", () => item.image, (v) => (item.image = v)),
+                                  el(
+                                      "div",
+                                      { class: "field-row" },
+                                      text(`widget-item-${i}-name`, "Name", () => item.name, (v) => (item.name = v), i === 0 ? { placeholder: "Video editor" } : {}),
+                                      text(`widget-item-${i}-description`, "Description", () => item.description, (v) => (item.description = v), i === 0 ? { placeholder: "for over 10 years" } : {}),
+                                  ),
+                              ),
+                          ),
+                      )
+                    : bottom.layout === "stats"
+                      ? bottom.stats.map((stat, i) =>
+                            el(
+                                "div",
+                                { class: "field-row" },
+                                text(`widget-stat-${i}-value`, `Stat ${i + 1}`, () => stat.value, (v) => (stat.value = v), i === 0 ? { placeholder: "10M+" } : {}),
+                                text(`widget-stat-${i}-label`, "Label", () => stat.label, (v) => (stat.label = v), i === 0 ? { placeholder: "Visits" } : {}),
+                            ),
+                        )
+                      : [
+                            imagePicker("widget-progress-image", "Icon", () => bottom.progress.image, (v) => (bottom.progress.image = v)),
+                            el(
+                                "div",
+                                { class: "field-row" },
+                                text("widget-progress-name", "Goal", () => bottom.progress.name, (v) => (bottom.progress.name = v), { placeholder: "Reach level 50" }),
+                                text("widget-progress-description", "Description", () => bottom.progress.description, (v) => (bottom.progress.description = v), { placeholder: "Season 3" }),
+                            ),
+                            el(
+                                "div",
+                                { class: "field-row" },
+                                text("widget-progress-current", "Progress", () => bottom.progress.current, (v) => (bottom.progress.current = v), { placeholder: "{{level}}" }),
+                                text("widget-progress-max", "Goal value (optional)", () => bottom.progress.max, (v) => (bottom.progress.max = v), { placeholder: "{{max_level}}" }),
+                            ),
+                            el("p", { class: "hint" }, "Progress is a number, so it always comes from your data. Without a goal value, progress is read as a fraction, where 0.5 is half full."),
+                        ]),
+            );
+        };
+        drawBottomFields();
+        const bottomCard = el(
+            "section",
+            { class: "card" },
+            el("h2", {}, "Bottom"),
+            el("p", { class: "muted" }, "Four things about you, six stats, or a progress bar."),
+            el(
+                "div",
+                { class: "fields" },
+                radios("widget-bottom-layout", "Layout", [["collection", "Four items"], ["stats", "Six stats"], ["progress", "Progress"]], () => state.bottom.layout, (v) => (state.bottom.layout = v), drawBottomFields),
+                bottomFields,
+            ),
+        );
+
+        const miniToggle = el("input", { id: "widget-mini-enabled", type: "checkbox", checked: state.mini.enabled });
+        const miniFields = el(
+            "div",
+            { class: "fields" },
+            radios("widget-mini-layout", "Image style", [["contained", "Square"], ["hero", "Large"]], () => state.mini.layout, (v) => (state.mini.layout = v)),
+            text("widget-mini-stat", "Line", () => state.mini.stat, (v) => (state.mini.stat = v), { placeholder: "Welcome to my profile!" }),
+            imagePicker("widget-mini-image", "Image", () => state.mini.image, (v) => (state.mini.image = v), "Leave it empty to reuse the image from the top."),
+        );
+        miniFields.hidden = !state.mini.enabled;
+        miniToggle.addEventListener("change", () => {
+            state.mini.enabled = miniToggle.checked;
+            miniFields.hidden = !miniToggle.checked;
+            drawPreview();
+        });
+        const miniCard = el(
+            "section",
+            { class: "card" },
+            el("h2", {}, "Profile popout"),
+            el("p", { class: "muted" }, "A smaller card in your profile popout that opens the full widget."),
+            el("div", { class: "fields" }, switchRow("widget-mini-enabled", "Show a card in the profile popout", null, miniToggle), miniFields),
+        );
+
+        const publicToggle = el("input", { id: "widget-public", type: "checkbox", checked: saved.public });
+        const profileButton = el("button", { class: "btn secondary", type: "button" });
+        const profileStatus = statusLine();
+        const profileError = errorLine();
+        const syncProfileButton = () => {
+            profileButton.textContent = onProfile() ? "Remove from my profile" : "Add to my profile";
+            profileButton.className = `btn ${onProfile() ? "secondary" : "primary"}`;
+            profileButton.disabled = !isSaved();
+        };
+        profileButton.addEventListener("click", async () => {
+            profileError.hidden = true;
+            profileButton.disabled = true;
+            const adding = !onProfile();
+            try {
+                const next = adding
+                    ? [...widgets, { data: { type: "application", application_id: app.id } }]
+                    : widgets.filter((widget) => !(widget.data?.type === "application" && widget.data.application_id === app.id));
+                widgets = (await api("PUT", "/users/@me/widgets", { widgets: next })).widgets;
+                flash(profileStatus, adding ? "Added to your profile." : "Removed from your profile.");
+            } catch (e) {
+                showError(profileError, e);
+            } finally {
+                syncProfileButton();
+            }
+        });
+
+        const save = el("button", { class: "btn primary", type: "submit" }, "Save widget");
+        const form = el(
+            "form",
+            {
+                class: "wp-editor",
+                onsubmit: async (event) => {
+                    event.preventDefault();
+                    errorNode.hidden = true;
+                    form.querySelectorAll("[aria-invalid]").forEach((node) => node.removeAttribute("aria-invalid"));
+                    const problems = widgetProblems(state);
+                    if (problems.length) {
+                        const [id, message] = problems[0];
+                        const input = document.getElementById(id);
+                        input?.setAttribute("aria-invalid", "true");
+                        input?.focus();
+                        return showError(errorNode, message);
+                    }
+                    save.disabled = true;
+                    try {
+                        const result = await api("PUT", `/applications/${app.id}/widget-config`, { surfaces: widgetSurfaces(state), public: publicToggle.checked });
+                        savedConfig = result.config;
+                        assets.clear();
+                        savedConfig.assets.forEach((asset) => assets.set(asset.key, asset));
+                        syncProfileButton();
+                        drawKeys();
+                        flash(status, onProfile() ? "Widget saved. It's live on your profile." : "Widget saved. Add it to your profile below.");
+                    } catch (e) {
+                        showError(errorNode, e);
+                    } finally {
+                        save.disabled = false;
+                    }
+                },
+            },
+            topCard,
+            bottomCard,
+            miniCard,
+            el(
+                "section",
+                { class: "card" },
+                el("h2", {}, "Who can use it"),
+                el(
+                    "div",
+                    { class: "fields" },
+                    switchRow(
+                        "widget-public",
+                        "Let anyone add this widget",
+                        "Leave this off for a widget about you. Turn it on when your app fills in {{keys}} for each person, so everyone can show their own values.",
+                        publicToggle,
+                    ),
+                ),
+            ),
+            el("div", { class: "actions wp-save" }, save, status),
+            errorNode,
+        );
+
+        const profileCard = el(
+            "section",
+            { class: "card" },
+            el("h2", {}, "Your profile"),
+            el("p", { class: "muted" }, "Show this widget on the Board tab of your profile. You can also add it from Edit Profile in the app."),
+            el("div", { class: "actions" }, profileButton, profileStatus),
+            profileError,
+        );
+        syncProfileButton();
+
+        // Values for {{keys}} on your own profile.
+        const rows = Object.entries(values).map(([key, value]) => ({ key, value: String(value) }));
+        const keyHint = el("p", { class: "hint" });
+        const drawKeys = () => {
+            const keys = dataKeys(state);
+            const missing = keys.filter((key) => !rows.some((row) => row.key === key));
+            keyHint.textContent = keys.length
+                ? `Your widget reads ${keys.map((key) => `{{${key}}}`).join(", ")}.${missing.length ? ` Not set yet: ${missing.join(", ")}.` : ""}`
+                : "Your widget doesn't read any data yet. Type {{key}} in a text field to show a value from here.";
+        };
+        const rowList = el("div", { class: "fields" });
+        const drawRows = () =>
+            rowList.replaceChildren(
+                ...rows.map((row, index) => {
+                    const key = el("input", { type: "text", maxlength: "32", placeholder: "visits", value: row.key, "aria-label": `Key ${index + 1}` });
+                    const value = el("input", { type: "text", maxlength: "256", placeholder: "10M+", value: row.value, "aria-label": `Value ${index + 1}` });
+                    key.addEventListener("input", () => (row.key = key.value.trim()));
+                    value.addEventListener("input", () => (row.value = value.value));
+                    return el(
+                        "div",
+                        { class: "wp-data-row" },
+                        key,
+                        value,
+                        el(
+                            "button",
+                            {
+                                class: "btn secondary",
+                                type: "button",
+                                "aria-label": `Remove ${row.key || "row"}`,
+                                onclick: () => {
+                                    rows.splice(index, 1);
+                                    drawRows();
+                                },
+                            },
+                            "Remove",
+                        ),
+                    );
+                }),
+                ...(rows.length ? [] : [el("p", { class: "muted" }, "No values yet.")]),
+            );
+        drawRows();
+        drawKeys();
+        const dataStatus = statusLine();
+        const dataError = errorLine();
+        const saveData = el("button", { class: "btn primary", type: "submit" }, "Save values");
+        const dataCard = el(
+            "form",
+            {
+                class: "card",
+                onsubmit: async (event) => {
+                    event.preventDefault();
+                    dataError.hidden = true;
+                    const data = Object.fromEntries(rows.filter((row) => row.key).map((row) => [row.key, /^-?\d+(\.\d+)?$/.test(row.value.trim()) ? Number(row.value) : row.value]));
+                    saveData.disabled = true;
+                    try {
+                        const result = await api("PUT", `/applications/${app.id}/users/@me/widget-data`, { data });
+                        Object.keys(values).forEach((key) => delete values[key]);
+                        Object.assign(values, result.data);
+                        rows.splice(0, rows.length, ...Object.entries(values).map(([key, value]) => ({ key, value: String(value) })));
+                        drawRows();
+                        drawKeys();
+                        drawPreview();
+                        flash(dataStatus, "Values saved.");
+                    } catch (e) {
+                        showError(dataError, e);
+                    } finally {
+                        saveData.disabled = false;
+                    }
+                },
+            },
+            el("h2", {}, "Your values"),
+            el("p", { class: "muted" }, "What {{keys}} show on your own profile. Numbers are formatted for each reader's language."),
+            keyHint,
+            el("div", { class: "wp-data-list" }, rowList),
+            el(
+                "div",
+                { class: "actions" },
+                el(
+                    "button",
+                    {
+                        class: "btn secondary",
+                        type: "button",
+                        onclick: () => {
+                            if (rows.length >= 50) return showError(dataError, "You can set up to 50 values.");
+                            rows.push({ key: "", value: "" });
+                            drawRows();
+                            rowList.querySelectorAll("input")[rows.length * 2 - 2]?.focus();
+                        },
+                    },
+                    "Add value",
+                ),
+                saveData,
+                dataStatus,
+            ),
+            dataError,
+        );
+
+        const endpoint = `${location.origin}/api/v9/applications/${app.id}/users/{user_id}/widget-data`;
+        const example = `curl -X PATCH "${endpoint.replace("{user_id}", "USER_ID")}" \\\n  -H "Authorization: Bot $TOKEN" \\\n  -H "Content-Type: application/json" \\\n  -d '{"data": {"visits": "10M+", "level": 12}}'`;
+        const apiCard = el(
+            "section",
+            { class: "card" },
+            el("h2", {}, "Update values from your bot"),
+            el(
+                "p",
+                { class: "muted" },
+                "Your bot can keep anyone's values up to date with its token. PATCH changes the keys you send and removes keys set to null, PUT replaces them all, GET reads them and DELETE clears them. Sending values for someone also lets them add the widget.",
+            ),
+            el("div", { class: "fields" }, copyField("Endpoint", endpoint), el("div", { class: "field" }, el("span", { class: "label" }, "Example"), el("pre", { class: "wp-code" }, example), el("div", {}, copyButton(() => example, "Copy example")))),
+        );
+
+        const removeError = errorLine();
+        const removeCard = el(
+            "section",
+            { class: "card" },
+            el("h2", {}, "Delete widget"),
+            el("p", { class: "muted" }, "Removes the widget from every profile that shows it and deletes its images. Values your app set are kept."),
+            el(
+                "button",
+                {
+                    class: "btn danger",
+                    type: "button",
+                    onclick: async () => {
+                        const ok = await confirmDialog({ title: "Delete this widget?", body: "It disappears from every profile that shows it. You can't undo this.", action: "Delete widget", danger: true });
+                        if (!ok) return;
+                        try {
+                            await api("DELETE", `/applications/${app.id}/widget-config`);
+                            await render();
+                        } catch (e) {
+                            showError(removeError, e);
+                        }
+                    },
+                },
+                "Delete widget",
+            ),
+            removeError,
+        );
+        removeCard.hidden = !savedConfig;
+
+        drawPreview();
+        const intro = el(
+            "p",
+            { class: "muted page-lead" },
+            "Build a card for the Board tab of your profile, like the ones games and apps add. Type {{key}} in any text field to show a value you or your bot set for each person.",
+        );
+        return [intro, el("div", { class: "wp-layout" }, el("div", { class: "wp-main" }, form, profileCard, dataCard, apiCard, removeCard), el("aside", { class: "wp-aside" }, preview))];
+    };
+
     const SECTIONS = {
         information: ["General information", renderInformation],
         installation: ["Installation", renderInstallation],
@@ -1731,6 +2426,7 @@
         bot: ["Bot", renderBot],
         emojis: ["Emojis", renderEmojis],
         "rich-presence": ["Rich Presence", renderRichPresence],
+        widget: ["Profile Widget", renderWidget],
         testers: ["App Testers", renderTesters],
         activities: ["Activities", renderActivities],
     };
