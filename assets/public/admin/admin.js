@@ -177,9 +177,9 @@ function describeError(body) {
 
 let pageRequests = new AbortController();
 
-async function api(path, { method = "GET", body, auth: useAuth = true } = {}) {
+async function api(path, { method = "GET", body, auth: useAuth = true, signal: requestSignal } = {}) {
     // FormData goes as multipart, and the browser sets its content type with the boundary
-    const signal = method === "GET" ? pageRequests.signal : undefined;
+    const signal = method === "GET" ? (requestSignal ? AbortSignal.any([pageRequests.signal, requestSignal]) : pageRequests.signal) : requestSignal;
     const multipart = body instanceof FormData;
     const headers = {};
     if (body !== undefined && !multipart) headers["Content-Type"] = "application/json";
@@ -514,7 +514,7 @@ function route() {
     if (!state.overview) return;
     let [tab] = location.hash.replace(/^#\/?/, "").split("/");
     const link = $(`#nav a[data-tab="${CSS.escape(tab || "")}"]`);
-    if (!TABS[tab] || !link || link.hidden) tab = "overview";
+    if (!TABS[tab] || !link || (link.dataset.access && !state.overview.access[link.dataset.access])) tab = "overview";
     if (!closeDrawer() || ($("form[data-dirty]", $("#view")) && !confirm("Discard unsaved changes?"))) {
         history.replaceState(null, "", activeHash);
         return;
@@ -1084,6 +1084,42 @@ ${(s.register.blacklistedUsernames ?? []).join("\n")}</textarea>
     });
 }
 
+function latestList(view, results, status) {
+    let pending;
+    let generation = 0;
+    const cancel = () => {
+        generation++;
+        pending?.abort();
+        results.setAttribute("aria-busy", "false");
+        status.hidden = true;
+    };
+    return {
+        cancel,
+        async load(path, render, retry) {
+            if (!view.isConnected) return;
+            cancel();
+            const current = generation;
+            pending = new AbortController();
+            results.setAttribute("aria-busy", "true");
+            status.hidden = false;
+            status.textContent = "Loading results…";
+            try {
+                const data = await api(path, { signal: pending.signal });
+                if (current !== generation || !view.isConnected) return;
+                render(data);
+                status.textContent = `${fmtNumber(data.total)} ${data.total === 1 ? "result" : "results"}`;
+            } catch (error) {
+                if (current !== generation || !view.isConnected || error.status === 499 || error.status === 401) return;
+                mount(status, html`<span>${error.message}</span><button class="btn small" type="button">Retry search</button>`);
+                $("button", status).addEventListener("click", retry);
+                if (!$("table, .empty", results)) mount(results, html`<div class="card empty">Results couldn't load. Retry your search.</div>`);
+            } finally {
+                if (current === generation && view.isConnected) results.setAttribute("aria-busy", "false");
+            }
+        },
+    };
+}
+
 /* ---------- users ---------- */
 
 const usersState = { q: "", filter: "all", offset: 0, limit: 50 };
@@ -1099,78 +1135,88 @@ async function renderUsers(view) {
                 </div>
             </div>
             <div class="row" style="margin-bottom:12px">
-                <input class="grow" id="user-search" type="search" placeholder="Search users…" value="${usersState.q}" style="max-width:420px" />
-                <select id="user-filter" style="width:auto">
-                    ${options(
-                        [
-                            ["all", "All users"],
-                            ["disabled", "Disabled"],
-                            ["verified", "Verified email"],
-                            ["unverified", "Unverified email"],
-                            ["bots", "Bots"],
-                        ],
-                        usersState.filter,
-                    )}
-                </select>
+                <label class="grow list-search"
+                    >Find users<input id="user-search" type="search" placeholder="Search names, emails or IDs" value="${usersState.q}" aria-controls="user-results"
+                /></label>
+                <label class="list-filter"
+                    ><span id="user-filter-label">Filter users</span
+                    ><select id="user-filter" aria-labelledby="user-filter-label">
+                        ${options(
+                            [
+                                ["all", "All users"],
+                                ["disabled", "Disabled"],
+                                ["verified", "Verified email"],
+                                ["unverified", "Unverified email"],
+                                ["bots", "Bots"],
+                            ],
+                            usersState.filter,
+                        )}
+                    </select></label
+                >
             </div>
+            <div class="list-status muted" id="user-status" role="status" aria-live="polite" hidden></div>
             <div id="user-results"><div class="spinner">Loading…</div></div>
         `,
     );
 
+    const results = $("#user-results", view);
+    const requests = latestList(view, results, $("#user-status", view));
     const load = async () => {
         const params = new URLSearchParams({ q: usersState.q, filter: usersState.filter, limit: usersState.limit, offset: usersState.offset });
-        const { users, total } = await api(`/admin/users?${params}`);
-        const results = $("#user-results");
-        if (!results) return;
-        mount(
-            results,
-            users.length
-                ? html`
-                      <div class="table-wrap">
-                          <table>
-                              <thead>
-                                  <tr>
-                                      <th>User</th>
-                                      <th class="hide-sm">Email</th>
-                                      <th class="hide-sm">Joined</th>
-                                      <th>Flags</th>
-                                  </tr>
-                              </thead>
-                              <tbody>
-                                  ${users.map(
-                                      (u) => html`
-                                          <tr data-id="${u.id}">
-                                              <td>
-                                                  <div class="ident">
-                                                      ${avatar(u)}
-                                                      <div><strong>${userName(u)}</strong><span class="muted">${userTag(u)}</span></div>
-                                                  </div>
-                                              </td>
-                                              <td class="hide-sm">${u.email || html`<span class="muted">—</span>`}</td>
-                                              <td class="hide-sm">${fmtDay(u.created_at)}</td>
-                                              <td>${userBadges(u)}</td>
+        await requests.load(
+            `/admin/users?${params}`,
+            ({ users, total }) => {
+                mount(
+                    results,
+                    users.length
+                        ? html`
+                              <div class="table-wrap">
+                                  <table>
+                                      <thead>
+                                          <tr>
+                                              <th>User</th>
+                                              <th class="hide-sm">Email</th>
+                                              <th class="hide-sm">Joined</th>
+                                              <th>Flags</th>
                                           </tr>
-                                      `,
-                                  )}
-                              </tbody>
-                          </table>
-                      </div>
-                      ${pager(total, usersState)}
-                  `
-                : html`<div class="card empty">No users match.</div>`,
+                                      </thead>
+                                      <tbody>
+                                          ${users.map(
+                                              (u) => html`
+                                                  <tr data-id="${u.id}">
+                                                      <td>
+                                                          <div class="ident">
+                                                              ${avatar(u)}
+                                                              <div><strong>${userName(u)}</strong><span class="muted">${userTag(u)}</span></div>
+                                                          </div>
+                                                      </td>
+                                                      <td class="hide-sm">${u.email || html`<span class="muted">—</span>`}</td>
+                                                      <td class="hide-sm">${fmtDay(u.created_at)}</td>
+                                                      <td>${userBadges(u)}</td>
+                                                  </tr>
+                                              `,
+                                          )}
+                                      </tbody>
+                                  </table>
+                              </div>
+                              ${pager(total, usersState)}
+                          `
+                        : html`<div class="card empty">No users match.</div>`,
+                );
+                for (const row of $$("tbody tr", results)) row.addEventListener("click", () => openUser(row.dataset.id, load));
+                bindPager(results, total, usersState, load);
+            },
+            load,
         );
-        for (const row of $$("tbody tr", results)) row.addEventListener("click", () => openUser(row.dataset.id, load));
-        bindPager(results, total, usersState, load);
     };
 
-    $("#user-search").addEventListener(
-        "input",
-        debounce((e) => {
-            usersState.q = e.target.value.trim();
-            usersState.offset = 0;
-            load();
-        }),
-    );
+    const search = debounce(load);
+    $("#user-search", view).addEventListener("input", (e) => {
+        requests.cancel();
+        usersState.q = e.target.value.trim();
+        usersState.offset = 0;
+        search();
+    });
     $("#user-filter").addEventListener("change", (e) => {
         usersState.filter = e.target.value;
         usersState.offset = 0;
@@ -3154,71 +3200,78 @@ async function renderGuilds(view) {
                 </div>
             </div>
             <div class="row" style="margin-bottom:12px">
-                <input class="grow" id="guild-search" type="search" placeholder="Search servers by name or ID…" value="${guildsState.q}" style="max-width:420px" />
+                <label class="grow list-search"
+                    >Find servers<input id="guild-search" type="search" placeholder="Search names or IDs" value="${guildsState.q}" aria-controls="guild-results"
+                /></label>
             </div>
+            <div class="list-status muted" id="guild-status" role="status" aria-live="polite" hidden></div>
             <div id="guild-results"><div class="spinner">Loading…</div></div>
         `,
     );
 
+    const results = $("#guild-results", view);
+    const requests = latestList(view, results, $("#guild-status", view));
     const load = async () => {
         const params = new URLSearchParams({ q: guildsState.q, limit: guildsState.limit, offset: guildsState.offset });
-        const { guilds, total } = await api(`/admin/guilds?${params}`);
-        const results = $("#guild-results");
-        if (!results) return;
-        mount(
-            results,
-            guilds.length
-                ? html`
-                      <div class="table-wrap">
-                          <table>
-                              <thead>
-                                  <tr>
-                                      <th>Server</th>
-                                      <th>Owner</th>
-                                      <th>Members</th>
-                                      <th class="hide-sm">Created</th>
-                                  </tr>
-                              </thead>
-                              <tbody>
-                                  ${guilds.map(
-                                      (g) => html`
-                                          <tr data-id="${g.id}">
-                                              <td>
-                                                  <div class="ident">
-                                                      ${guildIcon(g)}
-                                                      <div>
-                                                          <strong class="row" style="gap:6px">${g.name}${g.tag ? tagChip(g.id, g.tag.tag, g.tag.badge_hash) : ""}</strong>
-                                                          ${g.features.length ? html`<span class="muted">${g.features.slice(0, 3).join(", ")}${g.features.length > 3 ? "…" : ""}</span>` : ""}
-                                                      </div>
-                                                  </div>
-                                              </td>
-                                              <td>
-                                                  ${g.owner ? html`<div class="ident">${avatar(g.owner)}<span>${userName(g.owner)}</span></div>` : html`<span class="muted">None</span>`}
-                                              </td>
-                                              <td>${fmtNumber(g.member_count)}</td>
-                                              <td class="hide-sm">${fmtDay(snowflakeDate(g.id))}</td>
+        await requests.load(
+            `/admin/guilds?${params}`,
+            ({ guilds, total }) => {
+                mount(
+                    results,
+                    guilds.length
+                        ? html`
+                              <div class="table-wrap">
+                                  <table>
+                                      <thead>
+                                          <tr>
+                                              <th>Server</th>
+                                              <th>Owner</th>
+                                              <th>Members</th>
+                                              <th class="hide-sm">Created</th>
                                           </tr>
-                                      `,
-                                  )}
-                              </tbody>
-                          </table>
-                      </div>
-                      ${pager(total, guildsState)}
-                  `
-                : html`<div class="card empty">No servers match.</div>`,
+                                      </thead>
+                                      <tbody>
+                                          ${guilds.map(
+                                              (g) => html`
+                                                  <tr data-id="${g.id}">
+                                                      <td>
+                                                          <div class="ident">
+                                                              ${guildIcon(g)}
+                                                              <div>
+                                                                  <strong class="row" style="gap:6px">${g.name}${g.tag ? tagChip(g.id, g.tag.tag, g.tag.badge_hash) : ""}</strong>
+                                                                  ${g.features.length ? html`<span class="muted">${g.features.slice(0, 3).join(", ")}${g.features.length > 3 ? "…" : ""}</span>` : ""}
+                                                              </div>
+                                                          </div>
+                                                      </td>
+                                                      <td>
+                                                          ${g.owner ? html`<div class="ident">${avatar(g.owner)}<span>${userName(g.owner)}</span></div>` : html`<span class="muted">None</span>`}
+                                                      </td>
+                                                      <td>${fmtNumber(g.member_count)}</td>
+                                                      <td class="hide-sm">${fmtDay(snowflakeDate(g.id))}</td>
+                                                  </tr>
+                                              `,
+                                          )}
+                                      </tbody>
+                                  </table>
+                              </div>
+                              ${pager(total, guildsState)}
+                          `
+                        : html`<div class="card empty">No servers match.</div>`,
+                );
+                for (const row of $$("tbody tr", results)) row.addEventListener("click", () => openGuild(row.dataset.id, load));
+                bindPager(results, total, guildsState, load);
+            },
+            load,
         );
-        for (const row of $$("tbody tr", results)) row.addEventListener("click", () => openGuild(row.dataset.id, load));
-        bindPager(results, total, guildsState, load);
     };
 
-    $("#guild-search").addEventListener(
-        "input",
-        debounce((e) => {
-            guildsState.q = e.target.value.trim();
-            guildsState.offset = 0;
-            load();
-        }),
-    );
+    const search = debounce(load);
+    $("#guild-search", view).addEventListener("input", (e) => {
+        requests.cancel();
+        guildsState.q = e.target.value.trim();
+        guildsState.offset = 0;
+        search();
+    });
     await load();
 }
 

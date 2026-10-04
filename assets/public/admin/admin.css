@@ -1239,3 +1239,20 @@ nav a {
     cursor: pointer;
     font-weight: 600;
 }
+
+.list-search {
+    max-width: 420px;
+    min-width: min(260px, 100%);
+}
+.list-filter {
+    min-width: 170px;
+}
+.list-status {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    min-height: 32px;
+    margin-bottom: 8px;
+    font-variant-numeric: tabular-nums;
+}
