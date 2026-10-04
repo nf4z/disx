@@ -33,14 +33,16 @@
     cursor: pointer;
     font-size: 14px;
 }
-.fosscord-pride-option:hover {
-    background: var(--background-modifier-hover);
+@media (hover: hover) {
+    .fosscord-pride-option:hover {
+        background: var(--background-modifier-hover);
+    }
 }
 .fosscord-pride-option input {
     width: 18px;
     height: 18px;
     flex-shrink: 0;
-    accent-color: var(--brand-500);
+    accent-color: var(--button-filled-brand-background, var(--text-normal));
 }
 .fosscord-pride-option img {
     object-fit: contain;
@@ -58,8 +60,8 @@
     border: 0;
     border-radius: 4px;
     padding: 10px 14px;
-    color: var(--white-500, white);
-    background: var(--brand-500);
+    color: var(--button-filled-brand-text, var(--text-normal));
+    background: var(--button-filled-brand-background, var(--background-modifier-selected));
     font: inherit;
     cursor: pointer;
 }
@@ -69,6 +71,13 @@
 }
 .fosscord-pride input:focus-visible,
 .fosscord-pride button:focus-visible {
-    outline: 2px solid var(--brand-500);
+    outline: 2px solid var(--focus-primary, var(--text-normal));
     outline-offset: 2px;
+}
+
+.theme-light .fosscord-pride-option img {
+    outline-color: rgb(0 0 0 / 8%);
+}
+.fosscord-pride-actions button:not(:disabled):active {
+    scale: 0.97;
 }
