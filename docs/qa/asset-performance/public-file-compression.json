@@ -1,0 +1,55 @@
+{
+  "at": "2026-10-04T16:09:04.128Z",
+  "scope": "Local source-file compression and bounded cache lookup, 100 warm lookups per file/encoding; not production HTTP latency",
+  "node": "v26.9.0",
+  "rows": [
+    {
+      "file": "assets/public/e2ee/e2ee.js",
+      "raw_bytes": 363919,
+      "br": {
+        "bytes": 83821,
+        "reduction_percent": 77,
+        "cold_ms": 8.87,
+        "warm_p95_ms": 0.004
+      },
+      "gzip": {
+        "bytes": 91368,
+        "reduction_percent": 74.9,
+        "cold_ms": 7.38,
+        "warm_p95_ms": 0.002
+      }
+    },
+    {
+      "file": "assets/public/admin/admin.js",
+      "raw_bytes": 242253,
+      "br": {
+        "bytes": 48511,
+        "reduction_percent": 80,
+        "cold_ms": 3.96,
+        "warm_p95_ms": 0.017
+      },
+      "gzip": {
+        "bytes": 52886,
+        "reduction_percent": 78.2,
+        "cold_ms": 4.73,
+        "warm_p95_ms": 0.004
+      }
+    },
+    {
+      "file": "assets/public/developers/portal.js",
+      "raw_bytes": 126921,
+      "br": {
+        "bytes": 22844,
+        "reduction_percent": 82,
+        "cold_ms": 1.9,
+        "warm_p95_ms": 0.001
+      },
+      "gzip": {
+        "bytes": 24206,
+        "reduction_percent": 80.9,
+        "cold_ms": 2.16,
+        "warm_p95_ms": 0.002
+      }
+    }
+  ]
+}

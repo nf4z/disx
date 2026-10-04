@@ -24,6 +24,7 @@ import zlib from "node:zlib";
 import { createHash } from "node:crypto";
 import { pipeline } from "node:stream/promises";
 import { ClientAssetCompression, clientAssetVersion } from "./ClientAssetCompression";
+import { compressedStatic } from "../util/util/CompressedStatic";
 import {
     APP_THEME_COLOR,
     appIconPng,
@@ -157,7 +158,7 @@ export function TestClientAssets(app: Application) {
         return res.type("js").sendFile(path.join(ASSET_FOLDER_PATH, "public", "notifications", "sw.js"), { cacheControl: false, dotfiles: "allow" });
     });
     app.get("/e2ee/attachments/{*splat}", (req, res) => res.status(404).type("txt").send("This content is no longer available."));
-    app.use("/assets", express.static(path.join(ASSET_FOLDER_PATH, "public")));
+    app.use("/assets", compressedStatic(path.join(ASSET_FOLDER_PATH, "public")), express.static(path.join(ASSET_FOLDER_PATH, "public")));
     app.get("/assets/vencord/:file", (req, res, next) => void serveAsset(req, res, next, VENCORD_PATH, false).catch(next));
     app.use("/assets/vencord", express.static(VENCORD_PATH, noCache));
     app.use("/vendor/monaco", express.static(path.join(VENCORD_PATH, "vendor", "monaco"), noCache));

@@ -21,11 +21,12 @@ import path from "node:path";
 import express, { Router, Response, Request } from "express";
 import { route } from "@spacebar/api/middlewares";
 import { Config, PUBLIC_ASSETS_FOLDER } from "@spacebar/util";
+import { compressedStatic } from "../../util/util/CompressedStatic";
 
 const router = Router({ mergeParams: true });
 const PAGE_FOLDER = path.join(PUBLIC_ASSETS_FOLDER, "developers");
 
-router.use(express.static(PAGE_FOLDER, { index: false, redirect: false, setHeaders: (res) => res.set("Cache-Control", "no-cache") }));
+router.use(compressedStatic(PAGE_FOLDER), express.static(PAGE_FOLDER, { index: false, redirect: false, setHeaders: (res) => res.set("Cache-Control", "no-cache") }));
 
 router.get(
     "/docs{/*splat}",

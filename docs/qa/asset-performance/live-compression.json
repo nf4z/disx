@@ -1,0 +1,31 @@
+{
+  "sampled_at": "2026-10-04T16:27:34.282Z",
+  "origin": "http://localhost:3290",
+  "source_note": "Frozen compression + ANN + preparation preview on demo a008e9e68",
+  "results": [
+    {
+      "path": "/assets/e2ee/e2ee.js",
+      "source_bytes": 365113,
+      "wire_bytes": 84079,
+      "saved_percent": 77,
+      "status": 200,
+      "vary": "Accept-Encoding"
+    },
+    {
+      "path": "/admin/admin.js",
+      "source_bytes": 242253,
+      "wire_bytes": 48511,
+      "saved_percent": 80,
+      "status": 200,
+      "vary": "Accept-Encoding"
+    },
+    {
+      "path": "/developers/portal.js",
+      "source_bytes": 126921,
+      "wire_bytes": 22844,
+      "saved_percent": 82,
+      "status": 200,
+      "vary": "Accept-Encoding"
+    }
+  ]
+}
