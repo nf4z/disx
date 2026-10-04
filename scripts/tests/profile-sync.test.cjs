@@ -22,6 +22,12 @@ const fs = require("node:fs");
 const vm = require("node:vm");
 const ts = require("typescript");
 
+const badgeModule = { exports: {} };
+vm.runInNewContext(ts.transpileModule(fs.readFileSync("src/api/util/utility/prideBadges.ts", "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, {
+    exports: badgeModule.exports,
+    module: badgeModule,
+});
+
 const harness = () => {
     let handler;
     let getHandler;
@@ -89,6 +95,10 @@ const harness = () => {
                                     return query;
                                 },
                                 addSelect(columns) {
+                                    if (typeof columns === "string") {
+                                        assert.equal(columns, "user.pride_badges");
+                                        return query;
+                                    }
                                     assert.deepEqual(Array.from(columns), [
                                         "connected_accounts.id",
                                         "connected_accounts.type",
@@ -128,6 +138,7 @@ const harness = () => {
                             return [{ toPartialUser: () => ({ id: "mutual", username: "Shared friend" }) }];
                         },
                     },
+                    Badge: { find: async () => [{ id: "assigned", description: "Admin-assigned", icon: "assigned" }] },
                     Member: {
                         find: async () => {
                             reads.push("memberships");
@@ -166,6 +177,7 @@ const harness = () => {
                     emitEvent: async (event) => calls.push({ type: "self", event }),
                     broadcastUserUpdate: async (id) => calls.push({ type: "broadcast", id, public: user.toPublicUser() }),
                 };
+            if (name === "@spacebar/api/util/utility/prideBadges") return badgeModule.exports;
             if (name === "@spacebar/api/util/handlers/Application") return {};
             throw Error(name);
         },
@@ -325,4 +337,17 @@ test("profile hydration keeps connection visibility, metadata visibility and dec
     assert.equal(result.user.avatar_decoration_data.asset, "local-decoration");
     assert.equal(JSON.stringify(result).includes("access_token"), false);
     assert.equal(JSON.stringify(result).includes("private@example.invalid"), false);
+});
+
+test("ordinary profile appends selected pride flags without replacing assigned badges or exposing the selection column", async () => {
+    const h = harness();
+    h.user.pride_badges = ["transgender", "rainbow"];
+    h.user.badge_ids = ["assigned"];
+    const response = await h.get({}, "123");
+    assert.deepEqual(
+        Array.from(response.badges, (badge) => badge.description),
+        ["Admin-assigned", "Transgender", "Rainbow"],
+    );
+    assert.equal(response.user.pride_badges, undefined);
+    assert.deepEqual(h.user.badge_ids, ["assigned"]);
 });

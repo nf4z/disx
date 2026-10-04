@@ -1072,6 +1072,20 @@
                     "view_nsfw_guilds"
                 ]
             },
+            "PrideBadgesSchema": {
+                "type": "object",
+                "properties": {
+                    "flags": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "required": [
+                    "flags"
+                ]
+            },
             "GuildAvailableSchema": {
                 "type": "object",
                 "properties": {
@@ -13713,6 +13727,12 @@
                             }
                         ]
                     },
+                    "pride_badges": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
                     "profile_widgets": {
                         "anyOf": [
                             {
@@ -24644,6 +24664,58 @@
                 "responses": {
                     "default": {
                         "description": "No description available"
+                    }
+                },
+                "tags": [
+                    "api"
+                ]
+            }
+        },
+        "/api/users/@me/pride-badges/": {
+            "get": {
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No description available"
+                    }
+                },
+                "tags": [
+                    "api"
+                ]
+            },
+            "patch": {
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/PrideBadgesSchema"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "No description available"
+                    },
+                    "400": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/APIErrorResponse"
+                                }
+                            }
+                        }
                     }
                 },
                 "tags": [

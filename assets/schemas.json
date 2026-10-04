@@ -1111,6 +1111,22 @@
         ],
         "$schema": "http://json-schema.org/draft-07/schema#"
     },
+    "PrideBadgesSchema": {
+        "type": "object",
+        "properties": {
+            "flags": {
+                "type": "array",
+                "items": {
+                    "type": "string"
+                }
+            }
+        },
+        "additionalProperties": false,
+        "required": [
+            "flags"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+    },
     "GuildAvailableSchema": {
         "type": "object",
         "properties": {
@@ -14918,6 +14934,12 @@
                         "type": "null"
                     }
                 ]
+            },
+            "pride_badges": {
+                "type": "array",
+                "items": {
+                    "type": "string"
+                }
             },
             "profile_widgets": {
                 "anyOf": [

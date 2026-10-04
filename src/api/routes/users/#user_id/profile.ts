@@ -24,6 +24,8 @@ import { Badge, Member, Relationship, User } from "@spacebar/database";
 import { broadcastUserUpdate, Config, DiscordApiErrors, emitEvent, FieldErrors, handleFile, UserUpdateEvent } from "@spacebar/util";
 import { PartialConnectedAccountResponse, PrivateUserProjection, PublicUserProjection, RelationshipType, UserProfileModifySchema } from "@spacebar/schemas";
 
+import { prideBadges } from "@spacebar/api/util/utility/prideBadges";
+
 import { profileApplication } from "@spacebar/api/util/handlers/Application";
 
 const router: Router = Router({ mergeParams: true });
@@ -60,6 +62,7 @@ router.get("/", route({ responses: { 200: { body: "UserProfileResponse" } } }), 
             "connected_accounts.metadata_visibility",
             "connected_accounts.visibility",
         ])
+        .addSelect("user.pride_badges")
         .leftJoinAndSelect("user.avatar_decoration", "avatar_decoration")
         .where("user.id = :user_id", { user_id })
         .getOneOrFail();
@@ -112,6 +115,8 @@ router.get("/", route({ responses: { 200: { body: "UserProfileResponse" } } }), 
     const badges = [];
     if (user.premium_type > 0 && !user.hide_premium_badge) badges.push(premiumBadge(new Date(user.created_at)));
     if (user.badge_ids?.length) badges.push(...(await Badge.find({ where: { id: In(user.badge_ids) } })));
+
+    badges.push(...prideBadges(user.pride_badges));
 
     const connected_accounts: PartialConnectedAccountResponse[] = user.connected_accounts
         .filter((x) => x.visibility != 0)
