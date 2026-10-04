@@ -32,8 +32,10 @@ try {
         await page.locator('input[name="email"]').waitFor();
         const result = await page.evaluate(() => {
             const gateway = `ws://${location.host}`;
-            return { gateway, initial: window.GLOBAL_ENV.GATEWAY_ENDPOINT, alternate: window.GLOBAL_ENV.GATEWAY_ALT_ENDPOINT, resume: Vencord.Plugins.plugins.Fosscord.gateway() };
+            return { host: location.host, cdn: window.GLOBAL_ENV.CDN_HOST, media: window.GLOBAL_ENV.MEDIA_PROXY_ENDPOINT, gateway, initial: window.GLOBAL_ENV.GATEWAY_ENDPOINT, alternate: window.GLOBAL_ENV.GATEWAY_ALT_ENDPOINT, resume: Vencord.Plugins.plugins.Fosscord.gateway() };
         });
+        assert.equal(result.cdn, result.host);
+        assert.equal(result.media, `//${result.host}`);
         assert.equal(result.initial, result.gateway);
         assert.equal(result.alternate, result.gateway);
         assert.equal(result.resume, result.gateway);
@@ -58,7 +60,7 @@ try {
                 }),
         );
         assert.equal(JSON.parse(inflateSync(Buffer.from(bytes), { finishFlush: constants.Z_SYNC_FLUSH }).toString()).op, 10);
-        console.log(`PASS initial, alternate and reconnect use ${host}; compressed HELLO received`);
+        console.log(`PASS CDN, media, initial, alternate and reconnect use ${host}; compressed HELLO received`);
         await page.close();
     }
 } finally {
