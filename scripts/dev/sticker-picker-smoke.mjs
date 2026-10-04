@@ -82,6 +82,13 @@ try {
     });
     assert.equal(dm.status, 200);
     fixtureChannel = (await dm.json()).id;
+    const peerDm = await fetch(`${origin}/api/v9/users/@me/channels`, {
+        method: "POST",
+        headers: { authorization: recipient.token, "content-type": "application/json" },
+        body: JSON.stringify({ recipients: [viewer.id] }),
+    });
+    assert.equal(peerDm.status, 200);
+    assert.equal((await peerDm.json()).id, fixtureChannel);
     const createdGuild = await fetch(`${origin}/api/v9/guilds`, {
         method: "POST",
         headers: { authorization: viewer.token, "content-type": "application/json" },
@@ -124,6 +131,8 @@ try {
         await target.locator('button[type="submit"]').click();
         await target.getByRole("button", { name: "User Settings", exact: true }).waitFor({ timeout: 45000 });
         await target.goto(`${origin}/channels/@me/${fixtureChannel}`);
+        await target.bringToFront();
+        await target.locator('[contenteditable="true"][role="textbox"]').waitFor({ timeout: 45000 });
         await target.waitForFunction(() => window.__fosscordE2ee?.status?.()?.ready === true, null, { timeout: 45000 });
     };
     const peerContext = await browser.newContext();
@@ -176,7 +185,6 @@ try {
             console.log(JSON.stringify({ nativeStickerRender: format, localAsset: true }));
             return;
         }
-        const stickerLabel = await artwork.getAttribute("aria-label");
         const responsePromise = page.waitForResponse((r) => new URL(r.url()).pathname === `/api/v9/channels/${fixtureChannel}/messages` && r.request().method() === "POST", {
             timeout: 30000,
         });
@@ -187,16 +195,26 @@ try {
         }
         assert.equal(response.status(), 200);
         const message = await response.json();
-        assert.ok(typeof message.content === "string" && message.content.length > 0, "Encrypted envelope persisted");
-        const received = peer.getByRole("img", { name: new RegExp(`^${stickerLabel.split(",").slice(0, 2).join(",")}`) }).last();
-        await peer.screenshot({path:"/tmp/fosscord-sticker-recipient.png"});
-        console.log(JSON.stringify({receivedElements:await peer.locator("[class*=sticker],canvas,img[alt]").evaluateAll(nodes=>nodes.filter(n=>n.getBoundingClientRect().width>40).slice(-18).map(n=>({tag:n.tagName,role:n.getAttribute("role"),label:n.getAttribute("aria-label"),alt:n.getAttribute("alt"),className:n.className})))}));
+        assert.ok(message.encrypted?.ct, "Response carries an encrypted envelope");
+        const stored = (await db.query("SELECT encrypted FROM messages WHERE id=$1 AND channel_id=$2", [message.id, fixtureChannel])).rows[0];
+        assert.ok(stored?.encrypted?.ct, "Stored message retains an encrypted envelope");
+        await peer.bringToFront();
+        await peer.waitForFunction(
+            ({ channel, id, format }) => {
+                const record = window.Vencord.Webpack.Common.MessageStore.getMessage(channel, id);
+                return record?.stickerItems?.some((item) => item.format_type === format);
+            },
+            { channel: fixtureChannel, id: message.id, format },
+            { timeout: 30000 },
+        );
+        const received = peer.locator(`[id="chat-messages-${fixtureChannel}-${message.id}"]`);
         await received.waitFor({ timeout: 20000 });
-        if ([2, 3].includes(format)) await received.locator("canvas").waitFor();
+        if (format === 3) await received.locator("canvas").waitFor();
         else
-            await received.locator("img").evaluate((img) => {
+            await received.locator('img[src*="/stickers/"]').evaluate((img) => {
                 if (!img.complete || img.naturalWidth < 1) throw new Error("Received sticker did not decode");
             });
+        await peer.screenshot({ path: `/tmp/fosscord-sticker-received-${format}.png` });
         console.log(JSON.stringify({ nativeStickerSend: format, status: response.status(), persistedSticker: true }));
     };
     for (const [format, pack] of [
