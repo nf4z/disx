@@ -218,9 +218,21 @@ export class GuildInsights {
     static async retained(cohortDay: string, guildId?: string) {
         const rows: { guild_id: string; count: string }[] = await db().query(
             `SELECT "guild_id"::text AS "guild_id", count(*) AS "count" FROM "members" WHERE "joined_at" >= $1 AND "joined_at" < $2 ${guildId ? `AND "guild_id" = $3::bigint` : ""} GROUP BY "guild_id"`,
-            [new Date(dayStart(cohortDay)), new Date(dayStart(cohortDay) + DAY), ...(guildId ? [guildId] : [])],
+            [new Date(dayStart(cohortDay)).toISOString(), new Date(dayStart(cohortDay) + DAY).toISOString(), ...(guildId ? [guildId] : [])],
         );
         return new Map(rows.map((row) => [row.guild_id, Number(row.count)]));
+    }
+
+    static async retainedByDay(guildId: string, startDay: string, endDay: string) {
+        const rows: { day: string; count: string }[] = await db().query(
+            `SELECT to_char("cohort"."day", 'YYYY-MM-DD') AS "day", "cohort"."count" FROM (
+                SELECT "joined_at"::date AS "day", count(*) AS "count" FROM "members"
+                WHERE "guild_id" = $1::bigint AND "joined_at" >= $2 AND "joined_at" < $3
+                GROUP BY "joined_at"::date
+            ) AS "cohort"`,
+            [guildId, new Date(dayStart(startDay)).toISOString(), new Date(dayStart(endDay)).toISOString()],
+        );
+        return new Map(rows.map((row) => [row.day, Number(row.count)]));
     }
 
     static async write(rows: Row[]) {
@@ -305,6 +317,7 @@ export class GuildInsights {
             [guildId],
         );
 
+        const retentionDays: string[] = [];
         for (const [day, metrics] of days) {
             if (day > today) continue;
             if (!rolledDays.has(day) && day >= addDays(today, -2)) {
@@ -322,8 +335,11 @@ export class GuildInsights {
                 put(metrics, "voice_seconds", "", seconds);
                 put(metrics, "voice_seconds", session.channel_id, seconds);
             }
-            if (metrics.retained === undefined && day <= addDays(today, -8) && (metrics.joins?.[""] ?? 0) > 0)
-                put(metrics, "retained", "", (await GuildInsights.retained(day, guildId)).get(guildId) ?? 0, "set");
+            if (metrics.retained === undefined && day <= addDays(today, -8) && (metrics.joins?.[""] ?? 0) > 0) retentionDays.push(day);
+        }
+        if (retentionDays.length) {
+            const retained = await GuildInsights.retainedByDay(guildId, retentionDays[0], addDays(retentionDays[retentionDays.length - 1], 1));
+            for (const day of retentionDays) put(days.get(day)!, "retained", "", retained.get(day) ?? 0, "set");
         }
         return days;
     }
