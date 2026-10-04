@@ -1,0 +1,42 @@
+{
+    "sampled_at": "2026-10-04T08:47:20.618Z",
+    "origin": "http://localhost:3290",
+    "path": "/assets/vencord/vencord.js",
+    "cold_ms": 8.970082999999995,
+    "compressed_sha256": "8caa1214ddfd6b15271c71d82a41770cf6c7a1ed32a2dbf624a59425e09a22c6",
+    "results": [
+        {
+            "concurrency": 1,
+            "requests": 1000,
+            "requests_per_second": 3213.9945963944488,
+            "p95_ms": 0.5637920000000065,
+            "p99_ms": 0.8829589999999996,
+            "bytes": 253050000,
+            "statuses": {
+                "200": 1000
+            }
+        },
+        {
+            "concurrency": 8,
+            "requests": 1000,
+            "requests_per_second": 5544.330842152751,
+            "p95_ms": 2.483624999999961,
+            "p99_ms": 3.156708999999978,
+            "bytes": 253050000,
+            "statuses": {
+                "200": 1000
+            }
+        },
+        {
+            "concurrency": 32,
+            "requests": 1000,
+            "requests_per_second": 5261.050013514324,
+            "p95_ms": 7.527375000000006,
+            "p99_ms": 13.024999999999977,
+            "bytes": 253050000,
+            "statuses": {
+                "200": 1000
+            }
+        }
+    ]
+}

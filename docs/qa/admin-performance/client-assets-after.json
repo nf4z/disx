@@ -1,0 +1,38 @@
+{
+    "sampled_at": "2026-10-04T08:45:18.668Z",
+    "results": [
+        {
+            "concurrency": 1,
+            "requests": 100,
+            "requests_per_second": 1260.0951896067752,
+            "p95_ms": 0.5571249999999992,
+            "p99_ms": 1.1462079999999943,
+            "bytes": 25305000,
+            "statuses": {
+                "200": 100
+            }
+        },
+        {
+            "concurrency": 8,
+            "requests": 100,
+            "requests_per_second": 9073.415545736909,
+            "p95_ms": 1.6641249999999985,
+            "p99_ms": 2.301124999999999,
+            "bytes": 25305000,
+            "statuses": {
+                "200": 100
+            }
+        },
+        {
+            "concurrency": 32,
+            "requests": 100,
+            "requests_per_second": 7647.111498632738,
+            "p95_ms": 11.711375000000004,
+            "p99_ms": 11.963375,
+            "bytes": 25305000,
+            "statuses": {
+                "200": 100
+            }
+        }
+    ]
+}

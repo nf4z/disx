@@ -1,6 +1,6 @@
 # Instance administration and performance
 
-Checked locally on 2026-10-03 in a separate PostgreSQL database, with cached Discord client assets and generated development accounts. No production database or deployment was changed.
+Checked locally on 2026-10-04 in a separate PostgreSQL database, with cached Discord client assets and generated development accounts. No production database or deployment was changed.
 
 ## Dashboard
 
@@ -37,6 +37,19 @@ Message relation hydration on 25 rows from the same sparse fixture had median 8.
 
 Raw reports: [before](qa/admin-performance/overview-before.json), [matched after](qa/admin-performance/overview-after-comparison.json), [extended](qa/admin-performance/overview-extended.json), [other admin routes](qa/admin-performance/routes.json).
 
+The Vencord asset response now caches compressed bytes with a 16 MiB / 16-entry LRU, two concurrent compression jobs and an 8 MiB input limit. File identity and timestamps invalidate changed assets; oversized or saturated requests retain streaming compression. A matched HTTP benchmark downloaded and consumed the same 253,050-byte Brotli response 100 times at each concurrency level.
+
+| Vencord JavaScript HTTP   |           Before |              After |
+| ------------------------- | ---------------: | -----------------: |
+| Concurrency 1 throughput  |  71.7 requests/s | 1,260.1 requests/s |
+| Concurrency 32 throughput | 238.4 requests/s | 7,647.1 requests/s |
+| Concurrency 32 p95        |         141.5 ms |            11.7 ms |
+| Failed responses          |                0 |                  0 |
+
+The extended warmed run consumed 1,000 responses at each concurrency level and verified every compressed SHA-256 digest. Concurrency 32 reached 5,261.1 requests/s, p95 7.5 ms and p99 13.0 ms; all 3,000 requests succeeded. This short loopback benchmark measures local asset serving, not page rendering or remote network capacity. Reports: [before](qa/admin-performance/client-assets-before.json), [after](qa/admin-performance/client-assets-after.json), [extended](qa/admin-performance/client-assets-extended.json).
+
+Scheduled messages now claim work atomically with a renewable five-minute PostgreSQL lease, send without reserving a database connection, and acknowledge only their own claim. Delivery failures keep the original row; interrupted sends become eligible after lease expiry. Seven real PostgreSQL checks passed, including delivery with a one-connection pool, concurrent-worker exclusion, expiry recovery, stale acknowledgments and idempotent migration up/down. A crash after publishing but before acknowledgment can still cause a duplicate: this is at-least-once delivery. A separate empty-database migration attempt found a pre-existing missing `templates` table at `templateDeleteCascade1673609867556`; the new lease migration passes independently, but the complete fresh migration chain still needs repair.
+
 ## Audit coverage and fixes
 
 Twenty-five specialist review agents covered messages/search, authentication, gateway lifecycle/members/permissions, database indexes, background jobs, CDN/storage, voice, storefronts, optional integrations, client loading, encryption, bots/interactions and OpenAPI discovery. Additional implementation passes followed the reviews.
@@ -62,13 +75,13 @@ These are source-review findings, not verified fixes:
 
 - Gateway outbound/replay byte budgets, distributed resume state, bot intents, and lazy member lists beyond 5,000 members.
 - Concurrent message last-message/nonce ordering and very short search terms with expensive exact counts.
-- Crash-safe scheduled delivery and insights computation, bounded startup poll recovery, thread archiver overlap and fair purge scheduling.
+- Durable scheduled-message publish deduplication, insights computation, bounded startup poll recovery, thread archiver overlap and fair purge scheduling.
 - User listing/search indexes and database migration lock cleanup on exceptions.
 - CDN cache quotas, streaming large uploads, bounded ffmpeg queues and API-to-CDN upload deadlines.
 - SFU subscriber indexing instead of all-peer snapshots, replaced-track reader cancellation and H.264 negotiation compatibility. Microbenchmarks do not settle real audio/video capacity.
 - Process-local interaction records/timers prevent reliable horizontal scaling; entity permission resolution remains N+1, and remote HTTP interaction validation needs an end-to-end deadline.
 - Encryption backup failure markers, bounded plaintext caches, batching key lookups and negative-cache behavior.
-- Atomic Discord client asset publication, cached Vencord compression, and failure propagation in the client update/check tools.
+- Atomic Discord client asset publication and failure propagation in the client update/check tools.
 - OpenAPI discovery now finds 542 paths and 589 schemas, but still reports five routes without the route middleware, 21 unresolved response schemas and 261 missing response declarations.
 
 The broad dashboard has more coverage, but it does not yet expose every database field or solve every compatibility issue. Add controls deliberately with validation, rights checks, persistence and gateway event verification rather than a raw unrestricted database editor.
@@ -88,6 +101,7 @@ npm run build
 node --test scripts/dev/cdn-storage.test.cjs scripts/dev/gateway-lifecycle.test.cjs scripts/dev/gateway-permissions.test.cjs scripts/dev/openapi-discovery.test.cjs scripts/tests/*.test.cjs
 node -e 'require("dotenv").config({quiet:true}); process.env.MEMBER_REQUEST_DATABASE=process.env.DATABASE; require("./scripts/dev/gateway-members.test.cjs")'
 node -e 'require("dotenv").config({quiet:true}); process.env.READ_STATE_DATABASE=process.env.DATABASE; require("./scripts/tests/read-state-performance.test.cjs")'
+PORT=3290 node scripts/dev/client-assets-bench.mjs --requests 1000 --output asset-report.json
 PORT=3290 node scripts/dev/admin-api-test.mjs
 PORT=3290 node scripts/dev/admin-smoke.mjs
 PORT=3290 node scripts/dev/admin-bench.mjs --paths /admin --concurrency 1,8,32 --requests 1000 --output report.json
@@ -95,4 +109,6 @@ CHROME_PATH="/Applications/Brave Browser.app/Contents/MacOS/Brave Browser" PORT=
 PORT=3290 node scripts/dev/voice-probe.mjs --browser "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser"
 ```
 
-The API probe modifies and restores local fixture fields. The browser smoke saves an unchanged profile, verifies dirty-drawer protection and opens the channel editor. Benchmark requests are GET-only. The browser helpers require Playwright in the existing `~/.cache/fosscord-tools` tool environment.
+The API probe modifies and restores local fixture fields. The browser smoke saves an unchanged profile, verifies dirty-drawer protection and opens the channel editor. Benchmark requests are GET-only. The persistent demo is hosted at `http://localhost:3290/admin/` from `/tmp/fosscord-admin-perf`, managed by launchd service `zip.tiago.fosscord.demo`. Its generated login account is stored in that worktree’s ignored `scripts/dev/.test-account` file.
+
+The browser helpers require Playwright in the existing `~/.cache/fosscord-tools` tool environment.
