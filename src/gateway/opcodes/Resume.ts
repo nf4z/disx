@@ -30,7 +30,15 @@ export async function onResume(this: WebSocket, { d }: Payload) {
 
     if (!token || !previous || previous.resumedBy || !previous.resumeBuffer) return invalidate();
     const tokenData = await checkToken(token).catch(() => undefined);
-    if (tokenData?.user?.id !== previous.user_id || resumableSockets.get(session_id!) !== previous) return invalidate();
+    if (this.readyState !== this.OPEN) return;
+    if (tokenData?.user?.id !== previous.user_id) return invalidate();
+    const authSessionId = previous.session?.session_id;
+    const originalCredential = (value: string | undefined) => value?.replace(/^(?:Bot|Bearer) /, "");
+    const sameAuthSession = tokenData.session ? tokenData.session.session_id === authSessionId : originalCredential(token) === originalCredential(previous.accessToken);
+    if (!authSessionId || !sameAuthSession) return invalidate();
+    const authSession = await Session.findOne({ where: { session_id: authSessionId, user_id: previous.user_id }, select: { session_id: true, status: true } });
+    if (this.readyState !== this.OPEN) return;
+    if (!authSession || previous.resumedBy || resumableSockets.get(session_id!) !== previous) return invalidate();
 
     resumableSockets.delete(session_id!);
     clearTimeout(this.readyTimeout);
@@ -71,13 +79,12 @@ export async function onResume(this: WebSocket, { d }: Payload) {
     await Send(this, { op: OPCODES.Dispatch, t: "RESUMED", s: this.sequence++, d: {} });
 
     if (this.session) {
-        const stored = await Session.findOne({ where: { session_id: this.session.session_id }, select: { session_id: true, status: true } });
         this.session.last_seen = new Date();
         await Session.update(
             { session_id: this.session.session_id },
             { last_seen: this.session.last_seen, status: this.session.status, activities: this.session.activities, client_status: this.session.client_status },
         );
-        if (stored?.status === "offline" && this.session.status !== "offline") await broadcastPresence(this.user_id);
+        if (authSession.status === "offline" && this.session.status !== "offline") await broadcastPresence(this.user_id);
     }
     console.log(`[Gateway/${this.user_id}] RESUMED ${this.session_id} replaying ${missed.length} events from seq ${seq}`);
 }

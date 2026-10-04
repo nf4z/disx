@@ -799,7 +799,7 @@ export async function onIdentify(this: WebSocket, data: Payload) {
     );
 
     if (this.capabilities.has(Capabilities.FLAGS.AUTH_TOKEN_REFRESH) && tokenData.tokenVersion != CurrentTokenFormatVersion) {
-        d.auth_token = this.accessToken = (await generateToken(this.user_id))!;
+        d.auth_token = this.accessToken = (await generateToken(this.user_id, false, undefined, session))!;
     }
     // const buildReadyEventDataTime = taskSw.getElapsedAndReset();
 
