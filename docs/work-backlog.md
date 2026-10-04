@@ -16,11 +16,11 @@ This is the working queue for the continuing admin, app, compatibility and perfo
 | GIF-011                                     | GIF integration          | Shipped                                   | Provider selection in Settings; real Tenor results checked; live Klipy still requires a usable key.                   |
 | SEC-009/010                                 | Session integration      | Shipped                                   | Session-bound resume/refresh; exact revocation and cross-session denial checked live.                                 |
 | SEC-011/012                                 | Upload integration       | Shipped                                   | Upload authorization before body parsing; bounded pending and retained cloud staging.                                 |
-| SEC-013                                     | Storage queue            | Design retained; queued after sticker fix | Aggregate posted storage, including cloned/reused files and failed-delete accounting.                                 |
-| SEC-014/015                                 | Security queue           | Open                                      | Cloud conversion ownership and remaining general URL-fetch protections.                                               |
-| BRAND-001 through BRAND-005                 | iphone_signup            | Implementing                              | Exact supplied Meowcord artwork and default animation, preserving admin overrides.                                    |
-| STICKER-001/002                             | gif_providers            | Investigating                             | Reproduce native “Uh Oh!” and verify the repaired picker/send path.                                                   |
-| ANN-002 through ANN-005                     | private_e2ee_review      | Implementing                              | Persistent encrypted sender, durable bounded delivery and accurate counts, disposable recipient tests.                |
+| SEC-013                                     | Storage queue            | Inactive ledger/adapter shipped; inventory in progress | Aggregate posted storage, including cloned/reused files and failed-delete accounting.                                 |
+| SEC-014/015                                 | Security queue           | Open                                      | Cloud ownership shipped; bounded public-fetch integration pending.                                               |
+| BRAND-001 through BRAND-005 | Branding integration | Shipped | Exact supplied Meowcord artwork and default animation; Chromium/WebKit, reduced motion and native dark/light/mobile checked. |
+| STICKER-001/002                             | gif_providers            | Shipped                             | Reproduce native “Uh Oh!” and verify the repaired picker/send path.                                                   |
+| ANN-002 through ANN-005                     | private_e2ee_review      | Shipped                              | Persistent encrypted sender, durable bounded delivery and accurate counts, disposable recipient tests.                |
 | DEMO-001, DEMO-002                          | Root integration         | Verified                                  | Persistent HTTP/gateway demo; initial/resume URLs use location.host.                                                  |
 
 P0 means a reported crash, trapped flow or broken core interaction. P1 means active completeness, reliability or measured performance work. P2 means polish and consolidation. The task IDs remain stable when priorities change.
@@ -351,27 +351,27 @@ These are audit targets, not findings. Record a reproducible exploit or a concre
 
 - [x] **DEMO-002** Use `location.host` for both initial and resumed bundled-browser gateway connections. Real compressed HELLO checks passed on localhost and fosscord.localhost; HTTPS, ports and IPv6 URL checks passed.
 
-- [ ] **STICKER-001** Reproduce native sticker picker “Uh Oh!” and capture the failed endpoint/runtime error.
-- [ ] **STICKER-002** Fix the confirmed cause and verify ordinary stickers render and send using disposable fixtures.
+- [x] **STICKER-001** Reproduce native sticker picker “Uh Oh!” and capture the failed endpoint/runtime error.
+- [x] **STICKER-002** Fix the confirmed cause and verify ordinary stickers render and send using disposable fixtures.
 - [ ] **STICKER-003** Support independent sticker/emoji packs without requiring a guild, as previously requested.
 
 ## Branding archive (P1)
 
 Source supplied by the user: `/Users/tiago/Downloads/meowcord-logo.zip`. Preserve its exact cat paths, purple app tile, adaptive favicon and flip/whisker animation.
 
-- [ ] **BRAND-001** Vendor the supplied artwork locally and record provenance.
-- [ ] **BRAND-002** Use the supplied app tile for app/PWA icons and default avatars.
-- [ ] **BRAND-003** Replace fallback brand glyphs and favicon with the supplied SVGs.
-- [ ] **BRAND-004** Make the supplied spinner the default loading animation while preserving the admin's custom SVG override.
-- [ ] **BRAND-005** Check dark/light/mobile renders and reduced-motion behavior.
+- [x] **BRAND-001** Vendor the supplied artwork locally and record provenance.
+- [x] **BRAND-002** Use the supplied app tile for app/PWA icons and default avatars.
+- [x] **BRAND-003** Replace fallback brand glyphs and favicon with the supplied SVGs.
+- [x] **BRAND-004** Make the supplied spinner the default loading animation while preserving the admin's custom SVG override.
+- [x] **BRAND-005** Check dark/light/mobile renders and reduced-motion behavior.
 
 ## Announcement delivery (P0)
 
 - [x] **ANN-001** Trace reported delivery failure. The plaintext system-DM path conflicts with mandatory private-message encryption, and the background loop masks failure behind HTTP 201.
-- [ ] **ANN-002** Encrypt system announcements with a server-managed signed sender, without resetting recipient keys or allowing plaintext.
-- [ ] **ANN-003** Report queued, delivered and failed counts accurately.
-- [ ] **ANN-004** Bound fanout and preserve deletion/cancellation behavior.
-- [ ] **ANN-005** Verify only disposable recipients receive and decrypt the test announcement, including attachments.
+- [x] **ANN-002** Encrypt system announcements with a server-managed signed sender, without resetting recipient keys or allowing plaintext.
+- [x] **ANN-003** Report queued, delivered and failed counts accurately.
+- [x] **ANN-004** Bound fanout and preserve deletion/cancellation behavior.
+- [x] **ANN-005** Verify only disposable recipients receive and decrypt the test announcement, including attachments.
 
 ## Additional confirmed or source-level security findings
 
@@ -380,8 +380,10 @@ Source supplied by the user: `/Users/tiago/Downloads/meowcord-logo.zip`. Preserv
 - [x] **SEC-011** Enforce DM participant permission checks before attachment upload-slot creation.
 - [x] **SEC-012** Bound both unfinished and retained completed cloud staging, and remove bearer upload paths from logs.
 - [ ] **SEC-013** Add aggregate posted-storage/account/instance quotas; slot quotas alone do not bound cloned or posted files.
-- [ ] **SEC-014** Require sender/channel ownership when converting cloud uploads into message attachments.
+- [x] **SEC-014** Require sender/channel ownership when converting cloud uploads into message attachments. Shipped de707ef11; eight ownership/completion/permission regressions and full isolated E2EE suite passed.
 - [ ] **SEC-015** Fix DNS rebinding and byte bounds in general public URL fetching, webhook avatars and embeds; the component-media fix does not cover these paths.
+
+- [x] **SEC-016** Bound aggregate CDN upload memory/concurrency or stream to storage: a configured500 MiB per-file cap and staging quota still allow several authenticated buffered requests to exhaust process memory. Existing body authorization does not solve this.
 
 ## Progress ledger
 
@@ -415,3 +417,45 @@ The initial queue contains 200 open acceptance targets across 15 workstreams, pl
 Use `/tmp/fosscord-admin-perf`, `fosscord_codex_admin` and localhost port 3290 for the persistent demo. The production checkout's private `.env` is not a test database. Never clear global rate limits or reset another account to make a probe pass. Use disposable accounts and restore fixtures in awaited cleanup.
 
 A source review, unit fixture, live API check and browser render answer different questions; record the evidence actually obtained. Run the client patch checker for plugin changes, scoped builds/lint/formatting for source changes, and required integration probes for the touched subsystem. Load tests must state fixture size, concurrency, duration, revision and host limits. Preserve credentials, key files, recovery codes and browser profiles outside version control.
+
+Branding batch `a008e9e68`: exact supplied paths and PWA512 pixels, six avatar checks, adaptive favicon, custom loading overrides and reduced motion passed in Chromium/WebKit. Genuine native loading renders passed dark/light/390px. Client checker passed39s and normal bundle rebuilt. Login sessions revoked; no keys/settings changed.
+
+Current profiling owner: iphone_signup now owns admin user-list measurements; parallel session owns asset loading. Sticker artwork provisioning and encrypted durable announcement delivery retain their respective owners.
+
+### Suspension enforcement follow-up
+
+- [x] **SEC-017** Make account standing Suspended a durable, reversible account ban. Acceptance: standing500 blocks user/bot/OAuth tokens, pending login-token issuance and owned webhook sends; active sessions close; account/history remain; admin reversal restores login. Source freeze2026-10-04: six isolated execution regressions pass in `scripts/tests/account-suspension.test.cjs` (cached JWT, OAuth, token issuance, target-only revocation/self-protection, gateway close opcode4006, webhook owner/reversal). Scoped source ESLint and Prettier pass. Integration build, disposable-account real API/gateway proof and required E2EE integration remain with root; no source-only completion claim.
+
+Host follow-up `f00e0cdce`: CDN/media/asset environment now uses browser host too; legacy instance-local asset URLs follow browser origin. Five focused tests and real compressed gateway/CDN environment checks passed on localhost and fosscord.localhost. The parallel session also verified the supplied clan badge actually loaded under a simulated remote hostname.
+
+User-list profiling `591d5108d`: retained current implementation; hydration is about0.06 ms per50-user page, alternatives gave mixed small gains and lost short-page count optimization. Guarded read-only profiler and sanitized reports committed.
+
+## Parallel-session delivery and continuing queue (2026-10-04)
+
+- [x] **ADM-015** Ship the Official inbox for one specific user. Source implemented: OPERATOR-only no-store routes, signed-envelope verification/decryption restricted to the persisted exact official DM, encrypted text send, audit actor/target/message ID, dashboard target/history/older pages/refresh/composer, profile link and narrowly scoped native Official reply patch. Eight focused crypto/route/native-patch checks pass. Coordinated source/schema build and canonical native checker pass. Real disposable native/dashboard roundtrip passed2026-10-04: admin send201 → native decrypt → native reply200 → admin verified read; MANAGE_USERS-only GET/POST403, ciphertext-only storage, metadata-only audit, zero page errors; fixtures cleaned. Evidence docs/qa/official-inbox/live-proof.json and screenshots. Shipped7b126a792; nineteen focused checks and full isolated E2EE suite passed326.5s (one native UI retry). Attachment names are shown; downloads remain a separate task.
+- [ ] **ADM-016** Add authenticated downloads of official-DM attachments. Validate exact official membership and signed attachment metadata; stream decrypted bytes with no-store and filename safety; never return file keys to dashboard JSON. Test roundtrip and copied attachment/channel rejection.
+- [ ] **ADM-017** Add official-send idempotency and ambiguous-network-result handling. Bind a stable request/message ID to operator/target/body fingerprint; retries must return the existing message without duplicate sends or altered-body acceptance.
+- [ ] **PERF-017** Integrate bounded compression for public E2EE/admin/portal files. Four real isolated HTTP cases pass including quality negotiation, HEAD/304, atomic replacement, ranges, symlink rejection and concurrency admission. Actual source Brotli reductions: E2EE77%, admin80%, portal82%; report docs/qa/asset-performance/public-file-compression.json. Remaining: coordinated demo build and live response headers/body measurement.
+- [ ] **ENC-015** Integrate private-chat preparation fixes. Nonblocking attachment worker, native HTTP15s deadline/no hidden retries, immediate trusted-browser Unlock action, coalesced member UI loading with stale-navigation suppression and failure backoff.19 scoped checks and client TypeScript pass. Remaining: bundle build, full E2EE suite and browser locked/unlocked/offline navigation proof.
+- [ ] **QA-015** Capture official inbox narrow/mobile/keyboard render and real encrypted roundtrip evidence after integration. Verify drafts survive failed send and unsent draft navigation prompts.
+- [ ] **PERF-018** Profile official history reads before larger transcript pages. Current pages20; helper deliberately verifies each persisted envelope and managed sender. Measure query count and identity/key reads; optimize without removing per-message membership/signature validation.
+
+Three simpler tasks were assigned to the Grok CLI and completed as bounded read-only reviews: public compression edge cases, preparation-stall source paths, and backlog triage/official-DM decomposition. Reviewed reports remain outside source in /tmp/meowcord-grok-tasks. Its compression findings led to explicit identity;q=0/IMS-only fixes; its UI stale-response finding led to the channel loader. Its claim of duplicate Engine network requests was checked and rejected because Engine already coalesces them. Proposed next small tasks: CAP-008 deterministic proof-expiry edges, ADM-008 labels/status copy audit, FLAG-008 independent feature-flag documentation, QA-004 cleanup assertions and GIF-005 bounded provider-error cases. Existing task IDs and acceptance criteria above remain authoritative; these are proposals, not completion claims.
+
+Root sticker acceptance: artwork fix37bc36e9d and native send proof260230316 pushed main. All361 assets served locally; real Lottie/APNG/custom PNG tile sends returned200, recipient decrypted exact formats and rendered actual artwork; persisted envelopes encrypted. Fixtures cleaned. Independent packs STICKER-003 remains open.
+
+2026-10-04 root integration: upload buffering6a5c1f3bf and reversible suspensiona13fc8eff pushed main. Full disposable E2EE suite passed293.6s on integrated demo; upload16focused checks and suspension6checks passed. Native suspension proof revoked both target sessions/gateways, preserved witness access, blocked suspended login/JWT/OAuth and preserved encrypted history after reversal. Quota SEC-013 remains incomplete: isolated17-test ledger scaffolding is frozen, adapters/all writers/inventory still required. Native client reporter timeout remains under independent diagnosis; no reporter-pass claim yet.
+
+2026-10-04 announcements2343ad93c and private preparation4ce6b08c3 pushedmain; sender crypto/concurrency8checks, realPG5checks, selected disposable native decryptedtext+byteidenticalSWattachment/deliveredcount1 passed; fullE2EE293.6s passed. Announcement native text-file preview placeholder remains ANN-006 polish. Canonical native reporter passed38s build627798/allgroupsOK/noerrors; initial timeout not reproduced. SEC-013 stage1 ledger3822e0ca2/rootrealPG17checks passed, inactive until adapters/allwriters/inventory; strictlocaladapter isnext.
+
+- [ ] **ANN-006** Finish native announcement file preview and inline image/video dimensions/duration parity; decrypted original filename and filebytes already verified.
+
+- [ ] **QA-016** Audit default/profile badge artwork availability without runtime upstream dependencies. User IMG_6589.webp Staff placeholder traced to absent canonical5e74e9b61934fc1f67c65515d1f7e60d.png; exact72×72 artwork now bundled and live demo decode/HTTP200 verified. Integrate asset, then sample each configured/default badge on current deployment; retain custom images and do not broadly enable upstream fetching.
+
+- [ ] **ADM-018** Repair support actions in encrypted Official safety DMs. Confirmed raw embed-field dump and empty CTA for standing overrides without a violation. Source implements human-readable header/body, Account Standing action, safe Learn more URLs, old encrypted field-dump repair, and exact same-origin native settings navigation.16 focused sender/CTA checks and19 private/startup checks pass; E2EE TypeScript and scoped lint pass. Remaining: coordinated sender/client/E2EE integration and guarded native new/legacy DM click proof via SAFETY_CTA_SMOKE=1 scripts/dev/safety-cta-smoke.mjs. No key/history migration or plaintext fallback.
+
+2026-10-04 integration checkpoint: main98a91bc4e includes inactive strict local quota adapter (14 isolated checks), Staff artworkdcbbf6c72, Official inbox7b126a792 and same-origin encrypted attachment registry09a622513. Demo source build,/login200 and opened-host initial/alternate/reconnect gateway HELLO passed. SEC-013 enforcement remains disabled pending inventory, metadata lifecycle and every writer; no existing files or identities reset.
+
+- [ ] **PERF-019** Reduce Official history request work without cross-request key/identity caching. Baseline twenty-message GET p50=212.94ms/p95=341.99ms; request-local four-worker batch passes eleven crypto/route regressions. Live after measurement and final integration pending; see docs/qa/official-inbox/history-performance.md.
+
+SEC-015 source review: DNS-pinned bounded transport, redirect credential stripping, local bounded embed probes and remote-avatar external policy pass29 focused tests plus source compilation. Live integration/full E2EE pending; ActivityHost and interaction transports remain separate unresolved paths.
