@@ -9,7 +9,7 @@ const base = `http://localhost:${port}`;
 const api = `${base}/api/v9`;
 
 const accounts = Object.fromEntries(
-    readFileSync(new URL("./.test-account", import.meta.url), "utf8")
+    readFileSync(process.env.TEST_ACCOUNT_FILE || new URL("./.test-account", import.meta.url), "utf8")
         .trim()
         .split("\n")
         .map((l) => l.split("=")),
@@ -294,8 +294,15 @@ await check("messages", "reply with mention", async () => {
     return { ok: r.body?.type === 19 && r.body?.referenced_message?.id === msg.id && r.body?.mentions?.some((u) => u.id === me.id), note: `type=${r.body?.type}` };
 });
 await check("messages", "forward", async () => {
-    const r = await call("POST", `/channels/${dm.id}/messages`, A, { message_reference: { type: 1, message_id: msg.id, channel_id: text.id, guild_id: guild.id } });
-    return { ok: r.status === 200 && r.body?.message_snapshots?.length === 1, note: `${r.status} ${JSON.stringify(r.body).slice(0, 150)}` };
+    const temporary = globalThis.gdm ? null : await call("POST", `/guilds/${guild.id}/channels`, A, { name: "probe-forward", type: 0 });
+    if (temporary && !temporary.body?.id) return st(temporary, 201, 200);
+    const destination = globalThis.gdm ?? temporary.body.id;
+    try {
+        const r = await call("POST", `/channels/${destination}/messages`, A, { message_reference: { type: 1, message_id: msg.id, channel_id: text.id, guild_id: guild.id } });
+        return { ok: r.status === 200 && r.body?.message_snapshots?.length === 1, note: `${r.status} ${JSON.stringify(r.body).slice(0, 150)}` };
+    } finally {
+        if (temporary) await call("DELETE", `/channels/${destination}`, A);
+    }
 });
 await check("messages", "reactions and super reactions", async () => {
     const a = await call("PUT", `/channels/${text.id}/messages/${msg.id}/reactions/${encodeURIComponent("👍")}/@me`, B);
@@ -1026,6 +1033,10 @@ await check("servers", "member applications with manual review", async () => {
     };
 });
 
-for (const r of results) console.log(`${r.ok ? "PASS" : r.skip ? "SKIP" : "FAIL"} [${r.area}] ${r.name}${r.note ? ` :: ${r.note}` : ""}`);
+const safeNote = (note) =>
+    String(note)
+        .replace(/("(?:token|access_token|refresh_token|password|secret|recovery_code)"\s*:\s*)"(?:\\.|[^"\\])*(?:"|$)/gi, '$1"[redacted]"')
+        .replace(/([?&](?:code|token|access_token|password|secret)=)[^&\s]*/gi, "$1[redacted]");
+for (const r of results) console.log(`${r.ok ? "PASS" : r.skip ? "SKIP" : "FAIL"} [${r.area}] ${r.name}${r.note ? ` :: ${safeNote(r.note)}` : ""}`);
 console.log(`${results.filter((r) => r.ok).length} passed, ${results.filter((r) => r.skip).length} skipped, ${results.filter((r) => !r.ok && !r.skip).length} failed`);
-process.exit(0);
+process.exit(results.some((r) => !r.ok && !r.skip) ? 1 : 0);
