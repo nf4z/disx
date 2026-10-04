@@ -24,7 +24,9 @@ const ts = require("typescript");
 
 const harness = () => {
     let handler;
+    let getHandler;
     const calls = [];
+    const reads = [];
     const user = {
         id: "123",
         bio: "before",
@@ -33,10 +35,20 @@ const harness = () => {
         theme_colors: [1, 2],
         accent_color: 1,
         profile_collectibles: [],
+        connected_accounts: [
+            { id: "shown", type: "test", name: "visible", visibility: 1, metadata_visibility: 0 },
+            { id: "hidden", visibility: 0 },
+        ],
+        bot: false,
+        premium_type: 0,
+        badge_ids: [],
         email: "private@example.invalid",
         internal_secret: "must not leave entity",
         toPublicUser() {
             return { id: this.id, bio: this.bio, pronouns: this.pronouns, banner: this.banner, accent_color: this.accent_color, theme_colors: this.theme_colors };
+        },
+        toPartialUser() {
+            return this.toPublicUser();
         },
         toPrivateUser() {
             return { ...this.toPublicUser(), email: this.email };
@@ -55,7 +67,9 @@ const harness = () => {
             if (name === "express")
                 return {
                     Router: () => ({
-                        get() {},
+                        get(_path, _options, fn) {
+                            getHandler = fn;
+                        },
                         patch(_path, _options, fn) {
                             handler = fn;
                         },
@@ -63,8 +77,80 @@ const harness = () => {
                 };
             if (name === "typeorm") return { In: (ids) => ids };
             if (name === "@spacebar/api/middlewares") return { route: (options) => options };
-            if (name === "@spacebar/database") return { User: { findOneOrFail: async () => user } };
-            if (name === "@spacebar/schemas") return { PrivateUserProjection: ["id", "bio", "pronouns", "email", "banner", "theme_colors", "accent_color"] };
+            if (name === "@spacebar/database")
+                return {
+                    User: {
+                        createQueryBuilder: (alias) => {
+                            assert.equal(alias, "user");
+                            const query = {
+                                leftJoin(relation, alias) {
+                                    assert.equal(relation, "user.connected_accounts");
+                                    assert.equal(alias, "connected_accounts");
+                                    return query;
+                                },
+                                addSelect(columns) {
+                                    assert.deepEqual(Array.from(columns), [
+                                        "connected_accounts.id",
+                                        "connected_accounts.type",
+                                        "connected_accounts.name",
+                                        "connected_accounts.verified",
+                                        "connected_accounts.metadata_",
+                                        "connected_accounts.metadata_visibility",
+                                        "connected_accounts.visibility",
+                                    ]);
+                                    return query;
+                                },
+                                leftJoinAndSelect(relation, alias) {
+                                    assert.equal(relation, "user.avatar_decoration");
+                                    assert.equal(alias, "avatar_decoration");
+                                    return query;
+                                },
+                                where(condition, parameters) {
+                                    assert.equal(condition, "user.id = :user_id");
+                                    query.userId = parameters.user_id;
+                                    return query;
+                                },
+                                async getOneOrFail() {
+                                    reads.push("user");
+                                    if (query.userId === "missing") throw Error("missing user");
+                                    return user;
+                                },
+                            };
+                            return query;
+                        },
+                        findOneOrFail: async (options) => {
+                            reads.push("user");
+                            if (options.where.id === "missing") throw Error("missing user");
+                            return user;
+                        },
+                        find: async () => {
+                            reads.push("mutual-users");
+                            return [{ toPartialUser: () => ({ id: "mutual", username: "Shared friend" }) }];
+                        },
+                    },
+                    Member: {
+                        find: async () => {
+                            reads.push("memberships");
+                            return [{ guild_id: "shared", nick: "visible nickname", premium_since: null }];
+                        },
+                        findOne: async () => {
+                            reads.push("guild-member");
+                            return { roles: [{ id: "shared" }, { id: "role" }], toPublicMember: () => ({ nick: "visible nickname" }), toPublicUser: () => ({ bio: "guild bio" }) };
+                        },
+                    },
+                    Relationship: {
+                        find: async ({ where }) => {
+                            reads.push("friends");
+                            return [{ to_id: "mutual" }, { to_id: where.from_id === "123" ? "mine-only" : "theirs-only" }];
+                        },
+                    },
+                };
+            if (name === "@spacebar/schemas")
+                return {
+                    RelationshipType: { FRIEND: 1 },
+                    PublicUserProjection: ["id", "username"],
+                    PrivateUserProjection: ["id", "bio", "pronouns", "email", "banner", "theme_colors", "accent_color"],
+                };
             if (name === "@spacebar/api/util")
                 return {
                     profileMetadata: (source) => source.toPublicUser(),
@@ -87,6 +173,19 @@ const harness = () => {
     return {
         user,
         calls,
+        reads,
+        get: async (query = {}, id = "@me") => {
+            let result;
+            await getHandler(
+                { user_id: "123", params: { user_id: id }, query },
+                {
+                    json: (value) => {
+                        result = value;
+                    },
+                },
+            );
+            return result;
+        },
         run: async (body, id = "@me") => {
             let result;
             await handler(
@@ -147,4 +246,83 @@ test("invalid and unauthorized profile updates do not persist or broadcast", asy
         await assert.rejects(run(body, id));
         assert.deepEqual(calls, []);
     }
+});
+
+const mutualQuery = { with_mutual_guilds: "true", with_mutual_friends: "true", with_mutual_friends_count: "true" };
+
+test("self profile flags return empty mutual results without redundant guild or friendship reads", async () => {
+    for (const id of ["@me", "123"]) {
+        const { get, reads } = harness();
+        const profile = await get(mutualQuery, id);
+        assert.deepEqual(reads, ["user", "memberships"]);
+        assert.equal(profile.mutual_guilds.length, 0);
+        assert.equal(profile.mutual_friends.length, 0);
+        assert.equal(profile.mutual_friends_count, 0);
+        assert.equal(profile.connected_accounts.length, 1);
+        assert.equal(profile.connected_accounts[0].id, "shown");
+        assert.equal(profile.connected_accounts[0].metadata, undefined);
+        assert.equal(profile.user.email, undefined);
+    }
+});
+
+test("self profile optimization retains existence checks and requested guild profile hydration", async () => {
+    const { get, reads } = harness();
+    const profile = await get({ ...mutualQuery, guild_id: "shared" });
+    assert.deepEqual(reads, ["user", "memberships", "guild-member"]);
+    assert.equal(profile.guild_member_profile.bio, "guild bio");
+    assert.deepEqual(Array.from(profile.guild_member.roles), ["role"]);
+    const missing = harness();
+    await assert.rejects(missing.get(mutualQuery, "missing"), /missing user/);
+    assert.deepEqual(missing.reads, ["user"]);
+});
+
+test("other user mutual results retain intersection queries and public projections", async () => {
+    const { get, reads } = harness();
+    const profile = await get(mutualQuery, "456");
+    assert.deepEqual(reads, ["user", "memberships", "memberships", "friends", "friends", "mutual-users"]);
+    assert.equal(profile.mutual_guilds.length, 1);
+    assert.equal(profile.mutual_guilds[0].guild_id, undefined);
+    assert.equal(profile.mutual_guilds[0].id, "shared");
+    assert.equal(profile.mutual_friends.length, 1);
+    assert.equal(profile.mutual_friends[0].id, "mutual");
+    assert.equal(profile.mutual_friends[0].email, undefined);
+    assert.equal(profile.mutual_friends_count, 1);
+});
+
+test("unrequested mutual fields stay absent and perform no extra reads", async () => {
+    const { get, reads } = harness();
+    const profile = await get();
+    assert.deepEqual(reads, ["user", "memberships"]);
+    assert.equal(Object.hasOwn(profile, "mutual_guilds"), false);
+    assert.equal(Object.hasOwn(profile, "mutual_friends"), false);
+    assert.equal(Object.hasOwn(profile, "mutual_friends_count"), false);
+});
+
+test("profile hydration keeps connection visibility, metadata visibility and decoration response boundaries", async () => {
+    const { get, user } = harness();
+    user.connected_accounts = [
+        {
+            id: "public",
+            type: "test",
+            name: "Visible",
+            verified: true,
+            visibility: 1,
+            metadata_visibility: 1,
+            metadata_: { public: "shown" },
+            token_data: { access_token: "private" },
+        },
+        { id: "private", type: "test", name: "Hidden", visibility: 0, metadata_visibility: 1, metadata_: { private: "hidden" } },
+        { id: "no-metadata", type: "test", name: "Visible without metadata", visibility: 1, metadata_visibility: 0, metadata_: { private: "hidden" } },
+    ];
+    user.avatar_decoration = { toJSON: () => ({ asset: "local-decoration", sku_id: "456" }) };
+    user.toPartialUser = () => ({ ...user.toPublicUser(), avatar_decoration_data: user.avatar_decoration.toJSON() });
+    const result = await get({}, "456");
+    const accounts = JSON.parse(JSON.stringify(result.connected_accounts));
+    assert.deepEqual(accounts, [
+        { id: "public", type: "test", name: "Visible", verified: true, metadata: { public: "shown" } },
+        { id: "no-metadata", type: "test", name: "Visible without metadata", verified: false },
+    ]);
+    assert.equal(result.user.avatar_decoration_data.asset, "local-decoration");
+    assert.equal(JSON.stringify(result).includes("access_token"), false);
+    assert.equal(JSON.stringify(result).includes("private@example.invalid"), false);
 });

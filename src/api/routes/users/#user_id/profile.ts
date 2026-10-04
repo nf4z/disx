@@ -49,21 +49,20 @@ router.get("/", route({ responses: { 200: { body: "UserProfileResponse" } } }), 
     const { guild_id, with_mutual_guilds, with_mutual_friends, with_mutual_friends_count } = req.query as Record<string, string | undefined>;
     const { user_id } = req.params as { [key: string]: string };
 
-    const user = await User.findOneOrFail({
-        where: { id: user_id },
-        relations: { connected_accounts: true, avatar_decoration: true },
-        select: {
-            connected_accounts: {
-                id: true,
-                type: true,
-                name: true,
-                verified: true,
-                metadata_: true,
-                metadata_visibility: true,
-                visibility: true,
-            },
-        },
-    });
+    const user = await User.createQueryBuilder("user")
+        .leftJoin("user.connected_accounts", "connected_accounts")
+        .addSelect([
+            "connected_accounts.id",
+            "connected_accounts.type",
+            "connected_accounts.name",
+            "connected_accounts.verified",
+            "connected_accounts.metadata_",
+            "connected_accounts.metadata_visibility",
+            "connected_accounts.visibility",
+        ])
+        .leftJoinAndSelect("user.avatar_decoration", "avatar_decoration")
+        .where("user.id = :user_id", { user_id })
+        .getOneOrFail();
 
     const memberships = await Member.find({ where: { id: user_id }, select: { guild_id: true, nick: true, premium_since: true } });
     const premium_guild_since = memberships
@@ -73,18 +72,24 @@ router.get("/", route({ responses: { 200: { body: "UserProfileResponse" } } }), 
 
     let mutual_guilds: { id: string; nick: string | null }[] | undefined;
     if (with_mutual_guilds === "true") {
-        const own = new Set((await Member.find({ where: { id: req.user_id }, select: { guild_id: true } })).map((x) => x.guild_id));
-        mutual_guilds = user_id === req.user_id ? [] : memberships.filter((x) => own.has(x.guild_id)).map((x) => ({ id: x.guild_id, nick: x.nick ?? null }));
+        mutual_guilds = [];
+        if (user_id !== req.user_id) {
+            const own = new Set((await Member.find({ where: { id: req.user_id }, select: { guild_id: true } })).map((x) => x.guild_id));
+            mutual_guilds = memberships.filter((x) => own.has(x.guild_id)).map((x) => ({ id: x.guild_id, nick: x.nick ?? null }));
+        }
     }
 
     let mutual_friends;
     let mutual_friends_count;
     if (with_mutual_friends === "true" || with_mutual_friends_count === "true") {
-        const [mine, theirs] = await Promise.all(
-            [req.user_id, user_id].map((from_id) => Relationship.find({ where: { from_id, type: RelationshipType.FRIEND }, select: { to_id: true } })),
-        );
-        const theirIds = new Set(theirs.map((x) => x.to_id));
-        const mutualIds = user_id === req.user_id ? [] : mine.map((x) => x.to_id).filter((x) => theirIds.has(x));
+        let mutualIds: string[] = [];
+        if (user_id !== req.user_id) {
+            const [mine, theirs] = await Promise.all(
+                [req.user_id, user_id].map((from_id) => Relationship.find({ where: { from_id, type: RelationshipType.FRIEND }, select: { to_id: true } })),
+            );
+            const theirIds = new Set(theirs.map((x) => x.to_id));
+            mutualIds = mine.map((x) => x.to_id).filter((x) => theirIds.has(x));
+        }
         mutual_friends_count = mutualIds.length;
         if (with_mutual_friends === "true")
             mutual_friends = mutualIds.length
