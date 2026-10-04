@@ -18,7 +18,7 @@
 
 import { Session } from "@spacebar/database";
 import { WebSocket, Payload } from "@spacebar/gateway";
-import { broadcastPresence, sanitizeActivities } from "@spacebar/util";
+import { broadcastPresence, emitSessionsReplace, sanitizeActivities } from "@spacebar/util";
 import { ActivitySchema, PrivateStatus } from "@spacebar/schemas";
 import { check } from "./instanceOf";
 
@@ -66,4 +66,7 @@ async function savePresence(this: WebSocket) {
         { status: this.session.status, activities: this.session.activities, client_status: this.session.client_status, last_seen: this.session.last_seen },
     );
     await broadcastPresence(this.user_id);
+    // Your own sessions list is how your client learns the status of each of your devices (the platform indicators on
+    // your own profile read it), and it only changes when the server sends it again.
+    await emitSessionsReplace(this.user_id);
 }
