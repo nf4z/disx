@@ -1,6 +1,6 @@
 /*
 	Spacebar: A FOSS re-implementation and extension of the Discord.com backend.
-	Copyright (C) 2023 Spacebar and Spacebar Contributors
+	Copyright (C) 2026 Spacebar and Spacebar Contributors
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU Affero General Public License as published
@@ -16,15 +16,18 @@
 	along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-import { route } from "@spacebar/api/middlewares";
-import { listUserIdentities } from "@spacebar/api/util/handlers/ApplicationWidgets";
 import { Request, Response, Router } from "express";
+import { route } from "@spacebar/api/middlewares";
+import { findWidgetApplications } from "@spacebar/api/util/handlers/ApplicationWidgets";
+import { DiscordApiErrors } from "@spacebar/util";
 
 const router = Router({ mergeParams: true });
 
-router.get("/", route({ responses: { 200: {} } }), async (req: Request, res: Response) => {
-    const userId = req.params.user_id === "@me" ? req.user_id : (req.params.user_id as string);
-    res.json({ identities: await listUserIdentities(userId) });
+// Widget data is pushed by the application and read on every profile fetch, so there's nothing to refresh.
+router.post("/", route({ responses: { 204: {}, 404: { body: "APIErrorResponse" } } }), async (req: Request, res: Response) => {
+    const [app] = await findWidgetApplications({ id: req.params.application_id as string }, 1);
+    if (!app) throw DiscordApiErrors.UNKNOWN_APPLICATION;
+    res.sendStatus(204);
 });
 
 export default router;

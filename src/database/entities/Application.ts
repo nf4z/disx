@@ -29,6 +29,34 @@ export interface ApplicationAsset {
     type: number;
 }
 
+export interface ApplicationWidgetField {
+    value_type: "data" | "custom_string" | "application_asset";
+    presentation_type: "text" | "number" | "image" | "duration";
+    value: string;
+    fallback?: Omit<ApplicationWidgetField, "fallback"> | null;
+}
+
+export interface ApplicationWidgetSurface {
+    layout: string;
+    components: Record<string, { fields: Record<string, ApplicationWidgetField> }>;
+}
+
+export interface ApplicationWidgetAsset {
+    key: string;
+    asset_id: string;
+    width: number;
+    height: number;
+    is_animated: boolean;
+    updated_at: string;
+}
+
+export interface ApplicationWidgetConfig {
+    config_id: string;
+    surfaces: Partial<Record<string, ApplicationWidgetSurface>>;
+    assets: ApplicationWidgetAsset[];
+    updated_at: string;
+}
+
 @Entity({
     name: "applications",
 })
@@ -138,6 +166,13 @@ export class Application extends BaseClass {
 
     @Column({ type: "jsonb", default: [] })
     assets: ApplicationAsset[];
+
+    @Column({ type: "jsonb", nullable: true, select: false })
+    widget_config?: ApplicationWidgetConfig | null;
+
+    // lets people who aren't the owner put the widget on their profile
+    @Column({ default: false })
+    widget_public: boolean = false;
 
     //just for us
 

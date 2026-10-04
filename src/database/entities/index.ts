@@ -18,6 +18,7 @@
 
 export * from "./Application";
 export * from "./ApplicationCommand";
+export * from "./ApplicationIdentity";
 export * from "./ApplicationAuthorization";
 export * from "./ApplicationCommandPermission";
 export * from "./ApplicationTester";
