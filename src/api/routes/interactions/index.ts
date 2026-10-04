@@ -169,7 +169,7 @@ router.post("/", route({}), async (req: Request, res: Response) => {
             const attachments: Record<string, PublicAttachment & { id: string }> = {};
             for (const upload of uploads) {
                 const id = Snowflake.generate();
-                const attachment = await convertCloudAttachmentToAttachment(upload, channel.id, id);
+                const attachment = await convertCloudAttachmentToAttachment(upload, channel.id, id, req.user_id);
                 attachment.id = id;
                 attachments[upload.id as string] = { ...attachment.toJSON(), id };
             }
@@ -219,7 +219,7 @@ router.post("/", route({}), async (req: Request, res: Response) => {
             const attachments = await Promise.all(
                 uploads.map(async (upload) => {
                     const id = Snowflake.generate();
-                    const attachment = await convertCloudAttachmentToAttachment(upload, channel.id, id);
+                    const attachment = await convertCloudAttachmentToAttachment(upload, channel.id, id, req.user_id);
                     attachment.id = id;
                     return { ...attachment.toJSON(), id };
                 }),

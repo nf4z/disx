@@ -759,7 +759,11 @@ export async function processMessageOptionAttachments(source: MessageOptions, de
     const tasks = source.attachments?.map(async (src): Promise<Attachment> => {
         if (src instanceof Attachment) return logPassthru(src, logp, `Got Attachment instance`);
         if (isCloudAttachment(src)) {
-            const result = logPassthru(await convertCloudAttachmentToAttachment(src, destination.channel_id!, destination.id), logp, "Got MessageCreateCloudAttachment contents");
+            const result = logPassthru(
+                await convertCloudAttachmentToAttachment(src, destination.channel_id!, destination.id, destination.author_id),
+                logp,
+                "Got MessageCreateCloudAttachment contents",
+            );
 
             result.flags = 0 as AttachmentFlags;
             result.flags |= (src.is_clip ? 1 : 0) * (AttachmentFlags.IS_CLIP as number);
@@ -797,12 +801,32 @@ export function isInternalCdnAttachment(attachment: MessageOptionAttachment) {
     return "url" in attachment;
 }
 
-export async function convertCloudAttachmentToAttachment(cloudAttachmentReference: MessageCreateCloudAttachment, destinationChannelId: string, destinationMessageId: string) {
-    const cloudAttachment = await CloudAttachment.findOneOrFail({
-        where: {
-            uploadFilename: cloudAttachmentReference.uploaded_filename,
-        },
-    });
+export async function convertCloudAttachmentToAttachment(
+    cloudAttachmentReference: MessageCreateCloudAttachment,
+    destinationChannelId: string,
+    destinationMessageId: string,
+    actorId: string | undefined,
+) {
+    const numericId = (value: unknown): value is string => typeof value === "string" && /^[1-9]\d{0,18}$/.test(value) && BigInt(value) <= 9223372036854775807n;
+    if (!numericId(actorId) || !numericId(destinationChannelId) || !numericId(destinationMessageId)) throw new HTTPError("Attachment is unavailable", 404);
+    const path = cloudAttachmentReference.uploaded_filename;
+    if (typeof path !== "string" || !/^\d{1,19}\/[A-Za-z0-9_-]{1,256}\/[A-Za-z0-9_-]{1,64}\/[A-Za-z0-9._-]{1,255}$/.test(path))
+        throw new HTTPError("Attachment is unavailable", 404);
+    const cloudAttachment = await CloudAttachment.findOne({ where: { uploadFilename: path, userId: actorId, channelId: destinationChannelId } });
+    const [channelId, , slot, filename] = path.split("/");
+    if (
+        !cloudAttachment ||
+        channelId !== destinationChannelId ||
+        slot !== cloudAttachment.userAttachmentId ||
+        filename !== cloudAttachment.userFilename ||
+        filename === "." ||
+        filename === ".." ||
+        !Number.isSafeInteger(cloudAttachment.size) ||
+        cloudAttachment.size! < 0
+    )
+        throw new HTTPError("Attachment is unavailable", 404);
+    const permission = await getPermission(actorId, undefined, destinationChannelId);
+    if (!permission.has(Permissions.FLAGS.VIEW_CHANNEL) || !permission.has(Permissions.FLAGS.ATTACH_FILES)) throw new HTTPError("Missing attachment permissions", 403);
 
     const cloneResponse = await fetch(
         `${Config.get().cdn.endpointPrivate?.replace(/\/+$/, "")}/attachments/${cloudAttachment.uploadFilename}/clone_to_message/${destinationMessageId}?channel_id=${destinationChannelId}`,
@@ -838,7 +862,6 @@ export async function convertCloudAttachmentToAttachment(cloudAttachmentReferenc
         waveform: cloudAttachmentReference.waveform,
     });
 
-    console.log("[Message] Converted cloud attachment to", realAtt);
     return realAtt;
 }
 

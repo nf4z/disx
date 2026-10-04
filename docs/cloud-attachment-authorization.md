@@ -1,0 +1,11 @@
+# Cloud attachment conversion authorization
+
+A cloud upload reservation belongs to the authenticated uploader and the channel where it was reserved. Knowing its `uploaded_filename` is insufficient to turn it into a message attachment.
+
+The previous `convertCloudAttachmentToAttachment` lookup filtered only by `uploadFilename`. The helper then used the instance's private CDN signature to clone that object into the requested destination channel. A production-helper fixture with a real local HTTP clone endpoint reproduced both another sender claiming the upload and the original sender copying it into a different channel. Neither path checked current channel permissions or whether upload completion had recorded the actual size.
+
+Conversion now receives a trusted actor ID from the message author or authenticated interaction request. The database lookup requires matching uploader, reservation channel and upload filename. The path must agree with the stored channel, attachment slot and filename, and the upload must have a recorded nonnegative integer size. Zero-byte completed uploads remain valid. The helper checks current `VIEW_CHANNEL` and `ATTACH_FILES` permissions again before issuing any private CDN clone request. Missing owners/channels, unfinished uploads and inconsistent object metadata are unavailable; denied channel permissions return403. Existing own-channel copies retain their filenames, content types and attachment metadata.
+
+`node --test scripts/tests/cloud-attachment-ownership.test.cjs` runs eight focused cases against the actual extracted production helper and a real HTTP fixture: leaked foreign upload, wrong channel, absent/invalid actor, unfinished/erased ownership, mismatched object tuple and malformed paths, permission revocation, legitimate copy and an empty completed upload. The denial cases assert that no clone request reaches the fixture. The tests do not mutate existing database rows or files.
+
+This change covers cloud reservation conversion. Existing posted-attachment copying, general URL fetching, storage quotas and concurrent permission changes across a complete message transaction remain separate work. The full E2EE integration suite is required after the new message and interaction callsite arguments are published.
