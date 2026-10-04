@@ -93,6 +93,7 @@ try {
     const editedItem = await save(form, "Save", `/admin/store/items/${item.id}`, "PATCH");
     assert.equal(editedItem.position, 3);
     assert.equal(editedItem.label, "A transparent test decoration");
+    await page.locator("#pack-form").waitFor();
     console.log("PASS browser custom pack create/edit and item upload/edit/order");
     await page.getByRole("button", { name: "Close", exact: true }).click();
     const builtin = (await request("/admin/store")).builtin.find((pack) => !pack.customized && !pack.hidden);
@@ -108,7 +109,7 @@ try {
     assert.equal(customized.name, "Browser edited mirrored pack");
     assert.equal(customized.summary, "Local mirrored summary");
     assert.equal(customized.position, -20);
-    assert.ok(customized.banner.startsWith("/media/v1/collectibles-shop/builtin/"));
+    assert.ok(new URL(customized.banner, origin).pathname.startsWith("/media/v1/collectibles-shop/builtin/"));
     await page.locator('#builtin-pack-form [data-art-remove="banner"]').click();
     const keepChanges = (dialog) => dialog.dismiss();
     page.on("dialog", keepChanges);

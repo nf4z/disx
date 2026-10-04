@@ -10215,6 +10215,10 @@
             "AdminStoreItemUpdateSchema": {
                 "type": "object",
                 "properties": {
+                    "pack_id": {
+                        "pattern": "^[0-9]{1,20}$",
+                        "type": "string"
+                    },
                     "name": {
                         "minLength": 1,
                         "maxLength": 100,
@@ -46878,7 +46882,7 @@
                         "bearer": []
                     }
                 ],
-                "description": "Change a store item's details or art",
+                "description": "Change a store item's details or art, or move it to another custom pack",
                 "requestBody": {
                     "required": true,
                     "content": {

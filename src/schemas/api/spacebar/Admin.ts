@@ -533,6 +533,8 @@ export interface AdminStoreItemCreateSchema {
 }
 
 export interface AdminStoreItemUpdateSchema {
+    /** @pattern ^[0-9]{1,20}$ */
+    pack_id?: string;
     /**
      * @minLength 1
      * @maxLength 100

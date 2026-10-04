@@ -2774,6 +2774,7 @@ function openBuiltinPack(skuId, refresh) {
         const saved = await act($("button[type=submit]", form), () => api(`/admin/store/builtin/${skuId}`, { method: "PATCH", body: payload }), "Pack saved");
         if (saved) {
             await refresh();
+            if (!body.isConnected || $("#drawer").hidden) return;
             openBuiltinPack(skuId, refresh);
         }
     });
@@ -2782,6 +2783,7 @@ function openBuiltinPack(skuId, refresh) {
         const saved = await act(event.currentTarget, () => api(`/admin/store/builtin/${skuId}`, { method: "PATCH", body: { reset: true } }), "Pack defaults restored");
         if (saved) {
             await refresh();
+            if (!body.isConnected || $("#drawer").hidden) return;
             openBuiltinPack(skuId, refresh);
         }
     });
@@ -2857,6 +2859,7 @@ async function openPack(packId, refresh) {
         );
         if (saved) {
             await refresh();
+            if (!body.isConnected || $("#drawer").hidden) return;
             openPack(saved.id, refresh);
         }
     });
@@ -2948,6 +2951,14 @@ function openStoreItem(pack, item, refresh) {
             <form id="store-item-form" class="stack">
                 ${
                     item
+                        ? html`<label
+                              >Pack<select name="pack_id">${options(storeState.data.packs.map((entry) => [entry.id, entry.name]), item.pack_id)}</select
+                              ><span class="hint">Moving keeps the item and its artwork.</span></label
+                          >`
+                        : ""
+                }
+                ${
+                    item
                         ? ""
                         : html`<label
                               >Type<select name="type">
@@ -3003,6 +3014,7 @@ function openStoreItem(pack, item, refresh) {
     form.addEventListener("submit", async (e) => {
         e.preventDefault();
         const payload = { name: form.name.value, summary: form.summary.value, label: form.label.value, position: Number(form.position.value) };
+        if (item) payload.pack_id = form.pack_id.value;
         if (!item) payload.type = type;
         if (type === 2) payload.palette = form.palette.value;
         if (type === 1) Object.assign(payload, { duration: Number(form.duration.value) || 3000, loop: form.loop.checked });
@@ -3016,7 +3028,8 @@ function openStoreItem(pack, item, refresh) {
         );
         if (saved) {
             await refresh();
-            openPack(pack.id, refresh);
+            if (!body.isConnected || $("#drawer").hidden) return;
+            openPack(saved.pack_id ?? pack.id, refresh);
         }
     });
     $("#store-item-back", body).addEventListener("click", () => openPack(pack.id, refresh));
@@ -3025,6 +3038,7 @@ function openStoreItem(pack, item, refresh) {
         const done = await act(e.currentTarget, () => api(`/admin/store/items/${item.id}`, { method: "DELETE" }), "Item deleted");
         if (done !== undefined) {
             await refresh();
+            if (!body.isConnected || $("#drawer").hidden) return;
             openPack(pack.id, refresh);
         }
     });

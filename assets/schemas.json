@@ -11173,6 +11173,10 @@
     "AdminStoreItemUpdateSchema": {
         "type": "object",
         "properties": {
+            "pack_id": {
+                "pattern": "^[0-9]{1,20}$",
+                "type": "string"
+            },
             "name": {
                 "minLength": 1,
                 "maxLength": 100,
