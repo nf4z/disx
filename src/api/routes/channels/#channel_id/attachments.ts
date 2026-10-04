@@ -18,9 +18,10 @@
 
 import { Request, Response, Router } from "express";
 import { route } from "@spacebar/api/middlewares";
-import { Channel, CloudAttachment } from "@spacebar/database";
+import { Channel, CloudAttachment, User, getDatabase } from "@spacebar/database";
 import { Random } from "@spacebar/extensions";
-import { Config, Permissions } from "@spacebar/util";
+import { Config, Permissions, getPermission } from "@spacebar/util";
+import { HTTPError } from "lambert-server/HTTPError";
 import { UploadAttachmentRequestSchema, UploadAttachmentResponseSchema } from "@spacebar/schemas";
 
 const router: Router = Router({ mergeParams: true });
@@ -34,6 +35,8 @@ router.post(
                 body: "UploadAttachmentResponseSchema",
             },
             404: {},
+            403: {},
+            429: {},
             400: {
                 body: "APIErrorResponse",
             },
@@ -46,7 +49,8 @@ router.post(
         const user = req.user;
         const channel = await Channel.findOneOrFail({ where: { id: channel_id } });
 
-        if (!(await channel.getUserPermissions({ user_id: req.user_id })).has(Permissions.FLAGS.ATTACH_FILES)) {
+        const permission = await getPermission(req.user_id, channel.guild_id, channel.id);
+        if (!permission.has(Permissions.FLAGS.ATTACH_FILES) || !permission.has(Permissions.FLAGS.VIEW_CHANNEL)) {
             return res.status(403).json({
                 code: 403,
                 message: "Missing Permissions: ATTACH_FILES",
@@ -56,7 +60,11 @@ router.post(
         const cdnUrl = Config.get().cdn.endpointPublic?.replace(/\/+$/, "");
         const batchId = `CLOUD_${user.id}_${Random.getString("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789", 128)}`;
 
-        // validate IDs
+        const maxAttachmentSize = Config.get().cdn.maxAttachmentSize;
+        const batchLimit = Math.min(100, Config.get().limits.message.maxAttachments);
+        if (!Number.isSafeInteger(maxAttachmentSize) || maxAttachmentSize < 1 || !Number.isSafeInteger(batchLimit) || batchLimit < 1)
+            throw new HTTPError("Uploads are unavailable", 503);
+        if (!payload.files.length || payload.files.length > batchLimit) throw new HTTPError("Too many attachments in one upload request", 400);
         const seenIds: (string | undefined)[] = [];
         for (const file of payload.files) {
             if (seenIds.includes(file.id)) {
@@ -65,8 +73,11 @@ router.post(
                     message: `Duplicate attachment ID: ${file.id}`,
                 });
             }
+            if (file.id !== undefined && !/^[a-zA-Z0-9_-]{1,64}$/.test(file.id)) throw new HTTPError("Invalid attachment ID", 400);
             seenIds.push(file.id);
-            if (file.file_size > Config.get().cdn.maxAttachmentSize) {
+            file.filename = file.filename.replaceAll(" ", "_").replace(/[^a-zA-Z0-9._-]+/g, "");
+            if (!file.filename || file.filename === "." || file.filename === ".." || file.filename.length > 255) throw new HTTPError("Invalid attachment filename", 400);
+            if (!Number.isSafeInteger(file.file_size) || file.file_size < 0 || file.file_size > maxAttachmentSize) {
                 return res.status(400).json({
                     code: 40005,
                     message: "Request entity too large",
@@ -74,24 +85,41 @@ router.post(
             }
         }
 
-        const attachments = await Promise.all(
-            payload.files.map(async (attachment) => {
-                attachment.filename = attachment.filename.replaceAll(" ", "_").replace(/[^a-zA-Z0-9._-]+/g, "");
-                const uploadFilename = `${channel_id}/${batchId}/${attachment.id ?? "0"}/${attachment.filename}`;
-                const newAttachment = CloudAttachment.create({
-                    user: user,
-                    channel: channel,
-                    uploadFilename: uploadFilename,
+        const attachments = await getDatabase()!.transaction(async (manager) => {
+            await manager.getRepository(User).createQueryBuilder("user").select("user.id").where("user.id = :id", { id: user.id }).setLock("pessimistic_write").getOneOrFail();
+            const pending = await manager
+                .getRepository(CloudAttachment)
+                .createQueryBuilder("attachment")
+                .select("COUNT(*)", "count")
+                .addSelect("COALESCE(SUM(GREATEST(COALESCE(attachment.user_file_size, 0), COALESCE(attachment.size, 0), 0)), 0)", "bytes")
+                .addSelect("COALESCE(SUM(CASE WHEN attachment.size IS NULL THEN 1 ELSE 0 END), 0)", "pending_count")
+                .addSelect("COALESCE(SUM(CASE WHEN attachment.size IS NULL THEN GREATEST(COALESCE(attachment.user_file_size, 0), 0) ELSE 0 END), 0)", "pending_bytes")
+                .where("attachment.user_id = :id", { id: user.id })
+                .getRawOne<{ count: string; bytes: string; pending_count: string; pending_bytes: string }>();
+            const pendingBytes = payload.files.reduce((total, file) => total + file.file_size, 0);
+            const byteLimit = Math.max(maxAttachmentSize, 1024 * 1024 * 1024);
+            if (
+                !pending ||
+                Number(pending.pending_count) + payload.files.length > 32 ||
+                Number(pending.pending_bytes) + pendingBytes > byteLimit ||
+                Number(pending.count) + payload.files.length > 512 ||
+                Number(pending.bytes) + pendingBytes > Math.max(maxAttachmentSize, 2 * 1024 * 1024 * 1024)
+            )
+                throw new HTTPError("Too many pending uploads. Finish or cancel an upload first.", 429);
+            const newAttachments = payload.files.map((attachment) =>
+                CloudAttachment.create({
+                    userId: user.id,
+                    channelId: channel.id,
+                    uploadFilename: `${channel_id}/${batchId}/${attachment.id ?? "0"}/${attachment.filename}`,
                     userAttachmentId: attachment.id ?? "0",
                     userFilename: attachment.filename,
                     userFileSize: attachment.file_size,
                     userIsClip: attachment.is_clip,
                     userOriginalContentType: attachment.original_content_type,
-                });
-                await newAttachment.save();
-                return newAttachment;
-            }),
-        );
+                }),
+            );
+            return manager.save(newAttachments);
+        });
 
         res.send({
             attachments: attachments.map((a) => ({

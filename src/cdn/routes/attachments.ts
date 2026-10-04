@@ -21,16 +21,18 @@ import multerConfig from "multer";
 import { fileTypeFromBuffer } from "file-type";
 import imageSize from "image-size";
 import { HTTPError } from "lambert-server/HTTPError";
-import { Attachment, CloudAttachment } from "@spacebar/database";
+import { Attachment, CloudAttachment, getDatabase } from "@spacebar/database";
 import { Config, extractVideoFrame, hasValidSignature, readVideoDimensions, NewUrlUserSignatureData, Snowflake, UrlSignResult } from "@spacebar/util";
 import { storage, multer, setCacheControl } from "../util";
 import { InternalCdnAttachment } from "@spacebar/util/dtos/MessageOptions";
+
+import { declaredCloudUploadLimit, requireCloudUploadReservation, requireInternalUploadSignature } from "../util/cloudUploads";
 
 const router = Router({ mergeParams: true });
 
 const SANITIZED_CONTENT_TYPE = ["text/html", "text/mhtml", "multipart/related", "application/xhtml+xml"];
 
-router.post("/:channel_id/:message_id", multer.single("file"), async (req: Request, res: Response) => {
+router.post("/:channel_id/:message_id", requireInternalUploadSignature, multer.single("file"), async (req: Request, res: Response) => {
     if (req.headers.signature !== Config.get().security.requestSignature) throw new HTTPError("Invalid request signature");
 
     if (!req.file) throw new HTTPError("file missing");
@@ -152,9 +154,9 @@ router.delete("/:channel_id/:attachment_id/:filename", async (req: Request, res:
 });
 
 function parseCloudUpload(req: Request, res: Response, next: NextFunction) {
-    const limit = Config.get().cdn.maxAttachmentSize;
+    const limit = declaredCloudUploadLimit(res.locals.cloudAttachment);
     const parser = req.is("multipart/form-data")
-        ? multerConfig({ storage: multerConfig.memoryStorage(), limits: { fileSize: limit, files: 1, fields: 10 } }).single("file")
+        ? multerConfig({ storage: multerConfig.memoryStorage(), limits: { fileSize: limit, files: 1, fields: 10, fieldSize: 1024, parts: 11, headerPairs: 64 } }).single("file")
         : raw({ type: () => true, limit, inflate: false });
     parser(req, res, (error) => {
         if (error instanceof multerConfig.MulterError && error.code === "LIMIT_FILE_SIZE") return next(new HTTPError("File too large", 413));
@@ -162,49 +164,52 @@ function parseCloudUpload(req: Request, res: Response, next: NextFunction) {
     });
 }
 
-router.put("/:channel_id/:batch_id/:attachment_id/:filename", parseCloudUpload, async (req: Request, res: Response) => {
+router.put("/:channel_id/:batch_id/:attachment_id/:filename", requireCloudUploadReservation, parseCloudUpload, async (req: Request, res: Response) => {
     const { channel_id, batch_id, attachment_id, filename } = req.params as { [key: string]: string };
-    const buffer = req.file?.buffer ?? req.body;
+    const buffer = req.file?.buffer ?? req.body ?? (res.locals.cloudAttachment.userFileSize === 0 ? Buffer.alloc(0) : undefined);
     if (!Buffer.isBuffer(buffer)) throw new HTTPError("file missing", 400);
     if (buffer.length > Config.get().cdn.maxAttachmentSize) throw new HTTPError("File too large", 413);
 
-    const att = await CloudAttachment.findOne({
-        where: {
-            uploadFilename: `${channel_id}/${batch_id}/${attachment_id}/${filename}`,
-            channelId: channel_id,
-            userAttachmentId: attachment_id,
-            userFilename: filename,
-        },
-    });
-    if (!att) throw new HTTPError("Attachment not found", 404);
+    await getDatabase()!.transaction(async (manager) => {
+        const att = await manager.getRepository(CloudAttachment).findOne({
+            lock: { mode: "pessimistic_write" },
+            where: {
+                uploadFilename: `${channel_id}/${batch_id}/${attachment_id}/${filename}`,
+                channelId: channel_id,
+                userAttachmentId: attachment_id,
+                userFilename: filename,
+            },
+        });
+        if (!att || !att.userId) throw new HTTPError("Attachment not found", 404);
+        if (buffer.length > declaredCloudUploadLimit(att)) throw new HTTPError("File too large", 413);
 
-    const path = `attachments/${channel_id}/${batch_id}/${attachment_id}/${filename}`;
-    let mimeType = att.userOriginalContentType;
-    if (mimeType === null) {
-        const ft = await fileTypeFromBuffer(buffer);
-        mimeType = att.contentType = ft?.mime || "application/octet-stream";
-    }
-
-    try {
-        const dimensions = mimeType?.includes("image") ? imageSize(buffer) : mimeType?.startsWith("video/") ? readVideoDimensions(buffer) : undefined;
-        if (dimensions) {
-            att.width = dimensions.width;
-            att.height = dimensions.height;
+        const path = `attachments/${channel_id}/${batch_id}/${attachment_id}/${filename}`;
+        let mimeType = att.userOriginalContentType;
+        if (mimeType === null) {
+            const ft = await fileTypeFromBuffer(buffer);
+            mimeType = att.contentType = ft?.mime || "application/octet-stream";
         }
-    } catch {
-        att.width = undefined;
-        att.height = undefined;
-    }
 
-    await storage.set(path, buffer);
-    att.size = buffer.length;
-    await att.save();
+        try {
+            const dimensions = mimeType?.includes("image") ? imageSize(buffer) : mimeType?.startsWith("video/") ? readVideoDimensions(buffer) : undefined;
+            if (dimensions) {
+                att.width = dimensions.width;
+                att.height = dimensions.height;
+            }
+        } catch {
+            att.width = undefined;
+            att.height = undefined;
+        }
+
+        await storage.set(path, buffer);
+        att.size = buffer.length;
+        await manager.save(att);
+    });
     return res.status(200).end();
 });
 
 router.delete("/:channel_id/:batch_id/:attachment_id/:filename", async (req: Request, res: Response) => {
     if (req.headers.signature !== Config.get().security.requestSignature) throw new HTTPError("Invalid request signature");
-    console.log("[Cloud Delete] Deleting attachment", req.params);
 
     const { channel_id, batch_id, attachment_id, filename } = req.params as { [key: string]: string };
     const path = `attachments/${channel_id}/${batch_id}/${attachment_id}/${filename}`;
@@ -228,7 +233,6 @@ router.delete("/:channel_id/:batch_id/:attachment_id/:filename", async (req: Req
 
 router.post("/:channel_id/:batch_id/:attachment_id/:filename/clone_to_message/:message_id", async (req: Request, res: Response) => {
     if (req.headers.signature !== Config.get().security.requestSignature) throw new HTTPError("Invalid request signature");
-    console.log("[Cloud Clone] Cloning attachment to message", req.params);
 
     const { channel_id, batch_id, attachment_id, filename, message_id } = req.params as { [key: string]: string };
     const target = typeof req.query.channel_id === "string" && /^\d+$/.test(req.query.channel_id) ? req.query.channel_id : channel_id;
