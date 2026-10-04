@@ -870,6 +870,7 @@ async function renderSettings(view) {
                     </label>
                     ${toggle("guild.publicThreadsInvitable", "Let members invite others to public threads")}
                     ${toggle("limits.channel.allowSlowmodeBypass", "Allow moderators to bypass slowmode", "Owners and members with Manage Messages, Manage Channels or Bypass Slowmode can send without waiting.")}
+                    ${toggle("guild.discovery.hideJoinedGuilds", "Hide servers people are in from Discovery", "Off is how Discord works. When it's on, whoever adds a server to Discovery never sees it there.")}
                 </div>
                 <div class="card">
                     <h2 id="settings-instance">Instance information</h2>

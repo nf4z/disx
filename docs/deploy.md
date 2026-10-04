@@ -127,6 +127,38 @@ docker compose up -d
 
 Without `--force`, the client service keeps the files it finds and only writes the missing compressed copies.
 
+### Automatic updates
+
+`scripts/auto-update.sh` does both of the above whenever there is something new, so cron can run it often. Each run:
+
+1. Fetches the checked out branch and fast-forwards to its upstream. When there are new commits it rebuilds the images. A failed build moves the checkout back to the running commit, so the next run tries again, and the running server stays as it is. A checkout with local commits that can't fast-forward is left alone.
+2. Reads the build discord.com serves from its `/app` page and compares it with the one in the `client` volume. When they differ it runs the client service with `--force`. The client script only adds files and publishes the new `index.html` last, after every asset arrived, so the running server keeps serving the old build during the download and a failed download changes nothing.
+3. Runs `docker compose up -d` after a rebuild, or restarts only the server after a new client, then waits up to 5 minutes for `/api/ping`.
+
+A lock keeps two runs from overlapping. The script exits with 1 when something failed. Run it once by hand from the repository, then add it to the crontab of a user who can run `docker`:
+
+```sh
+./scripts/auto-update.sh
+crontab -e
+```
+
+```cron
+# every 6 hours, at minute 17
+17 */6 * * * /home/fosscord/fosscord-server/scripts/auto-update.sh >> /home/fosscord/fosscord-update.log 2>&1
+```
+
+The script reads these optional environment variables, which go in front of the command in the crontab line:
+
+| Variable         | Use                                                                                                   |
+| ---------------- | ----------------------------------------------------------------------------------------------------- |
+| `ENV_FILE`       | The compose env file when it isn't `.env`, for example `ENV_FILE=prod.env`.                           |
+| `UPDATE_CODE`    | `0` to only keep the web client current and leave the code as you deploy it.                          |
+| `UPDATE_CLIENT`  | `0` to only update the code.                                                                          |
+| `SERVER_PORT`    | The server's port on the host's loopback, if you changed it from 3001.                                |
+| `NOTIFY_WEBHOOK` | A Discord or Fosscord webhook URL that gets a message when something was updated or an update failed. |
+
+A new Discord build can break Vencord patches or the e2ee anchors, as described above. With `NOTIFY_WEBHOOK` set you hear about every client update and can check the instance afterwards. Set `UPDATE_CLIENT=0` to stay on a build you tested.
+
 ### Voice and video
 
 The server talks to the SFU over `/run/sfu/sfu.sock` in the shared `sfu` volume. If the SFU restarts, the server closes the voice connections of the calls that were running with code 4015, the code Discord uses for a crashed voice server, and reconnects to the new SFU. The SFU accepts one server connection, so leave `THREADS` unset in the server environment.
