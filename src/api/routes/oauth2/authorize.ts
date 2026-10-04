@@ -32,6 +32,7 @@ import {
     GuildRoleDeleteEvent,
     GuildRoleUpdateEvent,
     OAuth2TokenCreateEvent,
+    UserApplicationUpdateEvent,
 } from "@spacebar/util";
 import { emitCommandIndexUpdate } from "@spacebar/api/util/handlers/ApplicationCommands";
 import { issueOAuth2Token, signTicket } from "@spacebar/api/util";
@@ -291,6 +292,9 @@ router.post(
                 user_id: req.user_id,
                 data: { id: authorization.id, scopes: authorization.scopes, application: toPublicApplication(app) },
             } satisfies OAuth2TokenCreateEvent);
+            // the client only refetches the commands of user installed apps when told to
+            if (authorization.integration_type === 1)
+                await emitEvent({ event: "USER_APPLICATION_UPDATE", user_id: req.user_id, data: { application_id: app.id } } satisfies UserApplicationUpdateEvent);
             return authorization;
         };
         const codeFor = (guild_id?: string) =>

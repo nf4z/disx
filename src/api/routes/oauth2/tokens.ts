@@ -20,7 +20,7 @@ import { Router, Request, Response } from "express";
 import { In } from "typeorm";
 import { route } from "@spacebar/api/middlewares";
 import { ApplicationAuthorization, OAuth2Token } from "@spacebar/database";
-import { ApiError, emitEvent, OAuth2TokenDeleteEvent } from "@spacebar/util";
+import { ApiError, emitEvent, OAuth2TokenDeleteEvent, UserApplicationRemoveEvent } from "@spacebar/util";
 import { toPublicApplication } from "@spacebar/api/util/handlers/Application";
 
 const router = Router({ mergeParams: true });
@@ -67,6 +67,8 @@ router.delete("/:token_id", route({ responses: { 204: {}, 404: { body: "APIError
         user_id: req.user_id,
         data: { id: authorization.id, application_id: authorization.application_id },
     } satisfies OAuth2TokenDeleteEvent);
+    if (authorization.integration_type === 1)
+        await emitEvent({ event: "USER_APPLICATION_REMOVE", user_id: req.user_id, data: { application_id: authorization.application_id } } satisfies UserApplicationRemoveEvent);
     res.sendStatus(204);
 });
 

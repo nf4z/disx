@@ -527,6 +527,17 @@ export interface OAuth2TokenDeleteEvent extends Event {
     data: { id: string; application_id: string };
 }
 
+// tells the client to refetch the commands of the apps a user installed on their account
+export interface UserApplicationUpdateEvent extends Event {
+    event: "USER_APPLICATION_UPDATE";
+    data: { application_id: string };
+}
+
+export interface UserApplicationRemoveEvent extends Event {
+    event: "USER_APPLICATION_REMOVE";
+    data: { application_id: string };
+}
+
 export interface UserConnectionsUpdateEvent extends Event {
     event: "USER_CONNECTIONS_UPDATE";
 }
@@ -831,6 +842,8 @@ export type EventData =
     | GuildJoinRequestDeleteEvent
     | OAuth2TokenCreateEvent
     | OAuth2TokenDeleteEvent
+    | UserApplicationUpdateEvent
+    | UserApplicationRemoveEvent
     | CallCreateEvent
     | CallUpdateEvent
     | CallDeleteEvent
@@ -962,6 +975,8 @@ export type EVENT =
     | "READY"
     | "OAUTH2_TOKEN_CREATE"
     | "OAUTH2_TOKEN_DELETE"
+    | "USER_APPLICATION_UPDATE"
+    | "USER_APPLICATION_REMOVE"
     | "CHANNEL_CREATE"
     | "CHANNEL_UPDATE"
     | "CHANNEL_DELETE"
