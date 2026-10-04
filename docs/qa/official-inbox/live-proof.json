@@ -1,0 +1,27 @@
+{
+  "date": "2026-10-04",
+  "environment": "isolated persistent demo /tmp/fosscord-admin-perf, fosscord_codex_admin",
+  "host": "http://fosscord.localhost:3290",
+  "checks": {
+    "admin_encrypted_send_status": 201,
+    "native_encrypted_reply_status": 200,
+    "native_recipient_decryption": true,
+    "admin_verified_reply_decryption": true,
+    "persisted_plaintext_absent": true,
+    "audit_body_and_keys_absent": true,
+    "manage_users_only_get_denied": 403,
+    "manage_users_only_post_denied": 403,
+    "browser_page_errors": 0,
+    "disposable_fixture_cleanup": true
+  },
+  "screenshots": [
+    "native.png",
+    "admin.png"
+  ],
+  "scope": "Live native/dashboard encrypted roundtrip and full private encryption regression suite; inbox attachments currently list filenames only.",
+  "full_e2ee_suite": {
+    "passed": true,
+    "seconds": 326.5,
+    "ui_retries": 1
+  }
+}

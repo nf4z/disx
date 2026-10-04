@@ -495,6 +495,7 @@ const TABS = {
     games: renderGames,
     store: renderStore,
     announcements: renderAnnouncements,
+    official: renderOfficialInbox,
     guilds: renderGuilds,
     reports: renderReports,
     status: renderStatus,
@@ -1354,6 +1355,7 @@ async function openUser(id, reload) {
                 </div>
             </div>
             ${userBadges(u)}
+            ${isOperator && !u.bot && !u.system ? html`<a class="btn" href="#/official/${u.id}">Message as Official</a>` : ""}
             <div class="card">
                 <div class="list">
                     <div class="list-item"><span class="grow muted">Email</span><span>${u.email || "—"}</span></div>
@@ -4545,4 +4547,83 @@ function openAdminRole(guildId, role, permissions) {
         const result = await act($("button[type=submit]", form), () => api(path, { method: creating ? "POST" : "PATCH", body: patch }), creating ? "Role created" : "Role saved");
         if (result) openGuild(guildId, undefined, true);
     });
+}
+
+async function renderOfficialInbox(view) {
+    const initial = location.hash.split("/")[2] || "";
+    mount(view, html`<div class="page-head"><h1>Official inbox</h1><p class="muted">Send messages as Official and read this user's replies.</p></div>
+        <form id="official-target" class="card row"><label class="grow">User ID<input name="user_id" inputmode="numeric" pattern="[0-9]{1,20}" required value="${initial}" /></label><button class="btn primary" type="submit">Open conversation</button></form>
+        <div id="official-conversation"></div>`);
+    let generation = 0;
+    let request;
+    const targetForm = $("#official-target", view);
+    const panel = $("#official-conversation", view);
+    async function open(id, retainedDraft = "") {
+        const current = ++generation;
+        request?.abort();
+        request = new AbortController();
+        const previousSend = $("#official-send", panel);
+        const draft = retainedDraft || (previousSend?.dataset.userId === id ? previousSend.content.value : "");
+        mount(panel, html`<p role="status">Loading conversation…</p>`);
+        let data;
+        try {
+            data = await api(`/admin/conversations/${encodeURIComponent(id)}`, { signal: request.signal });
+        } catch (error) {
+            if (!view.isConnected || current !== generation || error.status === 499) return;
+            mount(panel, html`<section class="card stack"><p class="form-error" role="alert">${error.message}</p>
+                ${draft ? html`<form class="stack" data-dirty="true"><label>Unsent message<textarea rows="4" readonly>${draft}</textarea></label></form><p class="muted">Your draft is kept. Retry to continue editing.</p>` : ""}
+                <button class="btn" id="official-retry" type="button">Retry loading conversation</button></section>`);
+            $("#official-retry", panel).addEventListener("click", () => open(id, draft));
+            return;
+        }
+        if (!view.isConnected || current !== generation) return;
+        mount(panel, html`<section class="card stack"><div class="row"><h2 class="grow">${userName(data.user)}</h2><button class="btn" id="official-refresh" type="button">Refresh</button></div>
+            <button class="btn" id="official-older" type="button" ${data.has_more ? "" : raw("hidden")}>Load older messages</button>
+            <div id="official-history" class="stack" aria-label="Conversation history"></div>
+            <p id="official-status" class="muted" role="status"></p>
+            <form id="official-send" class="stack" data-user-id="${id}"><label>Message<textarea name="content" rows="4" maxlength="${data.max_characters}" required></textarea></label><button class="btn primary" type="submit">Send as Official</button></form></section>`);
+        let messages = data.messages;
+        let before = data.before;
+        const older = $("#official-older", panel);
+        const history = $("#official-history", panel);
+        function draw() {
+            mount(history, messages.length ? messages.map(message => html`<article class="official-message"><div class="row"><strong class="grow">${message.author_id === data.official.id ? "Official" : userName(data.user)}</strong><time datetime="${message.timestamp}">${fmtDate(message.timestamp)}</time></div><p>${message.readable ? message.content : "This encrypted message could not be opened."}</p>${message.attachments.map(file => html`<span class="muted">Attachment: ${file.filename}</span>`)}</article>`) : html`<p class="muted">No messages yet.</p>`);
+        }
+        draw();
+        older.addEventListener("click", () => act(older, async () => {
+            const page = await api(`/admin/conversations/${encodeURIComponent(id)}?before=${encodeURIComponent(before)}`, { signal: request.signal });
+            if (!view.isConnected || current !== generation) return;
+            messages = [...page.messages, ...messages];
+            before = page.before;
+            older.hidden = !page.has_more;
+            draw();
+        }));
+        const send = $("#official-send", panel);
+        if (retainedDraft) {
+            send.content.value = retainedDraft;
+            send.dataset.dirty = "true";
+        }
+        $("#official-refresh", panel).addEventListener("click", () => {
+            if (send.content.value && !confirm("Discard your unsent message and refresh?")) return;
+            open(id);
+        });
+        send.addEventListener("input", () => { send.dataset.dirty = "true"; });
+        send.addEventListener("submit", async event => {
+            event.preventDefault();
+            const content = send.content.value.trim();
+            if (!content) return;
+            const result = await act($("button", send), () => api(`/admin/conversations/${encodeURIComponent(id)}`, { method: "POST", body: { content } }));
+            if (!result || !view.isConnected || current !== generation) return;
+            delete send.dataset.dirty;
+            send.reset();
+            await open(id);
+        });
+    }
+    targetForm.addEventListener("submit", event => {
+        event.preventDefault();
+        if ($("form[data-dirty]", panel) && !confirm("Discard your unsent message?")) return;
+        const id = targetForm.user_id.value.trim();
+        open(id);
+    });
+    if (/^\d{1,20}$/.test(initial)) await open(initial);
 }

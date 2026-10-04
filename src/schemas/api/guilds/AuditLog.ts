@@ -42,6 +42,7 @@ export interface AuditLogEntry {
 
 export enum AuditLogEvents {
     ADMIN_USER_CUSTOMIZATION = 2000,
+    ADMIN_OFFICIAL_MESSAGE_SEND = 2001,
     // guild level
     GUILD_UPDATE = 1,
     // channels

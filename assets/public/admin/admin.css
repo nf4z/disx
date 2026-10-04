@@ -1256,3 +1256,7 @@ nav a {
     margin-bottom: 8px;
     font-variant-numeric: tabular-nums;
 }
+
+.official-message { padding: 16px; border: 1px solid var(--border); border-radius: 8px; }
+.official-message p { white-space: pre-wrap; overflow-wrap: anywhere; }
+.official-message time { font-size: 0.8rem; color: var(--muted); }

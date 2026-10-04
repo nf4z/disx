@@ -817,3 +817,7 @@ export interface AdminRoleUpdateSchema {
     hoist?: boolean;
     mentionable?: boolean;
 }
+
+export interface AdminOfficialMessageCreateSchema {
+    content: string;
+}
