@@ -37,8 +37,12 @@ test("all 33 local SVGs match their offline generator and render without externa
     assert.equal(files.length, 33);
     for (const file of files) {
         const content = fs.readFileSync(path.join(root, "assets/badge-icons", file));
-        assert.doesNotMatch(content.toString(), /<(?:script|image|foreignObject)\b|(?:href|url)\s*[=(]/i);
+        assert.doesNotMatch(content.toString(), /<(?:script|image|foreignObject)\b|href\s*=|url\((?!#flag\))/i);
         assert.match(content.toString(), /viewBox="0 0 150 100"/);
+        assert.match(content.toString(), /<clipPath id="flag"><rect width="150" height="100" rx="10"/);
+        const cornerPixels = await sharp(content).resize(150, 100).ensureAlpha().raw().toBuffer();
+        assert.equal(cornerPixels[3], 0);
+        assert.equal(cornerPixels[(50 * 150 + 75) * 4 + 3], 255);
         const rendered = await sharp(content).resize(30, 20).png().toBuffer();
         assert.ok(rendered.length > 50);
     }
@@ -61,7 +65,7 @@ test("Progress chevron leaves the correct narrower white triangle and rainbow fi
 test("intersex-inclusive Progress has an unbroken unclipped circle inside the yellow chevron", async () => {
     const image = await raster("intersex_progress");
     for (const [x, color] of [
-        [5, "#FFD800"],
+        [20, "#FFD800"],
         [35, "#7902AA"],
         [135, "#FFD800"],
         [235, "#7902AA"],

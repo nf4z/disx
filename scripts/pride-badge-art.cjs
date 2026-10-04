@@ -84,7 +84,7 @@ for (const [slug, title, colors] of flags) {
         if (inclusive) parts.push('<circle cx="13.5" cy="50" r="10" fill="none" stroke="#7902AA" stroke-width="2.3"/>');
     }
     if (slug === "intersex") parts.push('<circle cx="75" cy="50" r="24.5" fill="none" stroke="#7902AA" stroke-width="8.9375"/>');
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 150 100" role="img"><title>${title}</title>${parts.join("")}</svg>\n`;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 150 100" role="img"><title>${title}</title><defs><clipPath id="flag"><rect width="150" height="100" rx="10"/></clipPath></defs><g clip-path="url(#flag)">${parts.join("")}</g><rect x="0.75" y="0.75" width="148.5" height="98.5" rx="9.25" fill="none" stroke="#000000" stroke-opacity="0.08" stroke-width="1.5"/></svg>\n`;
     const file = path.join(root, "assets", "badge-icons", `pride_${slug.replaceAll("-", "_")}.svg`);
     if (check) {
         if (!fs.existsSync(file) || fs.readFileSync(file, "utf8") !== svg) {
