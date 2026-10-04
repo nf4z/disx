@@ -1,0 +1,58 @@
+{
+  "fixture_members": 33,
+  "permissions_match": true,
+  "baseline_queries": 133,
+  "optimized_queries": 4,
+  "samples": [
+    {
+      "before": {
+        "queries": 133,
+        "milliseconds": 30.279416999999967
+      },
+      "after": {
+        "queries": 4,
+        "milliseconds": 4.8170410000000174
+      }
+    },
+    {
+      "before": {
+        "queries": 133,
+        "milliseconds": 31.556749999999965
+      },
+      "after": {
+        "queries": 4,
+        "milliseconds": 4.527624999999944
+      }
+    },
+    {
+      "before": {
+        "queries": 133,
+        "milliseconds": 24.31320800000003
+      },
+      "after": {
+        "queries": 4,
+        "milliseconds": 3.9244160000000647
+      }
+    },
+    {
+      "before": {
+        "queries": 133,
+        "milliseconds": 20.332540999999992
+      },
+      "after": {
+        "queries": 4,
+        "milliseconds": 4.2241670000000795
+      }
+    },
+    {
+      "before": {
+        "queries": 133,
+        "milliseconds": 20.96054100000015
+      },
+      "after": {
+        "queries": 4,
+        "milliseconds": 3.4992090000000644
+      }
+    }
+  ]
+}

@@ -254,6 +254,7 @@ export async function getPermission(
         member_select?: (keyof Member)[];
         member_relations?: string[];
         user?: Pick<User, "id" | "flags">;
+        member?: Member;
     } = {},
 ) {
     if (!user_id) throw new HTTPError("User not found");
@@ -312,13 +313,25 @@ export async function getPermission(
         }
         if (guild!.owner_id === user_id) return new Permissions(Permissions.FLAGS.ADMINISTRATOR);
 
-        member =
-            (await Member.createQueryBuilder("permission_member")
-                .setFindOptions({
-                    where: { guild_id: guild!.id, id: user_id },
-                    relations: OrmUtils.keysToObject(["roles", ...(opts.member_relations || [])]),
-                })
-                .getOne()) ?? undefined;
+        const preloaded = opts.member;
+        const hydrated =
+            preloaded instanceof Member &&
+            preloaded.id === user_id &&
+            preloaded.guild_id === guild!.id &&
+            preloaded.index !== undefined &&
+            typeof preloaded.flags === "number" &&
+            (preloaded.communication_disabled_until === null || preloaded.communication_disabled_until instanceof Date) &&
+            Array.isArray(preloaded.roles) &&
+            preloaded.roles.every((role) => role.guild_id === guild!.id && typeof role.permissions === "string") &&
+            !opts.member_relations?.length;
+        member = hydrated
+            ? preloaded
+            : ((await Member.createQueryBuilder("permission_member")
+                  .setFindOptions({
+                      where: { guild_id: guild!.id, id: user_id },
+                      relations: OrmUtils.keysToObject(["roles", ...(opts.member_relations || [])]),
+                  })
+                  .getOne()) ?? undefined);
         if (!member) {
             if (!(await Guild.existsBy({ id: guild!.id, features: ArrayContains(["DISCOVERABLE"]) }))) throw new EntityNotFoundError(Member, { guild_id: guild!.id, id: user_id });
             lurkerRoles = await Role.find({ where: { id: guild!.id, guild_id: guild!.id } });

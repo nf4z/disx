@@ -18,7 +18,7 @@
 
 import { HTTPError } from "lambert-server/HTTPError";
 import { In } from "typeorm";
-import { Application, Attachment, Channel, Member, Message, Role, User } from "@spacebar/database";
+import { Application, Attachment, Channel, Guild, Member, Message, Role, User } from "@spacebar/database";
 import {
     ApplicationCommandOptionType,
     ApplicationCommandType,
@@ -165,7 +165,19 @@ export async function buildResolved(
         if (found.length) resolved.users = Object.fromEntries(found.map((u) => [u.id, u.toPublicUser()]));
         if (guildId && found.length) {
             const members = await Member.find({ where: { guild_id: guildId, id: In(found.map((u) => u.id)) }, relations: { roles: true } });
-            if (members.length)
+            if (members.length) {
+                const permissionChannel = await Channel.createQueryBuilder("interaction_permission_channel")
+                    .setFindOptions({
+                        where: { id: channelId },
+                        relations: { recipients: true, thread_members: { member: true } },
+                        select: { type: true, parent_id: true, id: true, recipients: true, permission_overwrites: true, owner_id: true, guild_id: true },
+                    })
+                    .getOneOrFail();
+                const permissionGuild = await Guild.findOneOrFail({
+                    where: { id: permissionChannel.guild_id || guildId },
+                    select: { id: true, owner_id: true, verification_level: true },
+                });
+                const byId = new Map(found.map((user) => [user.id, user]));
                 resolved.members = Object.fromEntries(
                     await Promise.all(
                         members.map(async (m) => {
@@ -173,11 +185,16 @@ export async function buildResolved(
                             void user;
                             return [
                                 m.id,
-                                { ...rest, roles: rest.roles?.filter((id) => id !== guildId), permissions: (await getPermission(m.id, guildId, channelId)).bitfield.toString() },
+                                {
+                                    ...rest,
+                                    roles: rest.roles?.filter((id) => id !== guildId),
+                                    permissions: (await getPermission(m.id, permissionGuild, permissionChannel, { user: byId.get(m.id), member: m })).bitfield.toString(),
+                                },
                             ];
                         }),
                     ),
                 );
+            }
         }
     }
     if (roles.size && guildId) {
