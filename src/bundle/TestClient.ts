@@ -23,6 +23,7 @@ import vm from "node:vm";
 import zlib from "node:zlib";
 import { createHash } from "node:crypto";
 import { pipeline } from "node:stream/promises";
+import { ClientAssetCompression, clientAssetVersion } from "./ClientAssetCompression";
 import {
     APP_THEME_COLOR,
     appIconPng,
@@ -74,6 +75,8 @@ const compressor = (encoding: string) => {
     return zlib.createGzip({ level: 6 });
 };
 
+const vencordCompression = new ClientAssetCompression();
+
 const stat = (file: string) => fs.promises.stat(file).catch(() => null);
 
 const serveAsset = async (req: Request, res: Response, next: NextFunction, root: string, precompressed: boolean) => {
@@ -101,10 +104,14 @@ const serveAsset = async (req: Request, res: Response, next: NextFunction, root:
 
     if (!encodings.length || sourceStat.size < 1024) return res.sendFile(source, { cacheControl: false, dotfiles: "allow" });
     res.set("Content-Encoding", encodings[0]);
-    res.set("ETag", `W/"${sourceStat.size.toString(16)}-${Math.floor(sourceStat.mtimeMs).toString(16)}-${encodings[0]}"`);
+    res.set("ETag", `W/"${sourceStat.size.toString(16)}-${createHash("sha1").update(clientAssetVersion(sourceStat)).digest("hex")}-${encodings[0]}"`);
     res.set("Last-Modified", sourceStat.mtime.toUTCString());
     if (req.fresh) return res.status(304).end();
     if (req.method === "HEAD") return res.end();
+    if (root === VENCORD_PATH) {
+        const compressed = await vencordCompression.get(source, sourceStat, encodings[0]);
+        if (compressed) return res.send(compressed);
+    }
     await pipeline(fs.createReadStream(source), compressor(encodings[0]), res).catch(() => res.destroy());
 };
 
