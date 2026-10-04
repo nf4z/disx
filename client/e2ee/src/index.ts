@@ -410,6 +410,7 @@ const tick = () => {
 loader.status = () => ({
     ready: initialized && !failure && installed.http && installed.dispatcher && installed.gateway,
     trustsServer: engine.trustsServer,
+    serverRecoveryReady: engine.serverRecoveryReady,
     failure,
     userId: engine.userId,
     deviceId: engine.device?.deviceId ?? null,

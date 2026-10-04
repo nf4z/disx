@@ -25,7 +25,7 @@ const root = path.resolve(__dirname, "../..");
 const result = buildSync({
     stdin: {
         contents:
-            'export {Engine,FALLBACK_CONTENT} from "./client/e2ee/src/engine"; export {createHooks} from "./client/e2ee/src/hooks"; export {generateSigningKey,generateAgreementKey,exportPublic,sign,deviceIdFor,deviceMessage,prekeyMessage} from "./client/e2ee/src/crypto";',
+            'export {Engine,FALLBACK_CONTENT} from "./client/e2ee/src/engine"; export {createHooks} from "./client/e2ee/src/hooks"; export {generateSigningKey,generateAgreementKey,exportPublic,sign,deviceIdFor,deviceMessage,prekeyMessage,generateExportable,importSigningJwk,backupKeyMessage,verify} from "./client/e2ee/src/crypto"; export {sealJwk} from "./client/e2ee/src/backup";',
         resolveDir: root,
     },
     bundle: true,
@@ -37,7 +37,23 @@ const compiled = new Module(path.join(root, "scripts/tests/private-e2ee-fixture.
 compiled.filename = compiled.id;
 compiled.paths = module.paths;
 compiled._compile(result.outputFiles[0].text, compiled.filename);
-const { Engine, FALLBACK_CONTENT, createHooks, generateSigningKey, generateAgreementKey, exportPublic, sign, deviceIdFor, deviceMessage, prekeyMessage } = compiled.exports;
+const {
+    Engine,
+    FALLBACK_CONTENT,
+    createHooks,
+    generateSigningKey,
+    generateAgreementKey,
+    exportPublic,
+    sign,
+    deviceIdFor,
+    deviceMessage,
+    prekeyMessage,
+    generateExportable,
+    importSigningJwk,
+    backupKeyMessage,
+    verify,
+    sealJwk,
+} = compiled.exports;
 global.document = { documentElement: { lang: "en" } };
 
 const fixture = (ready, encryptedChannel = "10") => {
@@ -188,4 +204,107 @@ test("trusted-server mode still rejects devices with invalid identity signatures
     const { engine } = await directoryFixture(true, true);
     const [entry] = await engine.keysFor(["peer"]);
     assert.equal(entry.devices.length, 0);
+});
+
+const recoveryFixture = async (trusted = true, alterIdentity = (key) => key) => {
+    const userId = "5";
+    const secret = crypto.getRandomValues(new Uint8Array(32));
+    const identity = await generateExportable("Ed25519");
+    const backupKey = await generateExportable("X25519");
+    const privateKey = await importSigningJwk(identity);
+    const backup = {
+        identity_key: identity.x,
+        backup_public_key: backupKey.x,
+        backup_key_signature: await sign(privateKey, backupKeyMessage(userId, backupKey.x)),
+        wrapped_identity: await sealJwk(secret, "identity", userId, await alterIdentity(identity)),
+        wrapped_backup_key: await sealJwk(secret, "backup-key", userId, backupKey),
+        version: 1,
+        mode: "recovery",
+    };
+    const calls = [];
+    const writes = [];
+    const engine = new Engine(
+        {
+            request: async (method, path, body) => {
+                calls.push({ method, path, body });
+                if (method === "get" && path === "/users/@me/e2ee/backup") return backup;
+                if (method === "post") return { backup_secret: Buffer.from(secret).toString("base64url") };
+            },
+        },
+        () => true,
+        () => trusted,
+    );
+    engine.userId = userId;
+    engine.serverKey = backup.identity_key;
+    engine.store = { set: async (...args) => writes.push(args), del: async () => {}, get: async () => null };
+    engine.refresh = async () => {
+        engine.linked = true;
+    };
+    return { engine, secret, backup, privateKey, calls, writes };
+};
+
+test("trusted password recovery restores a recovery-only backup after validating both sealed keys", async () => {
+    const { engine, backup, calls, writes } = await recoveryFixture();
+    assert.equal(await engine.recoverWithPassword("account-password-fixture"), true);
+    assert.equal(engine.identity.publicKey, backup.identity_key);
+    assert.equal(engine.backupKeyPair.publicKey, backup.backup_public_key);
+    assert.ok(writes.some(([key]) => key === "backup-secret"));
+    assert.equal(calls[0].path, "/users/@me/e2ee/backup/escrow/recover");
+});
+
+test("strict safety mode never requests a server recovery secret", async () => {
+    const { engine, calls, writes } = await recoveryFixture(false);
+    assert.equal(await engine.recoverWithPassword("account-password-fixture"), false);
+    assert.equal(calls.length, 0);
+    assert.equal(writes.length, 0);
+});
+
+test("server recovery rejects a forged identity private key without changing identity or storage", async () => {
+    const { engine, writes } = await recoveryFixture(true, async (key) => ({ ...key, d: (await generateExportable("Ed25519")).d }));
+    const previous = { publicKey: "existing-identity", privateKey: null };
+    engine.identity = previous;
+    await assert.rejects(engine.recoverWithPassword("account-password-fixture"));
+    assert.equal(engine.identity, previous);
+    assert.equal(writes.length, 0);
+    assert.equal(engine.secret, null);
+});
+
+test("server recovery rejects an invalid backup signature before persisting any secret", async () => {
+    const { engine, backup, writes } = await recoveryFixture();
+    backup.backup_key_signature = "invalid";
+    await assert.rejects(engine.recoverWithPassword("account-password-fixture"));
+    assert.equal(writes.length, 0);
+    assert.equal(engine.identity, null);
+});
+
+test("server recovery rejects malformed secret length without mutating storage", async () => {
+    const { engine, writes } = await recoveryFixture();
+    engine.api.request = async () => ({ backup_secret: Buffer.alloc(31).toString("base64url") });
+    await assert.rejects(engine.recoverWithPassword("account-password-fixture"));
+    assert.equal(writes.length, 0);
+});
+
+test("server recovery upload binds the decoded secret digest and current backup/device to its identity signature", async () => {
+    const { engine, backup, secret, privateKey, calls } = await recoveryFixture();
+    engine.identity = { publicKey: backup.identity_key, privateKey };
+    engine.device = { deviceId: "device-fixture" };
+    engine.secret = secret;
+    engine.backup = backup;
+    engine.linked = true;
+    await engine.publishServerRecovery();
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].path, "/users/@me/e2ee/backup/escrow");
+    const digest = Buffer.from(await crypto.subtle.digest("SHA-256", secret)).toString("base64url");
+    const message = `fosscord-e2ee/v1/server-recovery\n5\n${backup.identity_key}\n1\ndevice-fixture\n${digest}`;
+    assert.equal(await verify(backup.identity_key, message, calls[0].body.signature), true);
+    assert.equal(engine.serverRecoveryReady, true);
+    await engine.publishServerRecovery();
+    assert.equal(calls.length, 1, "unchanged backup is not repeatedly published");
+});
+
+test("server recovery rejects noncanonical secret encoding without changing storage", async () => {
+    const { engine, secret, writes } = await recoveryFixture();
+    engine.api.request = async () => ({ backup_secret: Buffer.from(secret).toString("base64url") + "=" });
+    await assert.rejects(engine.recoverWithPassword("account-password-fixture"));
+    assert.equal(writes.length, 0);
 });

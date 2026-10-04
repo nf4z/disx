@@ -618,6 +618,8 @@ export const createUi = ({ engine, ready, states, enableChannel, link, verifyPas
                 if (engine.linked) finish();
             });
             requiredPasswordOpen = finish;
+            const advanced = button(t("Advanced recovery"), "link", showSettings);
+            advanced.hidden = true;
             const submit = button(t("Continue"), "primary", async () => {
                 if (!input.value) return setError(t("Enter your password."));
                 submit.disabled = true;
@@ -625,8 +627,9 @@ export const createUi = ({ engine, ready, states, enableChannel, link, verifyPas
                 try {
                     if (!(await verifyPassword(input.value))) return setError(t("That password isn't right."));
                     await engine.reloadBackup();
-                    if (engine.backup?.mode === "password" && engine.backup.wrapped_secret) await engine.unlockWith("password", input.value);
-                    else {
+                    if (engine.backup?.mode === "password" && engine.backup.wrapped_secret) await engine.unlockWith("password", input.value).catch(() => {});
+                    if (!engine.linked) await engine.recoverWithPassword(input.value).catch(() => false);
+                    if (!engine.linked) {
                         await link.request();
                         await new Promise<void>((resolve) => {
                             const timer = setTimeout(() => {
@@ -643,12 +646,10 @@ export const createUi = ({ engine, ready, states, enableChannel, link, verifyPas
                     }
                     input.value = "";
                     if (engine.linked) finish();
-                    else
-                        setError(
-                            t(
-                                "Your password is correct, but this browser still needs your saved keys. Open a previously signed-in browser or use Advanced recovery. Your messages have not been reset.",
-                            ),
-                        );
+                    else {
+                        advanced.hidden = false;
+                        setError(t("Your saved keys aren’t available yet. Open a browser where your messages still work, or use your recovery code in Encryption settings."));
+                    }
                 } catch (error) {
                     setError(errorText(error));
                 } finally {
@@ -656,7 +657,7 @@ export const createUi = ({ engine, ready, states, enableChannel, link, verifyPas
                 }
             });
             input.addEventListener("keydown", (event) => event.key === "Enter" && submit.click());
-            actions.append(button(t("Advanced recovery"), "link", showSettings), submit);
+            actions.append(advanced, submit);
         });
     };
 
@@ -986,7 +987,12 @@ export const createUi = ({ engine, ready, states, enableChannel, link, verifyPas
         });
         strictLabel.append(strict, document.createTextNode(t("Review safety number changes and new browser approvals")));
         advanced.append(strictLabel);
-        describe(advanced, t("By default, this browser trusts this instance's signed-in sessions and key directory. Messages and key backups stay encrypted."));
+        describe(
+            advanced,
+            t(
+                "By default, this browser trusts this instance's signed-in sessions and key directory. The instance also stores an encrypted recovery copy of your backup secret, so your account password can recover this browser. Safety checks apply in this browser and do not erase a recovery copy already stored by another browser.",
+            ),
+        );
         root.append(browser, backupSection, devices, resetSection, advanced);
         const clear = (el: HTMLElement) => el.querySelectorAll(":scope > :not(h3)").forEach((child) => child.remove());
         const renderBrowser = () => {
@@ -1015,7 +1021,12 @@ export const createUi = ({ engine, ready, states, enableChannel, link, verifyPas
             }
             if (!backup) return void describe(backupSection, t("Your keys aren't backed up yet. Open the app on a browser that can read your messages to back them up."));
             if (backup.mode === "recovery")
-                describe(backupSection, t("Your keys are backed up and locked with a recovery code. New browsers ask for that code, and your password can't unlock them."));
+                describe(
+                    backupSection,
+                    t(
+                        "Your keys have a recovery-code backup. In trusted-server mode, your account password can also recover a browser through the instance; advanced safety mode uses your recovery code or another device.",
+                    ),
+                );
             else if (backup.wrapped_secret)
                 describe(
                     backupSection,
@@ -1221,7 +1232,7 @@ export const createUi = ({ engine, ready, states, enableChannel, link, verifyPas
         const list = members?.channelId === channelId ? members.list : [];
         if (!engine.trustsServer && list.some((m) => engine.contacts[m.id]?.pendingKey)) return t("Safety Number Changed");
         if (list.length && list.every((m) => engine.contacts[m.id]?.verified)) return t("Encrypted and Verified");
-        return t("End-to-End Encrypted");
+        return t(engine.trustsServer ? "Encrypted" : "End-to-End Encrypted");
     };
 
     const decorateHeader = (channelId: string | null) => {

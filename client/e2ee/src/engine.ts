@@ -17,7 +17,7 @@
 */
 
 import { BackupMode, BackupRecord, generateRecoveryCode, openJwk, openTrust, sealJwk, sealTrust, TrustMap, unwrapSecret, wrapSecret } from "./backup";
-import { Bytes, fromB64u, fromUtf8, randomBytes, toB64u, utf8 } from "./bytes";
+import { Bytes, fromB64u, fromUtf8, randomBytes, sha256, toB64u, utf8 } from "./bytes";
 import {
     aesDecrypt,
     aesEncrypt,
@@ -38,6 +38,7 @@ import {
     rotationMessage,
     sign,
     verify,
+    x25519,
 } from "./crypto";
 import { parsePayload, Payload } from "./files";
 import { Contact, dropPendingPassword, holdPendingPassword, scoped, Store, StoredDevice, StoredIdentity, StoredPrekey, takePendingPassword } from "./store";
@@ -319,6 +320,7 @@ export class Engine {
     private trustVersion = -1;
 
     private privateByDefault = true;
+    private recoveryPublished = "";
 
     constructor(
         private api: Api,
@@ -328,6 +330,10 @@ export class Engine {
 
     get trustsServer() {
         return this.trustDirectory();
+    }
+
+    get serverRecoveryReady() {
+        return !!this.backup && !!this.device && this.recoveryPublished === `${this.backup.identity_key}:${this.backup.version}:${this.device.deviceId}`;
     }
 
     onChange(listener: () => void) {
@@ -488,15 +494,58 @@ export class Engine {
     }
 
     private async restoreFromSecret(secret: Bytes, backup: BackupRecord) {
+        if (secret.byteLength !== 32) throw new Error("invalid backup secret");
         const identityJwk = await openJwk(secret, "identity", this.userId, backup.wrapped_identity);
-        if (identityJwk.x !== backup.identity_key) throw new Error("backup identity doesn't match");
         const backupJwk = await openJwk(secret, "backup-key", this.userId, backup.wrapped_backup_key);
-        if (backupJwk.x !== backup.backup_public_key) throw new Error("backup key doesn't match");
+        const valid = (jwk: OkpJwk, curve: string, publicKey: string) =>
+            jwk.kty === "OKP" && jwk.crv === curve && jwk.x === publicKey && typeof jwk.d === "string" && fromB64u(jwk.d).byteLength === 32 && fromB64u(jwk.x).byteLength === 32;
+        if (!valid(identityJwk, "Ed25519", backup.identity_key) || !valid(backupJwk, "X25519", backup.backup_public_key)) throw new Error("backup keys don't match");
+        if (!(await verify(backup.identity_key, backupKeyMessage(this.userId, backup.backup_public_key), backup.backup_key_signature)))
+            throw new Error("invalid backup key signature");
+        const identityPrivate = await importSigningJwk(identityJwk);
+        const challenge = toB64u(randomBytes(32));
+        if (!(await verify(backup.identity_key, challenge, await sign(identityPrivate, challenge)))) throw new Error("backup identity private key doesn't match");
+        const pair = await importAgreementJwk(backupJwk);
+        const probe = await generateAgreementKey();
+        if (!sameBytes(await x25519(pair.privateKey, await exportPublic(probe.publicKey)), await x25519(probe.privateKey, backup.backup_public_key)))
+            throw new Error("backup private key doesn't match");
         await this.adoptIdentity(identityJwk);
-        this.backupKeyPair = { publicKey: backupJwk.x, keyPair: await importAgreementJwk(backupJwk) };
+        this.backupKeyPair = { publicKey: backupJwk.x, keyPair: pair };
         this.secret = secret;
         await this.store!.set("backup-secret", secret);
         return identityJwk;
+    }
+
+    private async serverSecret(password: string) {
+        if (!this.trustsServer) return null;
+        const response = await this.api.request<{ backup_secret: string }>("post", "/users/@me/e2ee/backup/escrow/recover", { password });
+        const secret = fromB64u(response.backup_secret);
+        if (secret.byteLength !== 32 || toB64u(secret) !== response.backup_secret) throw new Error("invalid server recovery secret");
+        return secret;
+    }
+
+    async recoverWithPassword(password: string) {
+        const secret = await this.serverSecret(password);
+        if (!secret) return false;
+        await this.unlockWithSecret(secret);
+        return this.linked;
+    }
+
+    private async publishServerRecovery(api: Api = this.api) {
+        const backup = this.backup;
+        if (!this.trustsServer || !this.linked || !this.secret || !this.identity || !this.device || !backup || backup.identity_key !== this.identity.publicKey) return;
+        const key = `${backup.identity_key}:${backup.version}:${this.device.deviceId}`;
+        if (this.recoveryPublished === key) return;
+        const digest = toB64u(await sha256(this.secret));
+        const message = `fosscord-e2ee/v1/server-recovery\n${this.userId}\n${backup.identity_key}\n${backup.version}\n${this.device.deviceId}\n${digest}`;
+        await api.request("put", "/users/@me/e2ee/backup/escrow", {
+            identity_key: backup.identity_key,
+            backup_version: backup.version,
+            device_id: this.device.deviceId,
+            backup_secret: toB64u(this.secret),
+            signature: await sign(this.identity.privateKey, message),
+        });
+        this.recoveryPublished = key;
     }
 
     private passwordValue() {
@@ -651,6 +700,10 @@ export class Engine {
             const secret = await unwrapSecret(userId, backup, password).catch(() => null);
             if (secret) identityJwk = await this.restoreFromSecret(secret, backup);
         }
+        if (backup && !this.secret && password && this.trustsServer) {
+            const secret = await this.serverSecret(password).catch(() => null);
+            if (secret) identityJwk = await this.restoreFromSecret(secret, backup);
+        }
         if (this.identity && !backup) {
             try {
                 await this.createBackup(state, identityJwk);
@@ -705,6 +758,7 @@ export class Engine {
         this.linked = await signedBy(serverDevice);
         this.directory.delete(userId);
         if (this.linked) await this.applyTrust(this.backup).catch((error) => console.error("[e2ee] couldn't read the synced verifications", error));
+        await this.publishServerRecovery().catch(() => {});
     }
 
     private async applyTrust(record: BackupRecord | null, syncLocal = true) {
@@ -789,8 +843,9 @@ export class Engine {
     }
 
     async unlockWithSecret(secret: Bytes) {
-        await this.store!.set("backup-secret", secret);
-        this.secret = secret;
+        const backup = await this.fetchBackup();
+        if (!backup || backup.identity_key !== this.serverKey) throw new E2eeError("BAD_SECRET", t("That key didn't unlock this browser"));
+        await this.restoreFromSecret(secret, backup);
         await this.refresh();
         if (!this.linked) throw new E2eeError("BAD_SECRET", t("That key didn't unlock this browser"));
     }
@@ -815,6 +870,7 @@ export class Engine {
                 ...(await wrapSecret(this.userId, mode, input, this.secret!)),
             });
         });
+        await this.publishServerRecovery().catch(() => {});
         this.emit();
     }
 

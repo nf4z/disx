@@ -1,7 +1,7 @@
 import { solveCap } from "./cap-token.mjs";
 import { createRequire } from "node:module";
 import { homedir, tmpdir } from "node:os";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { crc32, deflateSync } from "node:zlib";
@@ -20,6 +20,15 @@ const database = Object.fromEntries(
         .filter((l) => l.includes("="))
         .map((l) => [l.slice(0, l.indexOf("=")), l.slice(l.indexOf("=") + 1)]),
 ).DATABASE;
+const expectedDatabase = process.env.E2EE_TEST_DATABASE_NAME || "fosscord_codex_admin";
+let actualDatabase = "";
+try {
+    actualDatabase = decodeURIComponent(new URL(database).pathname.slice(1));
+} catch {
+    throw new Error("Encryption tests require a valid isolated PostgreSQL database configuration");
+}
+assert.equal(actualDatabase, expectedDatabase, "Encryption tests must run against the explicitly selected isolated database");
+const recoveryOnly = process.env.E2EE_PASSWORD_RECOVERY_ONLY === "1";
 const FALLBACK = "🔒 Encrypted message";
 const profiles = mkdtempSync(join(tmpdir(), "fosscord-e2ee-"));
 const started = Date.now();
@@ -39,41 +48,13 @@ const call = async (method, path, token, body) => {
 };
 
 const sql = (query) => execFileSync("psql", [database, "-At", "-c", query], { encoding: "utf8" }).trim();
-sql(`DELETE FROM rate_limits`);
 
 const suffix = randomBytes(4).toString("hex");
-const accountsFile = new URL("./.e2ee-test-accounts", import.meta.url);
-const saved = existsSync(accountsFile) ? JSON.parse(readFileSync(accountsFile, "utf8")) : {};
-const seedFile = new URL("./.test-account", import.meta.url);
-if (existsSync(seedFile)) {
-    const seed = Object.fromEntries(
-        readFileSync(seedFile, "utf8")
-            .trim()
-            .split("\n")
-            .map((l) => l.split("=")),
-    );
-    saved.tester ??= { email: seed.TEST_EMAIL, password: seed.TEST_PASSWORD };
-    saved.friend ??= { email: "friend@fosscord.test", password: seed.FRIEND_PASSWORD };
-}
 const account = async (name) => {
-    const known = saved[name];
-    if (known) {
-        const login = await call("POST", "/auth/login", null, { login: known.email, password: known.password });
-        if (login.body?.token)
-            return {
-                name,
-                email: known.email,
-                password: known.password,
-                token: login.body.token,
-                id: login.body.user_id ?? (await call("GET", "/users/@me", login.body.token)).body.id,
-            };
-    }
     const email = `e2ee-${name}-${suffix}@fosscord.test`;
     const password = randomBytes(12).toString("hex");
     const res = await call("POST", "/auth/register", null, { email, username: `e2ee${name}${suffix}`, password, date_of_birth: "2000-01-01", consent: true });
     assert.ok(res.body?.token, `register ${name}: ${JSON.stringify(res.body)}`);
-    saved[name] = { email, password };
-    writeFileSync(accountsFile, JSON.stringify(saved));
     return { name, email, password, token: res.body.token, id: (await call("GET", "/users/@me", res.body.token)).body.id };
 };
 
@@ -84,10 +65,7 @@ await call("PUT", `/users/@me/relationships/${tester.id}`, friend.token, {});
 const dm = (await call("POST", "/users/@me/channels", tester.token, { recipients: [friend.id] })).body;
 assert.ok(dm?.id, "dm channel");
 assert.equal((await call("POST", "/users/@me/channels", friend.token, { recipients: [tester.id] })).body?.id, dm.id, "friend opens the same dm");
-sql(
-    `delete from e2ee_devices where user_id in ('${tester.id}', '${friend.id}'); delete from e2ee_identities where user_id in ('${tester.id}', '${friend.id}'); delete from e2ee_key_backups where user_id in ('${tester.id}', '${friend.id}'); delete from e2ee_backup_keys where user_id in ('${tester.id}', '${friend.id}'); delete from messages where channel_id = '${dm.id}' and encrypted is not null; update channels set e2ee_enabled_at = null where id = '${dm.id}'`,
-);
-log(`users ${tester.id} and ${friend.id}, dm ${dm.id}, e2ee state reset`);
+log("created two fresh isolated encryption accounts and a private conversation");
 
 const launch = async (user, options = {}) => {
     const context = await chromium.launchPersistentContext(join(profiles, options.profile ?? user.name), {
@@ -139,6 +117,11 @@ const open = async (context, user, { login = false, extraInit, strictSafety = fa
     const page = context.pages()[0] ?? (await context.newPage());
     const sent = [];
     const errors = [];
+    const network = [];
+    page.on("response", (response) => {
+        const path = new URL(response.url()).pathname;
+        if (path.includes("/e2ee/") || [401, 403, 429].includes(response.status())) network.push({ path, method: response.request().method(), status: response.status() });
+    });
     page.on("console", (m) => m.text().startsWith("[e2ee]") && errors.push(m.text()));
     page.on("request", (r) => {
         const path = new URL(r.url()).pathname;
@@ -147,7 +130,7 @@ const open = async (context, user, { login = false, extraInit, strictSafety = fa
     });
     if (!login) {
         await page.goto(`${origin}/channels/@me/${dm.id}`);
-        return { context, page, sent, errors, user };
+        return { context, page, sent, errors, network, user };
     }
     await page.goto(`${origin}/login`);
     await page.locator('input[name="email"]').fill(user.email, { timeout: 20000 });
@@ -167,7 +150,16 @@ const open = async (context, user, { login = false, extraInit, strictSafety = fa
         } else await link.click({ timeout: 2000 }).catch(() => {});
         await page.waitForTimeout(250);
     }
-    return { context, page, sent, errors, user, askedToUnlock };
+    const nativeToken = await page.evaluate(() => {
+        const raw = localStorage.getItem("token");
+        try {
+            return JSON.parse(raw);
+        } catch {
+            return raw;
+        }
+    });
+    if (typeof nativeToken === "string" && nativeToken) user.token = nativeToken;
+    return { context, page, sent, errors, network, user, askedToUnlock };
 };
 
 const dialogOpen = (s) => s.page.locator("dialog.fe2ee-dialog[open]:not([data-closing])").count();
@@ -226,11 +218,23 @@ const diagnose = async (...sessions) => {
                 messages: [...document.querySelectorAll('[id^="message-content-"]')].map((el) => el.id + ": " + el.textContent).slice(-5),
             }))
             .catch((e) => String(e));
-        console.error(`--- ${s.user.name}`, JSON.stringify({ state, sent: s.sent, errors: s.errors }, null, 1).slice(0, 4000));
+        console.error(`--- ${s.user.name}`, JSON.stringify({ url: s.page.url(), state, sent: s.sent, errors: s.errors, network: s.network }, null, 1).slice(0, 4000));
     }
 };
 
 const phase = async (name, fn) => {
+    if (
+        recoveryOnly &&
+        ![
+            "tester logs in through the login form and gets a password backup",
+            "friend logs in through the login form and gets a password backup",
+            "both browsers register devices and send with default encryption",
+            "recovery-code mode asks a new browser for the code",
+            "password-only server recovery opens a recovery-code backup with no other browser online",
+            "isolated fixture returns to a password-backed backup before profile deletion",
+        ].includes(name)
+    )
+        return;
     for (let attempt = 1; attempt <= 3; attempt++) {
         try {
             log(`${name}${attempt > 1 ? ` (attempt ${attempt})` : ""}`);
@@ -246,6 +250,8 @@ const phase = async (name, fn) => {
 
 const originalPassword = tester.password;
 let profiled = 0;
+let recoveryCode = "";
+let restoredFixtureAccess = false;
 const fresh = (name) => `${name}-${++profiled}`;
 let profileB = "";
 const first = `hello from tester ${suffix}`;
@@ -259,6 +265,61 @@ const imageName = `photo-${suffix}.png`;
 const fileName = `notes-${suffix}.zip`;
 const imageBytes = png(160, 90);
 const fileBytes = randomBytes(200 * 1024 + 123);
+
+const restoreFixtureAccess = async () => {
+    const backup = backupRow();
+    if (!backup) {
+        const history = Number(sql(`select count(*) from messages where channel_id = '${dm.id}' and encrypted is not null`));
+        if (history) throw new Error("fixture has history without a recoverable backup");
+        return;
+    }
+    const r = await launch(tester, { login: true, strictSafety: true });
+    try {
+        await waitReady(r);
+        if ((await status(r)).locked) {
+            if (backup.mode !== "recovery" || !recoveryCode) throw new Error("fixture keys are locked; preserving browser profiles");
+            await r.page.locator(".fe2ee-notice button", { hasText: "Unlock" }).click();
+            await r.page.getByLabel("Recovery code").fill(recoveryCode);
+            await r.page.locator("dialog.fe2ee-dialog button", { hasText: /^Unlock$/ }).click();
+            await r.page.waitForFunction(() => window.__fosscordE2ee.status().linked === true);
+        }
+        if (backupRow().mode === "recovery") {
+            await r.page.evaluate(() => window.__fosscordE2ee.openSettings());
+            await r.page.getByLabel("Account password").fill(tester.password);
+            await r.page.getByRole("button", { name: "Use my password instead", exact: true }).click();
+            await waitFor("fixture password backup", () => backupRow()?.mode === "password");
+        }
+        if (tester.password !== originalPassword) {
+            const before = backupRow().version;
+            const token = await r.page.evaluate(
+                async ({ previous, next }) => {
+                    const req = window.__fosscordE2ee.reqs.filter((r) => r.c).sort((x, y) => Object.keys(y.c).length - Object.keys(x.c).length)[0];
+                    const values = Object.values(req.c).flatMap((m) => Object.values(m.exports ?? {}));
+                    const http = values.find((v) => v && typeof v === "object" && typeof v.patch === "function" && String(v.patch).includes("AUTH_URL"));
+                    const result = await http.patch({ url: "/users/@me", body: { password: previous, new_password: next }, rejectWithError: false });
+                    return result.body.token;
+                },
+                { previous: tester.password, next: originalPassword },
+            );
+            assert.ok(token);
+            tester.password = originalPassword;
+            tester.token = token;
+            await waitFor("fixture original password rewrap", () => backupRow().version > before);
+        }
+        assert.equal(backupRow().mode, "password");
+    } finally {
+        await close(r);
+    }
+    const check = await launch(tester, { login: true, profile: fresh("fixture-password-check") });
+    try {
+        await waitReady(check);
+        assert.equal((await status(check)).linked, true, "restored fixture password opens its key backup");
+        const count = Number(sql(`select count(*) from messages where channel_id = '${dm.id}' and encrypted is not null`));
+        if (count) await waitDecrypted(check, edited);
+    } finally {
+        await close(check);
+    }
+};
 
 try {
     await phase("tester logs in through the login form and gets a password backup", async () => {
@@ -706,7 +767,6 @@ try {
         }
     });
 
-    let recoveryCode = "";
     await phase("recovery-code mode asks a new browser for the code", async () => {
         const a = await launch(tester, { login: true, strictSafety: true });
         try {
@@ -795,8 +855,42 @@ try {
         }
     });
 
+    await phase("password-only server recovery opens a recovery-code backup with no other browser online", async () => {
+        const holder = await launch(tester);
+        try {
+            await waitReady(holder);
+            await holder.page.waitForFunction(() => window.__fosscordE2ee.status().serverRecoveryReady === true, null, { timeout: 10000 });
+        } catch (error) {
+            await diagnose(holder);
+            throw error;
+        } finally {
+            await close(holder);
+        }
+        const identity = backupRow().identity_key;
+        const recovered = await launch(tester, { login: true, profile: fresh("password-server-recovery") });
+        try {
+            await waitReady(recovered);
+            assert.equal((await status(recovered)).linked, true);
+            assert.equal((await status(recovered)).backup.mode, "recovery");
+            assert.equal(backupRow().identity_key, identity, "password recovery preserves identity and history");
+            assert.equal(recovered.askedToUnlock, false);
+            assert.equal(await dialogOpen(recovered), 0, "captured password restores server-assisted keys without a recovery prompt");
+            await waitDecrypted(recovered, edited);
+            if (!recoveryOnly) await waitDecrypted(recovered, afterRotation);
+            assert.ok(
+                recovered.network.some((r) => r.path.endsWith("/backup/escrow/recover") && r.status === 200),
+                "password-gated server recovery supplied the existing keys",
+            );
+            assert.match(await recovered.page.locator(".fe2ee-toggle").getAttribute("aria-label"), /^Encrypted/);
+            await recovered.page.screenshot({ path: join(tmpdir(), "fosscord-password-server-recovery.png") });
+            log("password-only server recovery preserved the existing identity and encrypted history without an online holder");
+        } finally {
+            await close(recovered);
+        }
+    });
+
     await phase("default trusted-server mode links an authenticated new browser without approval dialogs", async () => {
-        const [a, g] = await launchAll([tester], [tester, { login: true, profile: fresh("tester-auto") }]);
+        const [a, g] = await launchAll([tester], [tester, { profile: fresh("tester-auto") }]);
         try {
             await Promise.all([waitReady(a), waitReady(g)]);
             await g.page.waitForFunction(() => window.__fosscordE2ee?.status?.()?.linked === true, null, { timeout: 20000 });
@@ -860,6 +954,12 @@ try {
         }
     });
 
+    await phase("isolated fixture returns to a password-backed backup before profile deletion", async () => {
+        await restoreFixtureAccess();
+        restoredFixtureAccess = true;
+        log("fixture password and key backup restored; fresh password login reads history");
+    });
+
     await phase("a broken crypto runtime fails closed", async () => {
         const breakX25519 = () => {
             const generate = crypto.subtle.generateKey.bind(crypto.subtle);
@@ -888,16 +988,15 @@ try {
 
     log("all e2ee checks passed");
 } finally {
-    if (tester.password !== originalPassword) {
-        const restore = (token) => call("PATCH", "/users/@me", token, { password: tester.password, new_password: originalPassword });
-        let restored = await restore(tester.token);
-        for (let attempt = 0; restored.status !== 200 && attempt < 5; attempt++) {
-            await new Promise((resolve) => setTimeout(resolve, 15000));
-            const login = await call("POST", "/auth/login", null, { login: tester.email, password: tester.password });
-            restored = await restore(login.body?.token);
+    if (!restoredFixtureAccess) {
+        try {
+            await restoreFixtureAccess();
+            restoredFixtureAccess = true;
+        } catch {
+            console.error(`fixture recovery did not complete; preserving private browser profiles at ${profiles}`);
         }
-        if (restored.status !== 200) console.error("couldn't restore the local tester password; reset the isolated test account before rerunning");
     }
+    if (!restoredFixtureAccess) throw new Error("isolated fixture recovery requires inspection; profiles were preserved");
     try {
         rmSync(profiles, { recursive: true, force: true, maxRetries: 5, retryDelay: 500 });
     } catch (error) {

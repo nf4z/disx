@@ -3863,8 +3863,12 @@ ${sig}`;
     freshIdentity = null;
     trustVersion = -1;
     privateByDefault = true;
+    recoveryPublished = "";
     get trustsServer() {
       return this.trustDirectory();
+    }
+    get serverRecoveryReady() {
+      return !!this.backup && !!this.device && this.recoveryPublished === `${this.backup.identity_key}:${this.backup.version}:${this.device.deviceId}`;
     }
     onChange(listener) {
       this.listeners.add(listener);
@@ -4003,15 +4007,59 @@ ${sig}`;
       await this.store.set("trusted-identity", key);
     }
     async restoreFromSecret(secret, backup) {
+      if (secret.byteLength !== 32) throw new Error("invalid backup secret");
       const identityJwk = await openJwk(secret, "identity", this.userId, backup.wrapped_identity);
-      if (identityJwk.x !== backup.identity_key) throw new Error("backup identity doesn't match");
       const backupJwk = await openJwk(secret, "backup-key", this.userId, backup.wrapped_backup_key);
-      if (backupJwk.x !== backup.backup_public_key) throw new Error("backup key doesn't match");
+      const valid = (jwk, curve, publicKey) => jwk.kty === "OKP" && jwk.crv === curve && jwk.x === publicKey && typeof jwk.d === "string" && fromB64u(jwk.d).byteLength === 32 && fromB64u(jwk.x).byteLength === 32;
+      if (!valid(identityJwk, "Ed25519", backup.identity_key) || !valid(backupJwk, "X25519", backup.backup_public_key)) throw new Error("backup keys don't match");
+      if (!await verify(backup.identity_key, backupKeyMessage(this.userId, backup.backup_public_key), backup.backup_key_signature))
+        throw new Error("invalid backup key signature");
+      const identityPrivate = await importSigningJwk(identityJwk);
+      const challenge = toB64u(randomBytes(32));
+      if (!await verify(backup.identity_key, challenge, await sign(identityPrivate, challenge))) throw new Error("backup identity private key doesn't match");
+      const pair = await importAgreementJwk(backupJwk);
+      const probe = await generateAgreementKey();
+      if (!sameBytes(await x25519(pair.privateKey, await exportPublic(probe.publicKey)), await x25519(probe.privateKey, backup.backup_public_key)))
+        throw new Error("backup private key doesn't match");
       await this.adoptIdentity(identityJwk);
-      this.backupKeyPair = { publicKey: backupJwk.x, keyPair: await importAgreementJwk(backupJwk) };
+      this.backupKeyPair = { publicKey: backupJwk.x, keyPair: pair };
       this.secret = secret;
       await this.store.set("backup-secret", secret);
       return identityJwk;
+    }
+    async serverSecret(password) {
+      if (!this.trustsServer) return null;
+      const response = await this.api.request("post", "/users/@me/e2ee/backup/escrow/recover", { password });
+      const secret = fromB64u(response.backup_secret);
+      if (secret.byteLength !== 32 || toB64u(secret) !== response.backup_secret) throw new Error("invalid server recovery secret");
+      return secret;
+    }
+    async recoverWithPassword(password) {
+      const secret = await this.serverSecret(password);
+      if (!secret) return false;
+      await this.unlockWithSecret(secret);
+      return this.linked;
+    }
+    async publishServerRecovery(api2 = this.api) {
+      const backup = this.backup;
+      if (!this.trustsServer || !this.linked || !this.secret || !this.identity || !this.device || !backup || backup.identity_key !== this.identity.publicKey) return;
+      const key = `${backup.identity_key}:${backup.version}:${this.device.deviceId}`;
+      if (this.recoveryPublished === key) return;
+      const digest = toB64u(await sha256(this.secret));
+      const message = `fosscord-e2ee/v1/server-recovery
+${this.userId}
+${backup.identity_key}
+${backup.version}
+${this.device.deviceId}
+${digest}`;
+      await api2.request("put", "/users/@me/e2ee/backup/escrow", {
+        identity_key: backup.identity_key,
+        backup_version: backup.version,
+        device_id: this.device.deviceId,
+        backup_secret: toB64u(this.secret),
+        signature: await sign(this.identity.privateKey, message)
+      });
+      this.recoveryPublished = key;
     }
     passwordValue() {
       if (this.password && Date.now() - this.password.at > PASSWORD_TTL_MS) this.password = null;
@@ -4155,6 +4203,10 @@ ${sig}`;
         const secret = await unwrapSecret(userId, backup, password).catch(() => null);
         if (secret) identityJwk = await this.restoreFromSecret(secret, backup);
       }
+      if (backup && !this.secret && password && this.trustsServer) {
+        const secret = await this.serverSecret(password).catch(() => null);
+        if (secret) identityJwk = await this.restoreFromSecret(secret, backup);
+      }
       if (this.identity && !backup) {
         try {
           await this.createBackup(state, identityJwk);
@@ -4205,6 +4257,8 @@ ${sig}`;
       this.linked = await signedBy(serverDevice);
       this.directory.delete(userId);
       if (this.linked) await this.applyTrust(this.backup).catch((error) => console.error("[e2ee] couldn't read the synced verifications", error));
+      await this.publishServerRecovery().catch(() => {
+      });
     }
     async applyTrust(record, syncLocal = true) {
       const trust = record?.identity_key === this.serverKey ? record.trust : void 0;
@@ -4284,8 +4338,9 @@ ${sig}`;
       await this.unlockWithSecret(secret);
     }
     async unlockWithSecret(secret) {
-      await this.store.set("backup-secret", secret);
-      this.secret = secret;
+      const backup = await this.fetchBackup();
+      if (!backup || backup.identity_key !== this.serverKey) throw new E2eeError("BAD_SECRET", t("That key didn't unlock this browser"));
+      await this.restoreFromSecret(secret, backup);
       await this.refresh();
       if (!this.linked) throw new E2eeError("BAD_SECRET", t("That key didn't unlock this browser"));
     }
@@ -4306,6 +4361,8 @@ ${sig}`;
           version: backup.version,
           ...await wrapSecret(this.userId, mode, input, this.secret)
         });
+      });
+      await this.publishServerRecovery().catch(() => {
       });
       this.emit();
     }
@@ -5953,6 +6010,8 @@ ${approver}`;
           if (engine2.linked) finish();
         });
         requiredPasswordOpen = finish;
+        const advanced = button(t("Advanced recovery"), "link", showSettings);
+        advanced.hidden = true;
         const submit = button(t("Continue"), "primary", async () => {
           if (!input.value) return setError(t("Enter your password."));
           submit.disabled = true;
@@ -5960,8 +6019,10 @@ ${approver}`;
           try {
             if (!await verifyPassword2(input.value)) return setError(t("That password isn't right."));
             await engine2.reloadBackup();
-            if (engine2.backup?.mode === "password" && engine2.backup.wrapped_secret) await engine2.unlockWith("password", input.value);
-            else {
+            if (engine2.backup?.mode === "password" && engine2.backup.wrapped_secret) await engine2.unlockWith("password", input.value).catch(() => {
+            });
+            if (!engine2.linked) await engine2.recoverWithPassword(input.value).catch(() => false);
+            if (!engine2.linked) {
               await link2.request();
               await new Promise((resolve) => {
                 const timer = setTimeout(() => {
@@ -5978,12 +6039,10 @@ ${approver}`;
             }
             input.value = "";
             if (engine2.linked) finish();
-            else
-              setError(
-                t(
-                  "Your password is correct, but this browser still needs your saved keys. Open a previously signed-in browser or use Advanced recovery. Your messages have not been reset."
-                )
-              );
+            else {
+              advanced.hidden = false;
+              setError(t("Your saved keys aren’t available yet. Open a browser where your messages still work, or use your recovery code in Encryption settings."));
+            }
           } catch (error) {
             setError(errorText(error));
           } finally {
@@ -5991,7 +6050,7 @@ ${approver}`;
           }
         });
         input.addEventListener("keydown", (event) => event.key === "Enter" && submit.click());
-        actions.append(button(t("Advanced recovery"), "link", showSettings), submit);
+        actions.append(advanced, submit);
       });
     };
     const showUnlock = () => {
@@ -6280,7 +6339,12 @@ ${approver}`;
       });
       strictLabel.append(strict, document.createTextNode(t("Review safety number changes and new browser approvals")));
       advanced.append(strictLabel);
-      describe2(advanced, t("By default, this browser trusts this instance's signed-in sessions and key directory. Messages and key backups stay encrypted."));
+      describe2(
+        advanced,
+        t(
+          "By default, this browser trusts this instance's signed-in sessions and key directory. The instance also stores an encrypted recovery copy of your backup secret, so your account password can recover this browser. Safety checks apply in this browser and do not erase a recovery copy already stored by another browser."
+        )
+      );
       root.append(browser, backupSection, devices, resetSection, advanced);
       const clear = (el) => el.querySelectorAll(":scope > :not(h3)").forEach((child) => child.remove());
       const renderBrowser = () => {
@@ -6309,7 +6373,12 @@ ${approver}`;
         }
         if (!backup) return void describe2(backupSection, t("Your keys aren't backed up yet. Open the app on a browser that can read your messages to back them up."));
         if (backup.mode === "recovery")
-          describe2(backupSection, t("Your keys are backed up and locked with a recovery code. New browsers ask for that code, and your password can't unlock them."));
+          describe2(
+            backupSection,
+            t(
+              "Your keys have a recovery-code backup. In trusted-server mode, your account password can also recover a browser through the instance; advanced safety mode uses your recovery code or another device."
+            )
+          );
         else if (backup.wrapped_secret)
           describe2(
             backupSection,
@@ -6503,7 +6572,7 @@ ${approver}`;
       const list = members?.channelId === channelId ? members.list : [];
       if (!engine2.trustsServer && list.some((m) => engine2.contacts[m.id]?.pendingKey)) return t("Safety Number Changed");
       if (list.length && list.every((m) => engine2.contacts[m.id]?.verified)) return t("Encrypted and Verified");
-      return t("End-to-End Encrypted");
+      return t(engine2.trustsServer ? "Encrypted" : "End-to-End Encrypted");
     };
     const decorateHeader = (channelId) => {
       const existing = document.querySelector(".fe2ee-toggle");
@@ -7056,6 +7125,7 @@ ${approver}`;
   loader.status = () => ({
     ready: initialized && !failure && installed.http && installed.dispatcher && installed.gateway,
     trustsServer: engine.trustsServer,
+    serverRecoveryReady: engine.serverRecoveryReady,
     failure,
     userId: engine.userId,
     deviceId: engine.device?.deviceId ?? null,
