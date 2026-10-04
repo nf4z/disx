@@ -273,13 +273,17 @@ export async function getPermission(
         select: OrmUtils.keysToObject(["type", "parent_id", "id", "recipients", "permission_overwrites", "owner_id", "guild_id", ...(<string[]>opts.channel_select || [])]), // TODO: cleanup
     } as FindOneOptions<Channel>;
     if (typeof channel_id === "string") {
-        channel = await Channel.findOneOrFail({ where: { id: channel_id }, ...query });
+        channel = await Channel.createQueryBuilder("permission_channel")
+            .setFindOptions({ where: { id: channel_id }, ...query })
+            .getOneOrFail();
         if (channel.guild_id) guild_id = channel.guild_id; // derive guild_id from the channel
     } else if (channel_id) {
         channel = channel_id;
     }
     while (channel?.isThread() && channel.parent_id) {
-        const parent = await Channel.findOneOrFail({ where: { id: channel.parent_id }, ...query });
+        const parent = await Channel.createQueryBuilder("permission_parent")
+            .setFindOptions({ where: { id: channel.parent_id }, ...query })
+            .getOneOrFail();
         if (channel.type === ChannelType.GUILD_PRIVATE_THREAD) {
             channel.thread_members ??= await ThreadMember.find({ where: { id: channel.id }, relations: { member: true } });
             if (!channel.thread_members.find((m) => (m.user_id ?? m.member?.id) === user_id)) {
@@ -309,10 +313,12 @@ export async function getPermission(
         if (guild!.owner_id === user_id) return new Permissions(Permissions.FLAGS.ADMINISTRATOR);
 
         member =
-            (await Member.findOne({
-                where: { guild_id: guild!.id, id: user_id },
-                relations: OrmUtils.keysToObject(["roles", ...(opts.member_relations || [])]), // TODO: clean up
-            })) ?? undefined;
+            (await Member.createQueryBuilder("permission_member")
+                .setFindOptions({
+                    where: { guild_id: guild!.id, id: user_id },
+                    relations: OrmUtils.keysToObject(["roles", ...(opts.member_relations || [])]),
+                })
+                .getOne()) ?? undefined;
         if (!member) {
             if (!(await Guild.existsBy({ id: guild!.id, features: ArrayContains(["DISCOVERABLE"]) }))) throw new EntityNotFoundError(Member, { guild_id: guild!.id, id: user_id });
             lurkerRoles = await Role.find({ where: { id: guild!.id, guild_id: guild!.id } });
