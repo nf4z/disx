@@ -91,10 +91,8 @@ async function fetchStandardSticker(sticker_id: string, path: string) {
         sticker = await find();
     }
     if (!sticker) return null;
-    const url =
-        sticker.format_type === StickerFormatType.LOTTIE
-            ? `https://discord.com/stickers/${sticker_id}.json`
-            : `https://media.discordapp.net/stickers/${sticker_id}.${sticker.format_type === StickerFormatType.GIF ? "gif" : "png"}?passthrough=true`;
+    const extension = sticker.format_type === StickerFormatType.LOTTIE ? "json" : sticker.format_type === StickerFormatType.GIF ? "gif" : "png";
+    const url = `https://cdn.discordapp.com/stickers/${sticker_id}.${extension}`;
     return fetchUpstreamAsset(path, url);
 }
 

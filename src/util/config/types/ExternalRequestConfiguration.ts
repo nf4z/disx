@@ -22,6 +22,7 @@ export function allowsCdnUpstream(policy: ExternalRequestConfiguration, raw: str
         const url = new URL(raw);
         if (url.protocol !== "https:" || url.username || url.password || url.port || /%2f|%5c/i.test(url.pathname)) return false;
         if (url.hostname !== "cdn.discordapp.com") return policy.thirdParty;
+        if (/^\/stickers\/\d+\.(?:png|json|gif)$/.test(url.pathname)) return policy.discordStickerPacks;
         return isDiscordDecorationAsset(url.pathname) ? policy.discordDecorations : policy.discordAssetFallback;
     } catch {
         return false;
