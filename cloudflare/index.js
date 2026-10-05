@@ -1,8 +1,8 @@
 import { DurableObject } from "cloudflare:workers";
 
 const PORT = 3001;
-const INACTIVITY_TIMEOUT_MS = 6 * 60 * 60 * 1000;
-const START_TIMEOUT_MS = 300_000;
+const INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000;
+const START_TIMEOUT_MS = 120_000;
 
 export class DisxContainer extends DurableObject {
   starting = null;
@@ -19,11 +19,20 @@ export class DisxContainer extends DurableObject {
   }
 
   observeContainer() {
-    if (!this.ctx.container?.running) return;
+    const container = this.ctx.container;
+    if (!container?.running) return;
+
     this.ctx.waitUntil(
-      this.ctx.container.monitor().catch((error) => {
-        console.error("[container] exited with error:", error);
-      }),
+      container.monitor()
+        .then(() => {
+          console.error("[container] exited normally while being monitored");
+        })
+        .catch((error) => {
+          console.error("[container] exited unexpectedly", {
+            exitCode: error?.exitCode ?? null,
+            reason: error instanceof Error ? error.message : String(error),
+          });
+        }),
     );
   }
 
@@ -105,7 +114,13 @@ export class DisxContainer extends DurableObject {
 
         container.start({
           image: container.images.base,
-          instance: "standard-1",
+          // One full vCPU keeps Node/TypeORM startup responsive while retaining
+          // the same 4 GiB RAM and 8 GB disk as standard-1.
+          instance: {
+            vcpu: 1,
+            memoryMib: 4096,
+            diskMb: 8000,
+          },
           enableInternet: true,
           env: envVars,
         });
@@ -120,21 +135,40 @@ export class DisxContainer extends DurableObject {
       const deadline = Date.now() + START_TIMEOUT_MS;
       let lastError;
 
+      let polls = 0;
       while (Date.now() < deadline) {
+        polls++;
+        if (!container.running) {
+          throw new Error("container stopped while waiting for readiness");
+        }
+
         try {
-          const response = await port.fetch("http://container/api/readyz", {
-            signal: AbortSignal.timeout(1500),
+          const response = await port.fetch("http://container/api/ping", {
+            signal: AbortSignal.timeout(2000),
           });
 
           await response.body?.cancel();
-          if (!response.ok) {
-            throw new Error(`container health check returned HTTP ${response.status}`);
+          if (response.ok) {
+            console.log("[container] ready", {
+              startupMs: Date.now() - (deadline - START_TIMEOUT_MS),
+              polls,
+            });
+            return;
           }
-          return;
+
+          lastError = new Error(`container health check returned HTTP ${response.status}`);
         } catch (error) {
           lastError = error;
-          await scheduler.wait(500);
         }
+
+        if (polls % 10 === 0) {
+          console.log("[container] still starting", {
+            elapsedMs: Date.now() - (deadline - START_TIMEOUT_MS),
+            running: container.running,
+            lastError: lastError instanceof Error ? lastError.message : String(lastError),
+          });
+        }
+        await scheduler.wait(1000);
       }
 
       console.error("[container] readiness timeout:", lastError);
