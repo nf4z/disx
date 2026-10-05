@@ -74,7 +74,7 @@ export const DataSourceOptions = isHeadlessProcess
               null: "sql-null",
               undefined: "ignore",
           },
-          connectTimeoutMS: 30000,
+          connectTimeoutMS: Number(process.env.DB_CONNECT_TIMEOUT_MS) || 15000,
           poolSize: Number(process.env.DB_POOL_SIZE) || 20,
       } satisfies PostgresDataSourceOptions);
 
@@ -119,16 +119,25 @@ async function initializeDatabase(): Promise<DataSource> {
 
     console.log(`[Database] ${yellow(`Connecting to ${DatabaseType} db`)}`);
 
+    const maxRetries = Math.max(1, Number(process.env.DB_CONNECT_RETRIES) || 5);
     let retries = 0;
-    while (!dbConnection) {
+    let lastError;
+    while (!dbConnection && retries < maxRetries) {
         try {
             dbConnection = await DataSourceOptions.initialize();
         } catch (e) {
+            lastError = e;
             retries++;
-            console.error("[Database] Could not connect to database (attempt", retries, "). Retrying...", e);
-            const delay = Math.min(10_000, 1_000 * Math.min(retries, 10));
-            await new Promise((resolve) => setTimeout(resolve, delay));
+            console.error("[Database] Could not connect to database (attempt", retries, "of", maxRetries, ").", e);
+            if (retries < maxRetries) {
+                const delay = Math.min(10_000, 1_000 * retries);
+                await new Promise((resolve) => setTimeout(resolve, delay));
+            }
         }
+    }
+
+    if (!dbConnection) {
+        throw new Error("[Database] FATAL: PostgreSQL connection failed during startup", { cause: lastError });
     }
 
     // Crude way of detecting if the migrations table exists.
@@ -145,6 +154,8 @@ async function initializeDatabase(): Promise<DataSource> {
         const qr = dbConnection.createQueryRunner();
         let migrationLockAcquired = false;
         try {
+            // Never wait forever behind another instance's migration lock.
+            await qr.query("SET lock_timeout = '30s'");
             await qr.query(`Select pg_advisory_lock(${MIGRATIONLOCK})`);
             migrationLockAcquired = true;
             if (!(await dbExists())) {
