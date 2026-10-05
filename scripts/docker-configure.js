@@ -31,7 +31,16 @@ if (!domain) {
     process.exit(1);
 }
 
-const config = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")) : {};
+let config = {};
+if (fs.existsSync(file)) {
+    try {
+        config = JSON.parse(fs.readFileSync(file, "utf8"));
+    } catch (error) {
+        const backup = `${file}.corrupt-${Date.now()}`;
+        console.warn("[configure] config.json is invalid; moving it aside and rebuilding it:", error instanceof Error ? error.message : error);
+        fs.renameSync(file, backup);
+    }
+}
 const section = (...keys) => keys.reduce((parent, key) => (parent[key] ??= {}), config);
 const origin = `https://${domain}`;
 const port = env("PORT") ?? "3001";
@@ -79,6 +88,8 @@ if (smtpHost) {
 }
 
 fs.mkdirSync(path.dirname(file), { recursive: true });
-fs.writeFileSync(file, JSON.stringify(config, null, 4), { mode: 0o600 });
+const temporaryFile = `${file}.${process.pid}.tmp`;
+fs.writeFileSync(temporaryFile, JSON.stringify(config, null, 4), { mode: 0o600 });
+fs.renameSync(temporaryFile, file);
 if (instanceName && instanceName !== appliedName) fs.writeFileSync(appliedNameFile, instanceName);
 console.log(`[configure] ${file} points at ${origin}`);
