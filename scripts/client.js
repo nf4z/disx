@@ -21,10 +21,11 @@ const vm = require("vm");
 const fs = require("fs/promises");
 const { existsSync } = require("fs");
 
-const BASE_URL = process.env.CLIENT_BASE_URL || "https://discord.com";
+const BASE_URL = (process.env.CLIENT_BASE_URL || "https://discord.com").replace(/\/$/, "");
+const CLIENT_HOSTS = [...new Set([BASE_URL, ...(process.env.CLIENT_FALLBACK_URLS || "https://canary.discord.com,https://ptb.discord.com").split(",").map((url) => url.trim().replace(/\/$/, "")).filter(Boolean)])];
 const CACHE_PATH = path.resolve(process.env.CLIENT_CACHE_PATH || path.join(__dirname, "..", "assets", "cache"));
 const CONCURRENCY = Math.max(1, Math.min(32, Math.floor(Number(process.env.CLIENT_CONCURRENCY) || 8)));
-const USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36";
+const USER_AGENT = process.env.CLIENT_USER_AGENT || "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36";
 const MAX_RETRIES = Math.max(1, Math.min(8, Math.floor(Number(process.env.CLIENT_RETRIES) || 5)));
 const RETRY_DELAY = Math.max(250, Math.min(10000, Math.floor(Number(process.env.CLIENT_RETRY_DELAY) || 1000)));
 
@@ -102,18 +103,88 @@ const writeAtomic = async (file, body) => {
     await fs.rename(temporary, file);
 };
 
+const browserHeaders = (referer) => ({
+    "user-agent": USER_AGENT,
+    accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    "accept-language": "en-US,en;q=0.9",
+    "upgrade-insecure-requests": "1",
+    ...(referer ? { referer } : {}),
+});
+
+const cookieHeader = (cookies) => Array.from(cookies.entries()).map(([key, value]) => key + "=" + value).join("; ");
+
+const captureCookies = (response, cookies) => {
+    const setCookies = typeof response.headers.getSetCookie === "function"
+        ? response.headers.getSetCookie()
+        : (response.headers.get("set-cookie") || "").split(/,(?=[^;,]+=)/);
+    for (const header of setCookies) {
+        const pair = header.split(";", 1)[0];
+        const index = pair.indexOf("=");
+        if (index > 0) cookies.set(pair.slice(0, index), pair.slice(index + 1));
+    }
+};
+
+const fetchAppPage = async () => {
+    const cookies = new Map();
+    let lastError;
+    for (const baseUrl of CLIENT_HOSTS) {
+        try {
+            const root = await fetch(baseUrl + "/", {
+                headers: browserHeaders(),
+                redirect: "follow",
+                signal: AbortSignal.timeout(30000),
+            });
+            captureCookies(root, cookies);
+            await root.body?.cancel();
+
+            const headers = browserHeaders(baseUrl + "/");
+            const cookie = cookieHeader(cookies);
+            if (cookie) headers.cookie = cookie;
+
+            for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+                try {
+                    const response = await fetch(baseUrl + "/app", {
+                        headers,
+                        redirect: "follow",
+                        signal: AbortSignal.timeout(30000),
+                    });
+                    captureCookies(response, cookies);
+                    if (response.ok) return { html: await response.text(), baseUrl };
+
+                    lastError = new Error("GET /app returned " + response.status + " from " + baseUrl);
+                    if (response.status !== 403 && response.status !== 429 && response.status < 500) break;
+                    const retryAfter = Number(response.headers.get("retry-after"));
+                    const delay = Number.isFinite(retryAfter) && retryAfter > 0 ? Math.min(30000, retryAfter * 1000) : RETRY_DELAY * attempt;
+                    await response.body?.cancel();
+                    if (attempt < MAX_RETRIES) await new Promise((resolve) => setTimeout(resolve, delay));
+                } catch (error) {
+                    lastError = error;
+                    if (attempt < MAX_RETRIES) await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY * attempt));
+                }
+            }
+        } catch (error) {
+            lastError = error;
+        }
+        console.warn("[client] " + (lastError?.message || "failed to fetch /app") + "; trying the next Discord host");
+    }
+    throw lastError || new Error("Unable to fetch Discord /app");
+};
+
 const main = async () => {
     if (!checkOnly) await fs.mkdir(CACHE_PATH, { recursive: true });
     const started = Date.now();
 
     const indexFile = path.join(CACHE_PATH, "index.html");
     let html;
+    let clientBaseUrl = BASE_URL;
     if (checkOnly && !existsSync(indexFile)) throw new Error("Client index.html is missing; generate a snapshot before checking it");
-    if (onlyMissing && existsSync(indexFile)) html = await fs.readFile(indexFile, "utf8");
-    else {
-        const appRes = await fetch(`${BASE_URL}/app`, { headers: { "user-agent": USER_AGENT }, signal: AbortSignal.timeout(30000) });
-        if (!appRes.ok) throw new Error(`GET /app returned ${appRes.status}`);
-        html = await appRes.text();
+    if (onlyMissing && existsSync(indexFile)) {
+        html = await fs.readFile(indexFile, "utf8");
+    } else {
+        const page = await fetchAppPage();
+        html = page.html;
+        clientBaseUrl = page.baseUrl;
+        if (clientBaseUrl !== BASE_URL) console.warn("[client] using fallback Discord host: " + clientBaseUrl);
     }
 
     const servedHtml = html.replace(/<!-- section:seometa -->[\s\S]*?<!-- endsection -->/, "");
@@ -151,7 +222,7 @@ const main = async () => {
         let lastError;
         for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
             try {
-                res = await fetch(`${BASE_URL}/assets/${name}`, {
+                res = await fetch(`${clientBaseUrl}/assets/${name}`, {
                     headers: { "user-agent": USER_AGENT, accept: "*/*" },
                     signal: AbortSignal.timeout(30000),
                 });
