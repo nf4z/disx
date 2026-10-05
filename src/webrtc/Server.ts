@@ -78,6 +78,19 @@ export class WebrtcServer {
         await initEvent();
         await JwtKeypairManager.init();
 
+        // Cloudflare Containers cannot provide the UDP media path required by
+        // the Pion SFU. Keep API/CDN/gateway startup independent of WebRTC.
+        if (process.env.DISX_DISABLE_WEBRTC === "1") {
+            const reason = "WebRTC disabled for this deployment";
+            console.log("[WebRTC] WEBRTC disabled by DISX_DISABLE_WEBRTC");
+            VoiceHealth.register(async () => ({
+                enabled: false,
+                library: process.env.WRTC_LIBRARY ?? null,
+                reason,
+            }));
+            return;
+        }
+
         // try to load webrtc library, if failed just don't start webrtc endpoint
         try {
             await loadWebRtcLibrary();
