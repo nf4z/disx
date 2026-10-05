@@ -115,8 +115,7 @@ export class DisxContainer extends DurableObject {
 
         container.start({
           image: container.images.base,
-          // One full vCPU keeps Node/TypeORM startup responsive while retaining
-          // the same 4 GiB RAM and 8 GB disk as standard-1.
+          // The standard-1 instance provides 1/2 vCPU, 4 GiB RAM, and 8 GB disk.
           instance: "standard-1",
           enableInternet: true,
           env: envVars,
