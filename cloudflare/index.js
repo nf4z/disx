@@ -68,6 +68,7 @@ export class DisxContainer extends DurableObject {
           PORT: String(PORT),
           CONFIG_PATH: "/data/state/config.json",
           STORAGE_LOCATION: "/data/storage",
+          DISX_DISABLE_WEBRTC: "1",
           ...(database ? { DATABASE: String(database) } : {}),
           ...Object.fromEntries(
             [
