@@ -108,6 +108,12 @@ const browserHeaders = (referer) => ({
     accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
     "accept-language": "en-US,en;q=0.9",
     "upgrade-insecure-requests": "1",
+    "sec-fetch-site": referer ? "same-origin" : "none",
+    "sec-fetch-mode": "navigate",
+    "sec-fetch-dest": "document",
+    "sec-ch-ua": '"Chromium";v="154", "Google Chrome";v="154", "Not-A.Brand";v="99"',
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": '"Windows"',
     ...(referer ? { referer } : {}),
 });
 
