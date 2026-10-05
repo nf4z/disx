@@ -28,10 +28,55 @@ export class DisxContainer extends DurableObject {
       }
 
       if (!container.running) {
+        const envVars = {
+          NODE_ENV: "production",
+          PORT: String(PORT),
+          CONFIG_PATH: "/data/state/config.json",
+          STORAGE_LOCATION: "/data/storage",
+          ...Object.fromEntries(
+            [
+              "DATABASE",
+              "DOMAIN",
+              "INSTANCE_NAME",
+              "TRUSTED_PROXIES",
+              "WRTC_PUBLIC_IP",
+              "WRTC_PORT",
+              "WRTC_PORT_MIN",
+              "WRTC_PORT_MAX",
+              "WRTC_LIBRARY",
+              "CAP_INSTANCE_URL",
+              "CAP_SITE_KEY",
+              "CAP_SECRET_KEY",
+              "SMTP_HOST",
+              "SMTP_PORT",
+              "SMTP_SECURE",
+              "SMTP_STARTTLS",
+              "SMTP_USERNAME",
+              "SMTP_PASSWORD",
+              "EMAIL_FROM",
+              "CLIENT_CONCURRENCY",
+              "LOG_REQUESTS",
+              "E2EE_RECOVERY_KEY_FILE",
+              "E2EE_RECOVERY_MASTER_KEY",
+            ]
+              .filter((name) => this.env[name] !== undefined)
+              .map((name) => [name, String(this.env[name])]),
+          ),
+        };
+
+        if (!envVars.DOMAIN) {
+          throw new Error("Cloudflare secret/variable DOMAIN is required");
+        }
+
+        if (!envVars.DATABASE) {
+          throw new Error("Cloudflare secret DATABASE is required");
+        }
+
         container.start({
           image: container.images.base,
           instance: "basic",
           enableInternet: true,
+          env: envVars,
         });
       }
 
