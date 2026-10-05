@@ -49,7 +49,10 @@ if (!process.env.DATABASE && !isHeadlessProcess) {
 }
 
 const dbConnectionString = process.env.DATABASE!;
-export const DatabaseType = isHeadlessProcess ? "postgres" : dbConnectionString.split(":")[0]?.replace("+srv", "");
+const rawDatabaseType = isHeadlessProcess ? "postgres" : dbConnectionString.split(":")[0]?.toLowerCase().replace("+srv", "");
+// PostgreSQL providers commonly use either postgres:// or postgresql://.
+// TypeORM's driver and this project's migration directory are named "postgres".
+export const DatabaseType = rawDatabaseType === "postgresql" ? "postgres" : rawDatabaseType;
 const applyMigrations = process.env.APPLY_DB_MIGRATIONS !== "false";
 const MIGRATIONLOCK = 1;
 export const DataSourceOptions = isHeadlessProcess
@@ -117,15 +120,16 @@ async function initializeDatabase(): Promise<DataSource> {
     console.log(`[Database] ${yellow(`Connecting to ${DatabaseType} db`)}`);
 
     let retries = 0;
-    do {
+    while (!dbConnection) {
         try {
             dbConnection = await DataSourceOptions.initialize();
         } catch (e) {
-            console.error("[Database] Could not connect to database after", retries, "retries:", e);
+            retries++;
+            console.error("[Database] Could not connect to database (attempt", retries, "). Retrying...", e);
+            const delay = Math.min(10_000, 1_000 * Math.min(retries, 10));
+            await new Promise((resolve) => setTimeout(resolve, delay));
         }
-    } while (!dbConnection && retries++ < 10);
-
-    if (!dbConnection) throw new Error("[Database] FATAL: Could not connect to database!");
+    }
 
     // Crude way of detecting if the migrations table exists.
     const dbExists = async () => {
