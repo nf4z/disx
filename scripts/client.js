@@ -17,6 +17,7 @@
 */
 
 const path = require("path");
+const https = require("node:https");
 const vm = require("vm");
 const fs = require("fs/promises");
 const { existsSync } = require("fs");
@@ -130,6 +131,33 @@ const captureCookies = (response, cookies) => {
     }
 };
 
+const nativeHttpsGet = (url, headers = {}, redirects = 0) => new Promise((resolve, reject) => {
+    const request = https.get(url, {
+        headers: {
+            ...headers,
+            "accept-encoding": "identity",
+            connection: "close",
+        },
+    }, (response) => {
+        const status = response.statusCode || 0;
+        const location = response.headers.location;
+        if (location && status >= 300 && status < 400 && redirects < 5) {
+            response.resume();
+            nativeHttpsGet(new URL(location, url).toString(), headers, redirects + 1).then(resolve, reject);
+            return;
+        }
+        const chunks = [];
+        response.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+        response.on("end", () => resolve({
+            status,
+            headers: response.headers,
+            body: Buffer.concat(chunks).toString("utf8"),
+        }));
+    });
+    request.on("error", reject);
+    request.setTimeout(30000, () => request.destroy(new Error("HTTPS request timed out")));
+});
+
 const fetchAppPage = async () => {
     const cookies = new Map();
     let lastError;
@@ -158,6 +186,20 @@ const fetchAppPage = async () => {
                     if (response.ok) return { html: await response.text(), baseUrl };
 
                     lastError = new Error("GET /app returned " + response.status + " from " + baseUrl);
+                    if (response.status === 403 || response.status >= 500) {
+                        try {
+                            const native = await nativeHttpsGet(baseUrl + "/app", headers);
+                            for (const cookie of native.headers["set-cookie"] || []) {
+                                const pair = cookie.split(";", 1)[0];
+                                const index = pair.indexOf("=");
+                                if (index > 0) cookies.set(pair.slice(0, index), pair.slice(index + 1));
+                            }
+                            if (native.status >= 200 && native.status < 300) return { html: native.body, baseUrl };
+                            lastError = new Error("GET /app returned " + native.status + " via native HTTPS from " + baseUrl);
+                        } catch (error) {
+                            lastError = error;
+                        }
+                    }
                     if (response.status !== 403 && response.status !== 429 && response.status < 500) break;
                     const retryAfter = Number(response.headers.get("retry-after"));
                     const delay = Number.isFinite(retryAfter) && retryAfter > 0 ? Math.min(30000, retryAfter * 1000) : RETRY_DELAY * attempt;
