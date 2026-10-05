@@ -2,7 +2,7 @@
 export class ExternalRequestConfiguration {
     discordDecorations: boolean = true;
     discordAssetFallback: boolean = false;
-    discordClientAssets: boolean = false;
+    discordClientAssets: boolean = true;
     discordGames: boolean = false;
     discordTemplates: boolean = false;
     discordStickerPacks: boolean = false;
