@@ -1,8 +1,8 @@
 import { DurableObject } from "cloudflare:workers";
 
 const PORT = 3001;
-const INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000;
-const START_TIMEOUT_MS = 120_000;
+const INACTIVITY_TIMEOUT_MS = 60 * 60 * 1000;
+const START_TIMEOUT_MS = 180_000;
 
 export class DisxContainer extends DurableObject {
   starting = null;
@@ -117,11 +117,7 @@ export class DisxContainer extends DurableObject {
           image: container.images.base,
           // One full vCPU keeps Node/TypeORM startup responsive while retaining
           // the same 4 GiB RAM and 8 GB disk as standard-1.
-          instance: {
-            vcpu: 1,
-            memoryMib: 4096,
-            diskMb: 8000,
-          },
+          instance: "standard-1",
           enableInternet: true,
           env: envVars,
         });
@@ -172,15 +168,18 @@ export class DisxContainer extends DurableObject {
         await scheduler.wait(1000);
       }
 
-      console.error("[container] readiness timeout:", lastError);
-      try {
-        await container.destroy();
-      } catch (error) {
-        console.error("[container] failed to destroy unhealthy instance:", error);
-      }
-      throw new Error("disx container did not become ready", {
-        cause: lastError,
+      const details = lastError instanceof Error ? lastError.message : String(lastError);
+      const state = await container.inspect().catch(() => null);
+      console.error("[container] readiness timeout", {
+        elapsedMs: START_TIMEOUT_MS,
+        running: container.running,
+        state,
+        lastError: details,
       });
+      // Do not destroy a slow container here. Long DB migrations and cold starts
+      // can finish after the readiness window; destroying it would create a
+      // permanent cold-start/restart loop.
+      throw new Error(\`disx container did not become ready after \${START_TIMEOUT_MS}ms: \${details}\`);
     })().finally(() => {
       this.starting = null;
     });
@@ -192,8 +191,13 @@ export class DisxContainer extends DurableObject {
     try {
       await this.ensureStarted();
     } catch (error) {
-      console.error("[container] startup failed:", error);
-      return new Response("Disx container failed to start. Check Cloudflare Worker logs for the container startup error.", { status: 503 });
+      const message = error instanceof Error ? error.message : String(error);
+      const cause = error instanceof Error && error.cause instanceof Error ? error.cause.message : "";
+      console.error("[container] startup failed:", { message, cause });
+      return new Response(
+        \`Disx container is still starting or failed to become ready. \${message}\`,
+        { status: 503, headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" } },
+      );
     }
 
     const url = new URL(request.url);
