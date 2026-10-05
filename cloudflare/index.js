@@ -2,7 +2,7 @@ import { DurableObject } from "cloudflare:workers";
 
 const PORT = 3001;
 const INACTIVITY_TIMEOUT_MS = 6 * 60 * 60 * 1000;
-const START_TIMEOUT_MS = 120_000;
+const START_TIMEOUT_MS = 300_000;
 
 export class DisxContainer extends DurableObject {
   starting = null;
@@ -36,14 +36,20 @@ export class DisxContainer extends DurableObject {
       }
 
       if (!container.running) {
+        // Prefer a Cloudflare Hyperdrive connection when configured. Hyperdrive
+        // keeps PostgreSQL credentials managed by Cloudflare and provides
+        // connection pooling for the deployment.
+        const hyperdrive = this.env.HYPERDRIVE;
+        const database = this.env.DATABASE ?? hyperdrive?.connectionString;
+
         const envVars = {
           NODE_ENV: "production",
           PORT: String(PORT),
           CONFIG_PATH: "/data/state/config.json",
           STORAGE_LOCATION: "/data/storage",
+          ...(database ? { DATABASE: String(database) } : {}),
           ...Object.fromEntries(
             [
-              "DATABASE",
               "DOMAIN",
               "INSTANCE_NAME",
               "TRUSTED_PROXIES",
@@ -77,7 +83,9 @@ export class DisxContainer extends DurableObject {
         }
 
         if (!envVars.DATABASE) {
-          throw new Error("Cloudflare secret DATABASE is required");
+          throw new Error(
+            "No PostgreSQL database is configured. Bind a Cloudflare Hyperdrive PostgreSQL database or provide the DATABASE secret.",
+          );
         }
 
         container.start({
@@ -114,6 +122,7 @@ export class DisxContainer extends DurableObject {
         }
       }
 
+      console.error("[container] readiness timeout:", lastError);
       throw new Error("disx container did not become ready", {
         cause: lastError,
       });
