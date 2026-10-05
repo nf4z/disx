@@ -132,5 +132,8 @@ async function main() {
 
 main().catch((error) => {
     console.error("[Server] Fatal startup error:", error);
-    process.exitCode = 1;
+    // Exit immediately so the container runtime sees the failed startup.
+    // Keeping only exitCode=1 can leave Node alive while pending handles
+    // (database retries, sockets, etc.) continue running.
+    process.exit(1);
 });
