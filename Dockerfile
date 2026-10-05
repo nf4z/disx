@@ -24,8 +24,12 @@ COPY package.json package-lock.json ./
 COPY patches patches
 RUN npm ci --no-audit --no-fund
 COPY scripts/vencord.js scripts/vencord.js
+COPY scripts/client.js scripts/client.js
 COPY client client
 RUN VENCORD_DIR=/tmp/vencord node scripts/vencord.js && rm -rf /tmp/vencord
+# Build the Discord client cache into the image so the single Cloudflare
+# Container can serve both the API and the web client without a second service.
+RUN node scripts/client.js
 COPY tsconfig.json ./
 COPY src src
 COPY scripts/default-avatars.js scripts/default-avatars.js
