@@ -2,7 +2,7 @@ import { DurableObject } from "cloudflare:workers";
 
 const PORT = 3001;
 const INACTIVITY_TIMEOUT_MS = 6 * 60 * 60 * 1000;
-const START_TIMEOUT_MS = 60_000;
+const START_TIMEOUT_MS = 120_000;
 
 export class DisxContainer extends DurableObject {
   starting = null;
@@ -16,6 +16,13 @@ export class DisxContainer extends DurableObject {
         ctx.container.setInactivityTimeout(INACTIVITY_TIMEOUT_MS),
       );
     }
+  }
+
+  observeContainer() {
+    if (!this.ctx.container?.running) return;
+    void this.ctx.container.monitor().catch((error) => {
+      console.error("[container] exited with error:", error);
+    });
   }
 
   async ensureStarted() {
@@ -79,6 +86,9 @@ export class DisxContainer extends DurableObject {
           enableInternet: true,
           env: envVars,
         });
+        this.observeContainer();
+      } else {
+        this.observeContainer();
       }
 
       await container.setInactivityTimeout(INACTIVITY_TIMEOUT_MS);
@@ -89,11 +99,14 @@ export class DisxContainer extends DurableObject {
 
       while (Date.now() < deadline) {
         try {
-          const response = await port.fetch("http://container/", {
+          const response = await port.fetch("http://container/api/ping", {
             signal: AbortSignal.timeout(1500),
           });
 
           await response.body?.cancel();
+          if (!response.ok) {
+            throw new Error(`container health check returned HTTP ${response.status}`);
+          }
           return;
         } catch (error) {
           lastError = error;
@@ -112,7 +125,12 @@ export class DisxContainer extends DurableObject {
   }
 
   async fetch(request) {
-    await this.ensureStarted();
+    try {
+      await this.ensureStarted();
+    } catch (error) {
+      console.error("[container] startup failed:", error);
+      return new Response("Disx container failed to start. Check Cloudflare Worker logs for the container startup error.", { status: 503 });
+    }
 
     const url = new URL(request.url);
     url.protocol = "http:";
