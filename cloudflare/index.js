@@ -178,7 +178,7 @@ export class DisxContainer extends DurableObject {
       // Do not destroy a slow container here. Long DB migrations and cold starts
       // can finish after the readiness window; destroying it would create a
       // permanent cold-start/restart loop.
-      throw new Error(\`disx container did not become ready after \${START_TIMEOUT_MS}ms: \${details}\`);
+      throw new Error(`disx container did not become ready after ${START_TIMEOUT_MS}ms: ${details}`);
     })().finally(() => {
       this.starting = null;
     });
@@ -194,7 +194,7 @@ export class DisxContainer extends DurableObject {
       const cause = error instanceof Error && error.cause instanceof Error ? error.cause.message : "";
       console.error("[container] startup failed:", { message, cause });
       return new Response(
-        \`Disx container is still starting or failed to become ready. \${message}\`,
+        `Disx container is still starting or failed to become ready. ${message}`,
         { status: 503, headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" } },
       );
     }
