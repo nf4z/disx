@@ -9,6 +9,7 @@ export class DisxContainer extends DurableObject {
 
   constructor(ctx, env) {
     super(ctx, env);
+    this.env = env;
 
     if (ctx.container?.running) {
       void ctx.blockConcurrencyWhile(() =>
