@@ -111,7 +111,7 @@ CHROME_PATH="/Applications/Brave Browser.app/Contents/MacOS/Brave Browser" PORT=
 
 ## The Discord client
 
-This repository holds no Discord code. `npm run generate:client` downloads the web client from discord.com to `assets/cache` on your own machine, and the Docker setup downloads it into a volume on the first start. `assets/cache`, `assets/cache_compressed` and `assets/vencord` are listed in `.gitignore` and `.dockerignore`. Discord owns that code, so don't commit it, publish it or put it in an image. Our changes live in this repository as Vencord plugins, a few string rewrites in `scripts/client.js` and the scripts in `assets/client_patches`, and they are applied to each local copy.
+This repository holds no Discord code. `npm run generate:client` downloads the web client from discord.com to `assets/cache` on your own machine. The Docker build also downloads a fresh client cache into the image so the server can run as a single self-contained Cloudflare Container. `assets/cache`, `assets/cache_compressed` and `assets/vencord` are listed in `.gitignore` and `.dockerignore`. Discord owns that code, so don't commit the source directly to the repository. Our changes live in this repository as Vencord plugins, a few string rewrites in `scripts/client.js` and the scripts in `assets/client_patches`, and they are applied during the client-cache build.
 
 ## Architecture
 
@@ -129,6 +129,30 @@ This repository holds no Discord code. `npm run generate:client` downloads the w
 | Shared code       | `src/util`, `src/database`, `src/schemas`    | Config, entities, migrations and the request and response schemas the API validates against.                                                                                                                          |
 
 `extra/admin-api`, a C# admin API, and the Nix files are inherited from Spacebar. Nothing in the Docker or development setup uses them, and the admin dashboard at `/admin` talks to the API in `src/api`.
+
+## Cloudflare Containers
+
+This repository includes a `wrangler.jsonc` configuration for deploying the full server as a Cloudflare Container. Wrangler builds the existing `Dockerfile`, runs the Node server inside the container, and routes HTTP and WebSocket traffic through a Durable Object.
+
+Before deploying, set the required Worker secrets:
+
+```bash
+npx wrangler login
+npx wrangler secret put DATABASE
+npx wrangler secret put DOMAIN
+```
+
+Optional settings such as `INSTANCE_NAME`, `TRUSTED_PROXIES`, SMTP settings, and WebRTC settings can also be added with `wrangler secret put`.
+
+Deploy with:
+
+```bash
+npx wrangler deploy
+```
+
+For Cloudflare Workers Builds, use `npx wrangler deploy` as the production deploy command. Dockerfile-based Container builds are supported by Workers Builds.
+
+The Cloudflare deployment is intended for the API, CDN, web client, and gateway. Voice media/SFU still requires a deployment that can provide the required UDP/media networking; Cloudflare's Worker/Container HTTP path does not replace that component.
 
 ## Contributing
 
