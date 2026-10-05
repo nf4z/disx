@@ -75,7 +75,7 @@ export class DisxContainer extends DurableObject {
 
         container.start({
           image: container.images.base,
-          instance: "basic",
+          instance: "standard-1",
           enableInternet: true,
           env: envVars,
         });
