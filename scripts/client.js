@@ -92,6 +92,7 @@ const references = (text) => {
     return new Set([...names, ...[...text.matchAll(WASM_MODULE)].map((match) => `${match[1]}.module.wasm`)]);
 };
 const checkOnly = process.argv.includes("--check");
+const indexOnly = process.argv.includes("--index-only");
 const onlyMissing = checkOnly || process.argv.includes("--missing");
 const writeAtomic = async (file, body) => {
     const temporary = `${file}.${process.pid}.tmp`;
