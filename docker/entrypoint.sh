@@ -25,13 +25,16 @@ server)
 
     while :; do
         echo "[server] starting Disx..."
-        if node scripts/docker-configure.js; then
-            cd /data/state
-            node --enable-source-maps /app/dist/bundle/start.js
+        if ! node scripts/docker-configure.js; then
             status=$?
-            cd /app
         else
-            status=$?
+            cd /data/state
+            if node --enable-source-maps /app/dist/bundle/start.js; then
+                status=0
+            else
+                status=$?
+            fi
+            cd /app
         fi
 
         if [ "$status" -eq 0 ]; then
