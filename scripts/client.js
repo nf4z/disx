@@ -25,6 +25,8 @@ const BASE_URL = process.env.CLIENT_BASE_URL || "https://discord.com";
 const CACHE_PATH = path.resolve(process.env.CLIENT_CACHE_PATH || path.join(__dirname, "..", "assets", "cache"));
 const CONCURRENCY = Math.max(1, Math.min(32, Math.floor(Number(process.env.CLIENT_CONCURRENCY) || 8)));
 const USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36";
+const MAX_RETRIES = Math.max(1, Math.min(8, Math.floor(Number(process.env.CLIENT_RETRIES) || 5)));
+const RETRY_DELAY = Math.max(250, Math.min(10000, Math.floor(Number(process.env.CLIENT_RETRY_DELAY) || 1000)));
 
 const MEDIA_EXT = "svg|png|jpe?g|gif|webp|avif|ico|woff2?|ttf|otf|mp3|ogg|wav|mp4|webm|json|lottie|wasm";
 const ASSET_NAME = new RegExp(`(?:^|["'(/\\s])((?:[\\w-]+\\.)?[0-9a-f]{8,32}\\.(?:js|css|${MEDIA_EXT}))(?=["')?#\\s]|$)`, "g");
@@ -145,9 +147,30 @@ const main = async () => {
             failed.push(`missing ${name}`);
             return;
         }
-        const res = await fetch(`${BASE_URL}/assets/${name}`, { headers: { "user-agent": USER_AGENT }, signal: AbortSignal.timeout(30000) });
-        if (!res.ok) {
-            failed.push(`${res.status} ${name}`);
+        let res;
+        let lastError;
+        for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+            try {
+                res = await fetch(`${BASE_URL}/assets/${name}`, {
+                    headers: { "user-agent": USER_AGENT, accept: "*/*" },
+                    signal: AbortSignal.timeout(30000),
+                });
+                if (res.ok) break;
+                lastError = new Error(`${res.status} ${res.statusText || "request failed"}`);
+                if (res.status !== 429 && res.status < 500) break;
+            } catch (error) {
+                lastError = error;
+            }
+            if (attempt < MAX_RETRIES) {
+                const retryAfter = Number(res?.headers?.get("retry-after"));
+                const delay = Number.isFinite(retryAfter) && retryAfter > 0
+                    ? Math.min(30000, retryAfter * 1000)
+                    : RETRY_DELAY * attempt;
+                await new Promise((resolve) => setTimeout(resolve, delay));
+            }
+        }
+        if (!res?.ok) {
+            failed.push(`${lastError?.message || res?.status || "request failed"} ${name}`);
             return;
         }
         if (!isText) {
@@ -188,11 +211,14 @@ const main = async () => {
         clearInterval(report);
     }
     if (!checkOnly) await writeAtomic(path.join(CACHE_PATH, "..", "cacheFailures"), failed.join("\n"));
-    if (!failed.length && !onlyMissing) await writeAtomic(indexFile, html);
+    if (!onlyMissing) await writeAtomic(indexFile, html);
     console.log(
         `\nDone: ${done} assets, ${(bytes / 1048576).toFixed(1)} MB in ${Math.round((Date.now() - started) / 1000)}s, ${failed.length} failed${checkOnly ? "" : " (see assets/cacheFailures)"}`,
     );
-    if (failed.length) throw new Error(`${failed.length} client assets are missing; client index was not published${checkOnly ? `: ${failed.slice(0, 20).join(", ")}` : ""}`);
+    if (failed.length) {
+        console.warn(`Warning: ${failed.length} client assets could not be cached; the client index was still published.`);
+        if (checkOnly) throw new Error(`${failed.length} client assets are missing: ${failed.slice(0, 20).join(", ")}`);
+    }
 };
 
 module.exports = { chunkNames, references, patch };
