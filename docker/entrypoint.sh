@@ -2,6 +2,8 @@
 set -e
 cd /app
 
+RESTART_DELAY="${DISX_RESTART_DELAY:-5}"
+
 case "${1:-server}" in
 client)
     mkdir -p /data/client/cache /data/client/cache_compressed
@@ -17,12 +19,29 @@ client)
     ;;
 server)
     if [ ! -f assets/cache/index.html ]; then
-        echo "[server] the client cache is empty, start the client service first" >&2
+        echo "[server] the client cache is missing from the image; refusing to start" >&2
         exit 1
     fi
-    node scripts/docker-configure.js
-    cd /data/state
-    exec node --enable-source-maps /app/dist/bundle/start.js
+
+    while :; do
+        echo "[server] starting Disx..."
+        if node scripts/docker-configure.js; then
+            cd /data/state
+            node --enable-source-maps /app/dist/bundle/start.js
+            status=$?
+            cd /app
+        else
+            status=$?
+        fi
+
+        if [ "$status" -eq 0 ]; then
+            echo "[server] Disx exited normally"
+            exit 0
+        fi
+
+        echo "[server] Disx exited with code $status; restarting in ${RESTART_DELAY}s..." >&2
+        sleep "${RESTART_DELAY}"
+    done
     ;;
 *)
     exec "$@"
