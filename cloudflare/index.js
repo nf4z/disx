@@ -20,9 +20,11 @@ export class DisxContainer extends DurableObject {
 
   observeContainer() {
     if (!this.ctx.container?.running) return;
-    void this.ctx.container.monitor().catch((error) => {
-      console.error("[container] exited with error:", error);
-    });
+    this.ctx.waitUntil(
+      this.ctx.container.monitor().catch((error) => {
+        console.error("[container] exited with error:", error);
+      }),
+    );
   }
 
   async ensureStarted() {
@@ -36,11 +38,9 @@ export class DisxContainer extends DurableObject {
       }
 
       if (!container.running) {
-        // Prefer a Cloudflare Hyperdrive connection when configured. Hyperdrive
-        // keeps PostgreSQL credentials managed by Cloudflare and provides
-        // connection pooling for the deployment.
-        const hyperdrive = this.env.HYPERDRIVE;
-        const database = this.env.DATABASE ?? hyperdrive?.connectionString;
+        // DATABASE is the actual connection string consumed by the Node.js
+        // process inside the Container. DATABASE_URL is accepted as an alias.
+        const database = this.env.DATABASE ?? this.env.DATABASE_URL;
 
         const envVars = {
           NODE_ENV: "production",
@@ -51,6 +51,9 @@ export class DisxContainer extends DurableObject {
           ...Object.fromEntries(
             [
               "DOMAIN",
+              "APPLY_DB_MIGRATIONS",
+              "DB_SYNC",
+              "DB_POOL_SIZE",
               "INSTANCE_NAME",
               "TRUSTED_PROXIES",
               "WRTC_PUBLIC_IP",
@@ -84,7 +87,7 @@ export class DisxContainer extends DurableObject {
 
         if (!envVars.DATABASE) {
           throw new Error(
-            "No PostgreSQL database is configured. Bind a Cloudflare Hyperdrive PostgreSQL database or provide the DATABASE secret.",
+            "No PostgreSQL database is configured. Provide the DATABASE or DATABASE_URL Cloudflare secret.",
           );
         }
 
@@ -107,7 +110,7 @@ export class DisxContainer extends DurableObject {
 
       while (Date.now() < deadline) {
         try {
-          const response = await port.fetch("http://container/api/ping", {
+          const response = await port.fetch("http://container/api/readyz", {
             signal: AbortSignal.timeout(1500),
           });
 
@@ -123,6 +126,11 @@ export class DisxContainer extends DurableObject {
       }
 
       console.error("[container] readiness timeout:", lastError);
+      try {
+        await container.destroy();
+      } catch (error) {
+        console.error("[container] failed to destroy unhealthy instance:", error);
+      }
       throw new Error("disx container did not become ready", {
         cause: lastError,
       });
