@@ -130,4 +130,7 @@ async function main() {
     console.log(`[Server] ${green(`Listening on port ${bold(port)}`)}`);
 }
 
-main().catch(console.error);
+main().catch((error) => {
+    console.error("[Server] Fatal startup error:", error);
+    process.exitCode = 1;
+});
