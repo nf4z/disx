@@ -37,6 +37,18 @@ export class DisxContainer extends DurableObject {
         throw new Error("Cloudflare Container binding is not configured");
       }
 
+      // Durable Object-managed containers do not participate in automatic
+      // application-wide rollouts. Replace a running instance when Wrangler
+      // gives this Worker a newer digest-pinned image.
+      if (container.running) {
+        const desiredImage = String(container.images.base);
+        const current = await container.inspect();
+        if (current?.image && current.image !== desiredImage) {
+          console.log("[container] replacing stale image", current.image, "with", desiredImage);
+          await container.destroy("Replacing stale image after deployment");
+        }
+      }
+
       if (!container.running) {
         // DATABASE is the actual connection string consumed by the Node.js
         // process inside the Container. DATABASE_URL is accepted as an alias.
