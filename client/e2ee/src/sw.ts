@@ -113,7 +113,7 @@ const missing = () => new Response("This content is no longer available.", { sta
 const poster = async (path: string, entry: FileEntry, blob: Blob, clientId: string) => {
     let pending = posters.get(path);
     if (!pending) {
-        pending = ask<Blob>({ type: "fosscord-e2ee-poster", blob, content_type: entry.content_type }, clientId);
+        pending = ask<Blob>({ type: "larpcord-e2ee-poster", blob, content_type: entry.content_type }, clientId);
         posters.set(path, pending);
         pending.then((image) => image || posters.delete(path));
     }
@@ -128,7 +128,7 @@ const serve = async (request: Request, url: URL, clientId: string) => {
     const path = url.pathname;
     let entry = entries.get(path);
     if (!entry) {
-        entry = (await ask<FileEntry>({ type: "fosscord-e2ee-file", path })) ?? undefined;
+        entry = (await ask<FileEntry>({ type: "larpcord-e2ee-file", path })) ?? undefined;
         if (!entry) return missing();
         entries.set(path, entry);
     }
@@ -171,7 +171,7 @@ sw.addEventListener("install", (event) => {
 sw.addEventListener("activate", (event) => event.waitUntil(sw.clients.claim()));
 
 sw.addEventListener("message", (event) => {
-    if ((event.data as { type?: string } | null)?.type === "fosscord-e2ee-claim") event.waitUntil(sw.clients.claim());
+    if ((event.data as { type?: string } | null)?.type === "larpcord-e2ee-claim") event.waitUntil(sw.clients.claim());
 });
 
 sw.addEventListener("fetch", (event) => {

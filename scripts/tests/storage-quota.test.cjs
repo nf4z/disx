@@ -59,7 +59,7 @@ test("quota configuration rejects unlimited, unsafe and incomplete values", () =
 test("persistent quota ledger uses real atomic PostgreSQL transactions", { skip: !process.env.STORAGE_QUOTA_TEST_DATABASE, timeout: 60000 }, async (t) => {
     const url = new URL(process.env.STORAGE_QUOTA_TEST_DATABASE);
     assert.ok(["localhost", "127.0.0.1", "[::1]"].includes(url.hostname));
-    assert.equal(url.pathname, "/fosscord_codex_admin");
+    assert.equal(url.pathname, "/larpcord_codex_admin");
     const schema = `storage_quota_test_${randomUUID().replaceAll("-", "")}`;
     const admin = new Pool({ connectionString: url.toString(), max: 1 });
     let pool;

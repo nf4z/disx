@@ -1,0 +1,239 @@
+/*
+	Spacebar: A FOSS re-implementation and extension of the Discord.com backend.
+	Copyright (C) 2023 Spacebar and Spacebar Contributors
+
+	This program is free software: you can redistribute it and/or modify
+	it under the terms of the GNU Affero General Public License as published
+	by the Free Software Foundation, either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+	GNU Affero General Public License for more details.
+
+	You should have received a copy of the GNU Affero General Public License
+	along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
+import definePlugin from "@utils/types";
+import { React } from "@webpack/common";
+
+import { LarpCordAuthor } from "../larpcordCore/shared";
+import { MeowcordPaths } from "./art";
+import { brandMessages } from "./messages";
+
+const env = () => (window as any).GLOBAL_ENV ?? {};
+
+const instanceName = () => String(env().INSTANCE_NAME || "LarpCord");
+
+const imageUrl = (value: unknown) => (typeof value === "string" && /^(https?:\/\/|\/)/.test(value) ? value : "");
+
+const helpUrl = () => (typeof env().HELP_URL === "string" && /^https?:\/\//.test(env().HELP_URL) ? env().HELP_URL : "");
+
+const HELP_HOST = /^(?:https?:)?\/\/(?:(?:support(?:-dev|-apps)?|creator-support)\.discord\.com|dis\.gd)(?=[/?#:]|$)/i;
+
+const isHelpUrl = (url: unknown) => typeof url === "string" && HELP_HOST.test(url);
+
+const helpHref = (href: unknown) => {
+    if (typeof href !== "string") return href;
+    if (isHelpUrl(href)) return helpUrl() || false;
+    if (helpUrl() && href.startsWith(helpUrl()) && /[?&]utm_source=discord/.test(href)) return helpUrl();
+    return href;
+};
+
+const Icon = ({ size }: { size: number }) =>
+    imageUrl(env().INSTANCE_ICON) ? (
+        <img src={env().INSTANCE_ICON} width={size} height={size} alt="" style={{ objectFit: "contain" }} />
+    ) : (
+        <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
+            <MeowcordPaths />
+        </svg>
+    );
+
+let originalOpen: typeof window.open | null = null;
+
+export default definePlugin({
+    name: "LarpCordBranding",
+    description:
+        "Uses this instance's name and help center instead of Discord's, in every translated string and on the sign-in pages, with feature access available to everyone.",
+    authors: [LarpCordAuthor],
+    required: true,
+
+    instanceName,
+    helpUrl,
+    isHelpUrl,
+    brandMessages,
+
+    helpHref,
+
+    helpLink: (url: string) => (isHelpUrl(url) && helpUrl() ? helpUrl() : url),
+
+    plainLink: (children: React.ReactNode, key: React.Key) => <React.Fragment key={key}>{children}</React.Fragment>,
+
+    restoreFavicon() {
+        for (const icon of document.querySelectorAll<HTMLLinkElement>('link[rel~="icon"]')) {
+            icon.removeAttribute("type");
+            icon.href = "/favicon.svg";
+        }
+    },
+
+    renderWordmark: (className: string) =>
+        imageUrl(env().INSTANCE_LOGO) ? (
+            <img className={className} src={env().INSTANCE_LOGO} alt={instanceName()} style={{ height: 24, width: "auto", objectFit: "contain" }} />
+        ) : (
+            <div
+                className={className}
+                style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    height: 24,
+                    color: "#fff",
+                    fontFamily: 'var(--font-display, "gg sans", sans-serif)',
+                    fontSize: 20,
+                    fontWeight: 800,
+                    lineHeight: "24px",
+                }}
+            >
+                <Icon size={24} />
+                {instanceName()}
+            </div>
+        ),
+
+    start() {
+        originalOpen = window.open;
+        window.open = function (url?: string | URL, ...rest: any[]) {
+            const href = helpHref(url instanceof URL ? url.href : url);
+            return href === false ? null : originalOpen!.call(window, href as string | undefined, ...rest);
+        } as typeof window.open;
+    },
+
+    stop() {
+        if (originalOpen) window.open = originalOpen;
+    },
+
+    patches: [
+        {
+            find: "Error setting image. Message: ",
+            replacement: {
+                match: /(\i\.reset=function\(\)\{[^{}]*?)\i\.setIcon\(\i\)/,
+                replace: "$1$self.restoreFavicon()",
+            },
+        },
+        {
+            find: "setAuthLogoHidden=",
+            replacement: {
+                match: /(\i\?null:)\(0,\i\.jsx\)\("img",\{className:(\i\.\i),src:\i,alt:""\}\)/,
+                replace: "$1$self.renderWordmark($2)",
+            },
+        },
+        {
+            find: /JSON\.parse\('\{"(?:[\w+/]{6}":\[|COMMON_OPEN_DISCORD":")/,
+            all: true,
+            noWarn: true,
+            replacement: {
+                match: /JSON\.parse\(('[\s\S]*')\)\}$/,
+                replace: "$self.brandMessages(JSON.parse($1))}",
+            },
+        },
+        {
+            find: 'link:"https://discord.com/accessibility"',
+            replacement: {
+                match: /link:"https:\/\/discord\.com\/accessibility"/,
+                replace: "link:location.origin",
+            },
+        },
+        {
+            find: /\.isPlatformEmbedded\?void 0:"/,
+            replacement: {
+                match: /(base:\i\(\d+\)\.isPlatformEmbedded\?void 0:)"[^"]*"/,
+                replace: "$1$self.instanceName()",
+            },
+        },
+        {
+            find: /\[\i\.\i\.DISCORD\]:"[^"]*",\[\i\.\i\.STEAM\]:"Steam"/,
+            replacement: {
+                match: /(\[\i\.\i\.DISCORD\]:)"[^"]*"/,
+                replace: "$1$self.instanceName()",
+            },
+        },
+        {
+            find: "otpauth://totp/",
+            replacement: {
+                match: /(arguments\[2\]:)"[^"]*"(?=;return`otpauth:\/\/totp\/)/,
+                replace: "$1$self.instanceName()",
+            },
+        },
+        {
+            find: "HELP_CLICKED,{highlighted:",
+            replacement: {
+                match: /return(\(0,\i\.jsx\)\(\i\.Anchor,\{href:)\i\.\i,(target:"_blank",tabIndex:-1,children:\(0,\i\.jsx\)\(\i\.\i,\{color:)/,
+                replace: "return !$self.helpUrl()?null:$1$self.helpUrl(),$2",
+            },
+        },
+        {
+            find: "getCommunityURL:",
+            replacement: {
+                match: /(function \i\(\i\)\{let (\i)=arguments\.length>1&&void 0!==arguments\[1\]\?arguments\[1\]:\i;return )(\2\+\i)\}/,
+                replace: "$1$self.helpLink($3)}",
+            },
+        },
+        {
+            find: /useDefaultUnderlineStyles:\i=!0/,
+            replacement: {
+                match: /(let\{href:(\i),onClick:\i,className:\i,children:\i,[^}]*\}=\i;)/,
+                replace: "$1$2=$self.helpHref($2);if($2===false)return null;",
+            },
+        },
+        {
+            find: "makeReactFormatter)({$i:",
+            replacement: {
+                match: /(\$link:\((\i),(\i),\i\)=>\{let\[(\i)\]=\i,.{0,80}?case"string":)/,
+                replace: "$1$4=$self.helpHref($4);if($4===false)return $self.plainLink($2,$3);",
+            },
+        },
+        {
+            find: 'STATUS:"https://discordstatus.com"',
+            replacement: {
+                match: /STATUS:"https:\/\/discordstatus\.com"/,
+                replace: 'STATUS:location.origin+"/status"',
+            },
+        },
+        {
+            find: ".TWITTER_SUPPORT,target:",
+            replacement: {
+                match: /\(0,\i\.jsxs\)\(\i\.Anchor,\{className:\i\.\i,href:\i\.\i\.TWITTER_SUPPORT,target:"_blank",children:\[\(0,\i\.jsx\)\(\i\.\i,\{[^{}]*\}\),\i\.intl\.string\(\i\.t\.\i\)\]\}\),/,
+                replace: "",
+            },
+        },
+        {
+            find: "UOtD32,{guideURL:",
+            replacement: {
+                match: /(\i\.length>0)(\?\i\.intl\.format\(\i\.t\.UOtD32,\{guideURL:(\i)\}\))/,
+                replace: "$1&&$self.helpHref($3)!==false$2",
+            },
+        },
+        {
+            find: ".NEW_TO_APPS,numItems:1",
+            replacement: {
+                match: /function \i\(\i\)\{(?=let\{padding:\i=!1\}=\i,\i=\i\.useCallback\(\(\)=>\{\(0,\i\.\i\)\(\i\.\i\.getAppsSupportURL\()/,
+                replace: "$&if(!$self.helpUrl())return null;",
+            },
+        },
+        {
+            find: 'statusColor:"var(--border-subtle)"',
+            replacement: {
+                match: /src:null,(?=size:\i,status:\i\?\i\.\i\.ONLINE:void 0,statusColor:"var\(--border-subtle\)")/,
+                replace: 'src:"data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",',
+            },
+        },
+        {
+            find: "isFake:!0",
+            replacement: {
+                match: /,\(0,\i\.jsx\)\(\i,\{text:\i,isFake:!0\}\)/,
+                replace: "",
+            },
+        },
+    ],
+});

@@ -22,7 +22,7 @@ const { randomUUID } = require("node:crypto");
 const { Client } = require("pg");
 
 test("database migration failures release advisory locks and initialization can retry", { skip: !process.env.DATABASE_TEST_ADMIN_URL, timeout: 60_000 }, async (t) => {
-    const name = `fosscord_migration_cleanup_${randomUUID().replaceAll("-", "")}`;
+    const name = `larpcord_migration_cleanup_${randomUUID().replaceAll("-", "")}`;
     const admin = new Client({ connectionString: process.env.DATABASE_TEST_ADMIN_URL });
     await admin.connect();
     let database;

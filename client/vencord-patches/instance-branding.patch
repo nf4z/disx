@@ -172,7 +172,7 @@ index 5d25b17..b40f27c 100644
  import { ReactNode } from "react";
  import { LiteralUnion } from "type-fest";
  
-+export const instanceName = () => (globalThis as any).GLOBAL_ENV?.INSTANCE_NAME || "Fosscord";
++export const instanceName = () => (globalThis as any).GLOBAL_ENV?.INSTANCE_NAME || "LarpCord";
 +
 +export const hiddenPlugins = new Set(["FakeNitro"]);
 +

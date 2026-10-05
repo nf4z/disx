@@ -32,10 +32,10 @@ const { Client } = require("pg");
 const dotenv = require("dotenv");
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const origin = process.env.ORIGIN || `http://localhost:${process.env.PORT || 3290}`;
-assert.ok(["localhost", "fosscord.localhost", "127.0.0.1"].includes(new URL(origin).hostname), "Recovery smoke only runs locally");
+assert.ok(["localhost", "larpcord.localhost", "127.0.0.1"].includes(new URL(origin).hostname), "Recovery smoke only runs locally");
 const cfg = dotenv.parse(readFileSync(process.env.DOTENV_CONFIG_PATH || path.join(root, ".env")));
 const database = process.env.DATABASE || cfg.DATABASE;
-assert.equal(new URL(database).pathname, "/fosscord_codex_admin", "Recovery smoke uses the isolated demo database");
+assert.equal(new URL(database).pathname, "/larpcord_codex_admin", "Recovery smoke uses the isolated demo database");
 assert.ok(["localhost", "127.0.0.1"].includes(new URL(database).hostname));
 const db = new Client({ connectionString: database });
 const bundled = buildSync({
@@ -80,7 +80,7 @@ vm.runInNewContext(
 );
 const helper = helperModule.exports;
 const suffix = randomBytes(6).toString("hex");
-const email = `recovery-smoke-${suffix}@fosscord.test`;
+const email = `recovery-smoke-${suffix}@larpcord.test`;
 const password = `Aa2!${randomBytes(18).toString("hex")}`;
 const secret = randomBytes(32);
 const call = async (method, route, token, body) => {

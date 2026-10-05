@@ -92,7 +92,7 @@ The live check also exposed a preexisting race where simultaneous messages both 
 
 ## Pride badges
 
-Profiles settings now includes a searchable picker for 33 local pride flags, with native Discord inputs, checkbox tiles and save/remove buttons. The shared component adapters support other Fosscord settings too; [desktop and mobile screenshots](native-ui.md) verify theme controls and navigation. Selections have their own validated column and cannot grant or remove admin-assigned badges. No-op saves avoid database writes and observer broadcasts. Public update markers refresh already-cached profiles through a bounded client refetch; generic user projections do not select the storage column.
+Profiles settings now includes a searchable picker for 33 local pride flags, with native Discord inputs, checkbox tiles and save/remove buttons. The shared component adapters support other LarpCord settings too; [desktop and mobile screenshots](native-ui.md) verify theme controls and navigation. Selections have their own validated column and cannot grant or remove admin-assigned badges. No-op saves avoid database writes and observer broadcasts. Public update markers refresh already-cached profiles through a bounded client refetch; generic user projections do not select the storage column.
 
 The Brave smoke selected all 33, verified local artwork on an ordinary friend's profile without overflow, changed and removed badges while that profile remained open, checked search/subset selection, and restored the original selections. All existing badges remained intact. [Rendered profile](qa/admin-performance/pride-profile.png), [artwork contact sheet](qa/admin-performance/pride-art-contact.png), [flag references and offline generator](pride-badges.md).
 
@@ -168,9 +168,9 @@ CHROME_PATH="/Applications/Brave Browser.app/Contents/MacOS/Brave Browser" PORT=
 PORT=3290 node scripts/dev/voice-probe.mjs --browser "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser"
 ```
 
-The API probe modifies and restores local fixture fields. The browser smoke saves an unchanged profile, verifies dirty-drawer protection and opens the channel editor. Benchmark requests are GET-only. The persistent demo is hosted at `http://localhost:3290/admin/` from `/tmp/fosscord-admin-perf`, managed by launchd service `zip.tiago.fosscord.demo`. Its generated login account is stored in that worktree’s ignored `scripts/dev/.test-account` file.
+The API probe modifies and restores local fixture fields. The browser smoke saves an unchanged profile, verifies dirty-drawer protection and opens the channel editor. Benchmark requests are GET-only. The persistent demo is hosted at `http://localhost:3290/admin/` from `/tmp/larpcord-admin-perf`, managed by launchd service `zip.tiago.larpcord.demo`. Its generated login account is stored in that worktree’s ignored `scripts/dev/.test-account` file.
 
-The browser helpers require Playwright in the existing `~/.cache/fosscord-tools` tool environment.
+The browser helpers require Playwright in the existing `~/.cache/larpcord-tools` tool environment.
 
 ## Latest account controls
 

@@ -14,7 +14,7 @@
   "title": "QR code on /login never appears: /remote-auth is answered by the normal gateway",
   "severity": "broken",
   "steps": "1. Log out. 2. Open /login. 3. Wait on the right-hand 'Log in with QR Code' panel.",
-  "observed": "The QR area shows a spinner forever. The client opens ws://fosscord.localhost:3145/remote-auth/?v=2 and receives the main gateway Hello {\"op\":10,\"d\":{\"heartbeat_interval\":30000}} instead of the remote-auth hello. The client logs 'received unsupported message', the socket closes with code 4002, and the client logs 'Could not complete Remote Auth login, trying to restart with a new Remote Auth session.' This loops for as long as the page is open.",
+  "observed": "The QR area shows a spinner forever. The client opens ws://larpcord.localhost:3145/remote-auth/?v=2 and receives the main gateway Hello {\"op\":10,\"d\":{\"heartbeat_interval\":30000}} instead of the remote-auth hello. The client logs 'received unsupported message', the socket closes with code 4002, and the client logs 'Could not complete Remote Auth login, trying to restart with a new Remote Auth session.' This loops for as long as the page is open.",
   "expected": "The remote-auth protocol should run (hello, init with encoded_public_key, nonce_proof, pending_remote_init with fingerprint) and render a QR code, or the QR panel should be hidden.",
   "suspected_cause": "src/bundle/TestClient.ts sets REMOTE_AUTH_ENDPOINT to ws(s)://host/remote-auth, but the server has no remote-auth handler. src/gateway/Server.ts accepts any path and speaks the normal gateway protocol."
  },
@@ -41,7 +41,7 @@
   "screen": "Login (forgot password)",
   "title": "'Forgot your password?' shows no confirmation, and an empty email is silently accepted",
   "severity": "wrong",
-  "steps": "1. On /login, type newbie3@fosscord.test into the email field. 2. Click 'Forgot your password?'. 3. Repeat with the email field empty.",
+  "steps": "1. On /login, type newbie3@larpcord.test into the email field. 2. Click 'Forgot your password?'. 3. Repeat with the email field empty.",
   "observed": "Both cases return 204 POST /api/v9/auth/forgot with an empty body (with {\"login\":\"\"} and with a real email). No 'Instructions sent' modal opens and no error shows under an empty email field.",
   "expected": "With a valid email, Discord opens a modal saying instructions were sent to <email>. With an empty or unknown login, it returns 400 with errors.login and the field shows the error.",
   "evidence": "The client does `return d.h.dispatch({type:\"FORGOT_PASSWORD_SENT\"}),t.body.method`. With a 204 and no body this throws, the catch dispatches LOGIN_FAILURE, and the success modal never opens.",
@@ -108,7 +108,7 @@
   "screen": "Instance root",
   "title": "Opening the instance root '/' shows a white page with the word 'Online'",
   "severity": "wrong",
-  "steps": "1. While logged out, open http://fosscord.localhost:3145/.",
+  "steps": "1. While logged out, open http://larpcord.localhost:3145/.",
   "observed": "The page is a bare white document containing only 'Online'.",
   "expected": "The root should open the client, redirecting to /login (or to /channels/@me when logged in), the way discord.com/app does.",
   "suspected_cause": "src/gateway/Server.ts line 90: `this.app.get(\"/\", (req, res) => res.status(200).send(\"Online\"))` catches '/' because the gateway shares the port."
@@ -136,7 +136,7 @@
   "title": "Quests and 'download the app' upsells are visible to new accounts",
   "severity": "upsell",
   "steps": "1. Register a new account through /register. 2. Look at the home screen. 3. Open Test Guild's #general.",
-  "observed": "The DM sidebar has a 'Quests' entry. The guild rail has a Download Apps button (down-arrow icon). The new-guild welcome checklist includes 'Download the Fosscord App' and 'Unlock perks for everyone with Boosts'. The guild channel list has 'Server Boosts' and the guild menu has 'Server Boost'. The composer shows 'Upgrade your friends! Gift them awesome chat perks with Premium.' The client also polls quests endpoints: 404 /api/v9/quests/@me, /quests/decision, /quests/get-decisions, plus /promotions and /users/@me/referrals/eligibility.",
+  "observed": "The DM sidebar has a 'Quests' entry. The guild rail has a Download Apps button (down-arrow icon). The new-guild welcome checklist includes 'Download the LarpCord App' and 'Unlock perks for everyone with Boosts'. The guild channel list has 'Server Boosts' and the guild menu has 'Server Boost'. The composer shows 'Upgrade your friends! Gift them awesome chat perks with Premium.' The client also polls quests endpoints: 404 /api/v9/quests/@me, /quests/decision, /quests/get-decisions, plus /promotions and /users/@me/referrals/eligibility.",
   "expected": "No Quests, no download-app prompts, no Nitro or Boost upsells.",
   "suspected_cause": "assets/client_patches/41-hide-premium-upsells.js does not cover these surfaces, and the quests experiments are still enabled."
  },
@@ -183,7 +183,7 @@
   "title": "Discover > Servers is stuck on loading skeletons forever on a fresh instance",
   "severity": "broken",
   "steps": "1. Fresh DB from worktree-setup.sh.\n2. Click the Discover (compass) button in the server list, or open /discovery/servers.\n3. Wait 10 s or more.",
-  "observed": "The main pane shows 9 grey skeleton cards that never resolve. GET /api/v9/discovery/categories returns []. GET /api/v9/discoverable-guilds returns total 0. After I inserted 5 rows into the categories table, the page rendered at once ('Find your community on Fosscord', category tabs, Featured Servers).",
+  "observed": "The main pane shows 9 grey skeleton cards that never resolve. GET /api/v9/discovery/categories returns []. GET /api/v9/discoverable-guilds returns total 0. After I inserted 5 rows into the categories table, the page rendered at once ('Find your community on LarpCord', category tabs, Featured Servers).",
   "expected": "The Discover page renders its hero, category tabs and either featured servers or an empty state, as Discord does.",
   "evidence": "psql: insert into categories (id,name,localizations,is_primary) values (1,'Gaming','{}',true),... made the page render.",
   "suspected_cause": "src/api/routes/discovery/categories.ts returns Categories.find(), and the categories table has no seed rows on a fresh DB. The default discovery categories should be seeded by a migration or returned as a fallback."
@@ -265,14 +265,14 @@
   "steps": "1. Open /channels/@me with the console open.",
   "observed": "On every load the client requests https://cdn.discordapp.com/changelogs/config_0.json?x=N. CORS blocks it, and that causes a page error 'Request has been terminated ... Origin is not allowed by Access-Control-Allow-Origin'. Because of this the 'What's new' changelog modal can never load.",
   "expected": "The changelog config and entries should be served locally, or the request should be stubbed so the modal works or stays hidden without errors.",
-  "evidence": "Access to XMLHttpRequest at 'https://cdn.discordapp.com/changelogs/config_0.json?x=3' from origin 'http://fosscord.localhost:3144' has been blocked by CORS policy",
+  "evidence": "Access to XMLHttpRequest at 'https://cdn.discordapp.com/changelogs/config_0.json?x=3' from origin 'http://larpcord.localhost:3144' has been blocked by CORS policy",
   "suspected_cause": "The client hardcodes the URL as `https://cdn.discordapp.com/changelogs/config_${e}.json` in fetchChangelogConfig. It needs a client patch in assets/client_patches, similar to 40-premium-settings.js, to point it at a local route."
  },
  {
   "screen": "Global / external requests",
   "title": "Client calls Discord-owned hosts on every load",
   "severity": "wrong",
-  "steps": "1. Open /channels/@me and log every request whose origin is not fosscord.localhost:3144.",
+  "steps": "1. Open /channels/@me and log every request whose origin is not larpcord.localhost:3144.",
   "observed": "On every session the client requests: https://status.discord.com/api/v2/scheduled-maintenances/upcoming.json, .../scheduled-maintenances/active.json, .../incidents/unresolved.json, https://cdn.discordapp.com/bad-domains/current_revision.txt, https://cdn.discordapp.com/bad-domains/updated_hashes.json, https://cdn.discordapp.com/changelogs/config_0.json, and in guilds https://cdn.discordapp.com/assets/content/bc3217e772906510d881b75ebefea754b9c3ba903ddf6f994e46e5c5a85770a3.svg. The connecting splash also links 'Tweet Us' and 'Server Status' to Discord, and the Help (?) button opens https://support.discord.com/hc/en-us.",
   "expected": "A self-hosted instance serves these locally or disables them, so the client does not contact Discord.",
   "evidence": "EXTERNAL list captured in every probe run.",
@@ -293,7 +293,7 @@
   "title": "Download-app upsells are still shown",
   "severity": "upsell",
   "steps": "1. Look at the server list.\n2. Click the download icon at its bottom.\n3. Create a new server and look at the welcome checklist.",
-  "observed": "I found these download surfaces: (a) a 'Download Apps' button (guildsnav___app-download-button) at the bottom of the server list; (b) clicking it opens a 'Download App / Get Fosscord at Home' modal with MacOS, Windows, Linux, Meta Quest, iOS and Android download buttons and a 'Get the public test build' link to https://discord.com/download#ptb-card, where the MacOS and Meta Quest cards have blank icons; (c) a 'Download the Fosscord App' item in every new guild's welcome checklist, seen in Scratch Server, Test Guild and Landing Club.",
+  "observed": "I found these download surfaces: (a) a 'Download Apps' button (guildsnav___app-download-button) at the bottom of the server list; (b) clicking it opens a 'Download App / Get LarpCord at Home' modal with MacOS, Windows, Linux, Meta Quest, iOS and Android download buttons and a 'Get the public test build' link to https://discord.com/download#ptb-card, where the MacOS and Meta Quest cards have blank icons; (c) a 'Download the LarpCord App' item in every new guild's welcome checklist, seen in Scratch Server, Test Guild and Landing Club.",
   "expected": "The project spec says no 'download the app' upsells. These should be hidden.",
   "evidence": "Visible element: <div circleIconButton> aria-label 'Download Apps' at 16,385. Modal links: [\"https://discord.com/download#ptb-card\"]",
   "suspected_cause": "No client patch hides these entries. assets/client_patches/41-hide-premium-upsells.js covers only store, shop and gift."
@@ -403,7 +403,7 @@
   "title": "Boost and download upsells in the guild chat view, and Server Boosts opens a blank page",
   "severity": "upsell",
   "steps": "1. Open Test Guild #general as tester (owner) and scroll to the top of the channel. 2. Look at the channel list. 3. Click 'Server Boosts' in the channel list. 4. Open the same channel as friend (non-owner).",
-  "observed": "The welcome checklist has 'Download the Fosscord App' and 'Unlock perks for everyone with Boosts' cards. The channel list has a 'Server Boosts' entry above the channels, which navigates to /channels/<guild>/boosts and renders an empty dark page. friend also sees the 'Download the Fosscord App' card. The guild rail has a 'Download Apps' button.",
+  "observed": "The welcome checklist has 'Download the LarpCord App' and 'Unlock perks for everyone with Boosts' cards. The channel list has a 'Server Boosts' entry above the channels, which navigates to /channels/<guild>/boosts and renders an empty dark page. friend also sees the 'Download the LarpCord App' card. The guild rail has a 'Download Apps' button.",
   "expected": "No boost or download upsells, because every guild is already boost level 3. The 'Server Boosts' entry and the download and boost checklist cards should not appear.",
   "evidence": "Page errors on every guild load: HTTPResponseError: GET /guilds/xxx/powerups [404], GET /store/published-listings/skus [404], and 404 GET /api/v9/guilds/:id/entitlements.",
   "suspected_cause": "Guild feature flags or powerups and store endpoints are missing, so the client falls back to showing upsell entries. The client also needs the boosts channel-list entry and the checklist cards hidden."
@@ -645,7 +645,7 @@
   "title": "Boost and download upsells in the guild sidebar and welcome checklist",
   "severity": "upsell",
   "steps": "Open Test Guild.",
-  "observed": "The channel list has a 'Server Boosts' entry, and a 'Boost Goal 0/33 Boosts' progress bar once premium_progress_bar_enabled is on. The welcome checklist has 'Download the Fosscord App' and 'Unlock perks for everyone with Boosts'. The guild rail has a download-app icon. The Discover page (from the App Directory menu item) lists 'Quests' in its sidebar.",
+  "observed": "The channel list has a 'Server Boosts' entry, and a 'Boost Goal 0/33 Boosts' progress bar once premium_progress_bar_enabled is on. The welcome checklist has 'Download the LarpCord App' and 'Unlock perks for everyone with Boosts'. The guild rail has a download-app icon. The Discover page (from the App Directory menu item) lists 'Quests' in its sidebar.",
   "expected": "No boost, download or Quests entry points.",
   "suspected_cause": "Client patches (assets/client_patches/41-hide-premium-upsells.js) only hide /store, /shop and the gift button."
  },
@@ -681,7 +681,7 @@
   "title": "Default welcome sticker JSON is missing, so 'Wave to say hi!' throws",
   "severity": "wrong",
   "steps": "Have a member join (friend joins through invite zs2EFN), then view #general as owner while 'Prompt members to reply to welcome messages with a sticker' is enabled in Engagement.",
-  "observed": "GET /stickers/749054660769218631.json -> 404, page error 'Error fetching sticker at http://fosscord.localhost:3141/stickers/749054660769218631.json'.",
+  "observed": "GET /stickers/749054660769218631.json -> 404, page error 'Error fetching sticker at http://larpcord.localhost:3141/stickers/749054660769218631.json'.",
   "expected": "The Wumpus wave sticker loads locally.",
   "suspected_cause": "Default Discord sticker pack assets are not served under /stickers/*.json."
  },
@@ -747,8 +747,8 @@
   "screen": "User Settings > Account > Account Info > Email",
   "title": "Email can be changed without the old-email verification code, and the new address stays verified",
   "severity": "wrong",
-  "steps": "1. Call PATCH /api/v9/users/@me {\"email\":\"tester@fosscord.test\",\"password\":\"<pw>\"} with no email_token. The UI flow (Send Verification Code > code > reason > new email + password) does work.\n2. Check GET /users/@me.",
-  "observed": "The email is changed with only the password. After the change via the UI, 'verified' stays true even though the modal says 'we sent a verification email to tester2@fosscord.test'.",
+  "steps": "1. Call PATCH /api/v9/users/@me {\"email\":\"tester@larpcord.test\",\"password\":\"<pw>\"} with no email_token. The UI flow (Send Verification Code > code > reason > new email + password) does work.\n2. Check GET /users/@me.",
+  "observed": "The email is changed with only the password. After the change via the UI, 'verified' stays true even though the modal says 'we sent a verification email to tester2@larpcord.test'.",
   "expected": "Discord requires the email_token from the old-address code when the old email is verified, and marks the account unverified until the new address is confirmed.",
   "evidence": "PATCH without email_token returns 200 with the new email; verified:true",
   "suspected_cause": "src/api/routes/users/@me/index.ts: `if (body.email_token !== undefined && !EmailChange.consumeToken(...))` only checks the token when it is present. Nothing resets user.verified or sends a verify email."
@@ -794,11 +794,11 @@
   "suspected_cause": "The auth/sessions route (src/api/routes/auth/sessions*) and Session entity have a null last_seen that serializes as epoch, and sessions aren't cleaned up when valid_tokens_since changes."
  },
  {
-  "screen": "User Settings > Data & Privacy > How Fosscord Uses My Data",
+  "screen": "User Settings > Data & Privacy > How LarpCord Uses My Data",
   "title": "Personalization and sponsored-content (Quests) data toggles are still shown, and the consent toggles don't stick",
   "severity": "upsell",
-  "steps": "1. Open User Settings > Data & Privacy.\n2. Turn on 'Use data to improve Fosscord' and 'Use data to personalize my Fosscord experience'.\n3. Reload.",
-  "observed": "The page shows 'Use data to personalize my Fosscord experience', 'Use my Fosscord activity to personalize Sponsored Content' ('like Quests ... you may still see Quests') and 'Use third-party data to personalize Sponsored Content' ('data Fosscord receives from advertisers'). Clicking the first two sends POST /users/@me/consent {grant:[...]}. The server returns {consented:false} for both, so the switches flip back immediately. The data request dialog also lists an 'Ads' category.",
+  "steps": "1. Open User Settings > Data & Privacy.\n2. Turn on 'Use data to improve LarpCord' and 'Use data to personalize my LarpCord experience'.\n3. Reload.",
+  "observed": "The page shows 'Use data to personalize my LarpCord experience', 'Use my LarpCord activity to personalize Sponsored Content' ('like Quests ... you may still see Quests') and 'Use third-party data to personalize Sponsored Content' ('data LarpCord receives from advertisers'). Clicking the first two sends POST /users/@me/consent {grant:[...]}. The server returns {consented:false} for both, so the switches flip back immediately. The data request dialog also lists an 'Ads' category.",
   "expected": "The project spec says no personalization or ads data settings, so these rows (and the Ads data category) should be hidden. The remaining toggles should persist.",
   "evidence": "POST /api/v9/users/@me/consent {\"grant\":[\"usage_statistics\"]} returns {\"usage_statistics\":{\"consented\":false},...}",
   "suspected_cause": "src/api/routes/users/@me/consent.ts returns a constant and ignores grant/revoke. No client patch hides the personalization or Sponsored Content rows (assets/client_patches has only 10/40/41)."
@@ -868,7 +868,7 @@
   "title": "Appearance shows Premium promo copy and a 'Try it out' banner to users who already have Premium",
   "severity": "upsell",
   "steps": "1. As tester (premium_type 2), open Appearance.",
-  "observed": "There's a banner reading 'Make your Fosscord look *juuusst* right. Create your own custom theme... Only with Premium.' with a 'Try it out' button. 'Color Themes' says 'Make Fosscord yours. Only with Premium.' and 'App Icon' says 'Change the Fosscord in-app icon, only with Premium.' The features themselves work: the custom theme editor applies and persists, and the app icon choice persists.",
+  "observed": "There's a banner reading 'Make your LarpCord look *juuusst* right. Create your own custom theme... Only with Premium.' with a 'Try it out' button. 'Color Themes' says 'Make LarpCord yours. Only with Premium.' and 'App Icon' says 'Change the LarpCord in-app icon, only with Premium.' The features themselves work: the custom theme editor applies and persists, and the app icon choice persists.",
   "expected": "Every user has Premium for free, so there should be no 'Only with Premium' promo copy or promo banner. Show the features without the upsell wording.",
   "evidence": "Strings nla4RG, np0X/u, IgENJo in the client. The IgENJo subtitle is unconditional.",
   "suspected_cause": "assets/client_patches/41-hide-premium-upsells.js only hides store, shop and gift buttons. It doesn't strip these subtitles or the custom-theme promo card."

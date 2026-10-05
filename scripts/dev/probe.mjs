@@ -2,7 +2,7 @@ import { createRequire } from "node:module";
 import { homedir } from "node:os";
 import { readFileSync } from "node:fs";
 
-const require = createRequire(`${homedir()}/.cache/fosscord-tools/`);
+const require = createRequire(`${homedir()}/.cache/larpcord-tools/`);
 const { chromium } = require("playwright-core");
 
 const args = process.argv.slice(2);
@@ -16,7 +16,7 @@ const wait = Number(flag("wait", "12")) * 1000;
 const shot = flag("shot");
 const evalSrc = flag("eval");
 const as = flag("as", "tester");
-const origin = process.env.ORIGIN || `http://fosscord.localhost:${port}`;
+const origin = process.env.ORIGIN || `http://larpcord.localhost:${port}`;
 
 const accounts = Object.fromEntries(
     readFileSync(new URL("./.test-account", import.meta.url), "utf8")
@@ -24,7 +24,7 @@ const accounts = Object.fromEntries(
         .split("\n")
         .map((l) => l.split("=")),
 );
-const credentials = as === "friend" ? { login: "friend@fosscord.test", password: accounts.FRIEND_PASSWORD } : { login: accounts.TEST_EMAIL, password: accounts.TEST_PASSWORD };
+const credentials = as === "friend" ? { login: "friend@larpcord.test", password: accounts.FRIEND_PASSWORD } : { login: accounts.TEST_EMAIL, password: accounts.TEST_PASSWORD };
 const login = await fetch(`${process.env.ORIGIN || `http://localhost:${port}`}/api/v9/auth/login`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(credentials) }).then((r) => r.json());
 if (!login.token) throw new Error(`login failed: ${JSON.stringify(login)}`);
 

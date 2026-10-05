@@ -23,12 +23,12 @@ let target;
 try {
     target = new URL(process.env.DATABASE || "");
 } catch {
-    throw Error("Set ADMIN_USERS_PROFILE=1 and DATABASE to the isolated local fosscord_codex_admin database");
+    throw Error("Set ADMIN_USERS_PROFILE=1 and DATABASE to the isolated local larpcord_codex_admin database");
 }
 assertTarget(target);
 function assertTarget(target) {
-    if (process.env.ADMIN_USERS_PROFILE !== "1" || target.pathname !== "/fosscord_codex_admin" || !["localhost", "127.0.0.1"].includes(target.hostname))
-        throw Error("Set ADMIN_USERS_PROFILE=1 and DATABASE to the isolated local fosscord_codex_admin database");
+    if (process.env.ADMIN_USERS_PROFILE !== "1" || target.pathname !== "/larpcord_codex_admin" || !["localhost", "127.0.0.1"].includes(target.hostname))
+        throw Error("Set ADMIN_USERS_PROFILE=1 and DATABASE to the isolated local larpcord_codex_admin database");
 }
 process.env.APPLY_DB_MIGRATIONS = "false";
 delete process.env.DB_SYNC;

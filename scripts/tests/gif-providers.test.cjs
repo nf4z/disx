@@ -16,7 +16,7 @@
 	along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-process.env.DATABASE ??= "postgres://localhost/fosscord_gif_unit_unused";
+process.env.DATABASE ??= "postgres://localhost/larpcord_gif_unit_unused";
 require("../register-paths.cjs");
 const assert = require("node:assert/strict");
 const test = require("node:test");
@@ -80,7 +80,7 @@ test("klipy error never contains key or upstream response", async () => {
 });
 test("missing key file disables klipy instead of failing startup", async () => {
     const previous = config.integrations.gifs.klipy;
-    config.integrations.gifs.klipy = { enabled: true, apiKeyPath: "/does-not-exist/fosscord-key" };
+    config.integrations.gifs.klipy = { enabled: true, apiKeyPath: "/does-not-exist/larpcord-key" };
     try {
         const provider = new Klipy();
         await provider.init();

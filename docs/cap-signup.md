@@ -21,7 +21,7 @@ The refreshed admin dashboard passed a full settings form save with HTTP 200, in
 Seven real PostgreSQL tests cover production challenge settings, nonce and token replay, expiry, malformed proofs, required signup and invitation bypass prevention. The native browser smoke checks missing verification, successful signup, reset, replay rejection, load failure/retry and absence of external requests. The client patch checker passed on Discord build 627798. The compatibility probe passed 151 checks with one optional integration skipped.
 
 ```sh
-CAP_REGISTRATION_TEST=1 APPLY_DB_MIGRATIONS=false DOTENV_CONFIG_PATH=/tmp/fosscord-admin-perf/.env node -r dotenv/config -r ./scripts/register-paths.cjs --test scripts/tests/cap-registration.postgres.cjs
+CAP_REGISTRATION_TEST=1 APPLY_DB_MIGRATIONS=false DOTENV_CONFIG_PATH=/tmp/larpcord-admin-perf/.env node -r dotenv/config -r ./scripts/register-paths.cjs --test scripts/tests/cap-registration.postgres.cjs
 PORT=3290 node scripts/dev/cap-signup-smoke.mjs
 ```
 

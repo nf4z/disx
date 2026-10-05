@@ -30,17 +30,6 @@
             }
         },
         "schemas": {
-            "CreateFingerprintResponse": {
-                "type": "object",
-                "properties": {
-                    "fingerprint": {
-                        "type": "string"
-                    }
-                },
-                "required": [
-                    "fingerprint"
-                ]
-            },
             "ApplicationCommandSchema": {
                 "type": "object",
                 "properties": {
@@ -216,7 +205,7 @@
                     "length": {
                         "type": "integer"
                     },
-                    "__@unscopables@751": {
+                    "__@unscopables@744": {
                         "type": "object",
                         "additionalProperties": false,
                         "patternProperties": {
@@ -342,17 +331,17 @@
                             "with": {
                                 "type": "boolean"
                             },
-                            "__@iterator@749": {
+                            "__@iterator@742": {
                                 "type": "boolean"
                             },
-                            "__@unscopables@751": {
+                            "__@unscopables@744": {
                                 "type": "boolean"
                             }
                         }
                     }
                 },
                 "required": [
-                    "__@unscopables@751",
+                    "__@unscopables@744",
                     "length"
                 ]
             },
@@ -4124,9 +4113,6 @@
                     "newToken": {
                         "type": "string"
                     },
-                    "email": {
-                        "type": "string"
-                    },
                     "id": {
                         "description": "A Twitter-like snowflake, except the epoch is 2015-01-01T00:00:00.000Z\n```\nIf we have a snowflake '266241948824764416' we can represent it as binary:\n\n64                                          22     17     12          0\n 000000111011000111100001101001000101000000  00001  00000  000000000000\n      number of ms since Discord epoch       worker  pid    increment\n```",
                         "type": "string"
@@ -4201,6 +4187,9 @@
                     },
                     "mfa_enabled": {
                         "type": "boolean"
+                    },
+                    "email": {
+                        "type": "string"
                     },
                     "phone": {
                         "type": "string"
@@ -4435,7 +4424,7 @@
                 "properties": {
                     "instanceName": {
                         "type": "string",
-                        "default": "Fosscord"
+                        "default": "LarpCord"
                     },
                     "serverName": {
                         "type": "string",
@@ -9397,6 +9386,25 @@
                                     "null",
                                     "string"
                                 ]
+                            },
+                            "loadingTips": {
+                                "anyOf": [
+                                    {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    {
+                                        "type": "null"
+                                    }
+                                ]
+                            },
+                            "loadingSvg": {
+                                "type": [
+                                    "null",
+                                    "string"
+                                ]
                             }
                         },
                         "additionalProperties": false
@@ -10417,9 +10425,20 @@
                         "description": "everyone: every user on the instance; staff: only people with admin panel access",
                         "enum": [
                             "everyone",
+                            "selected",
                             "staff"
                         ],
                         "type": "string"
+                    },
+                    "recipient_ids": {
+                        "description": "Required for selected; numeric user IDs, checked for existence before delivery is queued.",
+                        "minItems": 1,
+                        "maxItems": 100,
+                        "uniqueItems": true,
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
                     }
                 },
                 "required": [
@@ -10692,6 +10711,17 @@
                         "type": "boolean"
                     }
                 }
+            },
+            "AdminOfficialMessageCreateSchema": {
+                "type": "object",
+                "properties": {
+                    "content": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "content"
+                ]
             },
             "AdminChannelCreateSchema": {
                 "type": "object",
@@ -11731,6 +11761,17 @@
                     "sub"
                 ]
             },
+            "CreateFingerprintResponse": {
+                "type": "object",
+                "properties": {
+                    "fingerprint": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "fingerprint"
+                ]
+            },
             "ApplicationCommandOption": {
                 "type": "object",
                 "properties": {
@@ -11987,7 +12028,7 @@
                             "length": {
                                 "type": "integer"
                             },
-                            "__@unscopables@751": {
+                            "__@unscopables@744": {
                                 "type": "object",
                                 "additionalProperties": false,
                                 "patternProperties": {
@@ -12113,17 +12154,17 @@
                                     "with": {
                                         "type": "boolean"
                                     },
-                                    "__@iterator@749": {
+                                    "__@iterator@742": {
                                         "type": "boolean"
                                     },
-                                    "__@unscopables@751": {
+                                    "__@unscopables@744": {
                                         "type": "boolean"
                                     }
                                 }
                             }
                         },
                         "required": [
-                            "__@unscopables@751",
+                            "__@unscopables@744",
                             "length"
                         ]
                     },
@@ -22278,6 +22319,7 @@
                 "type": "number",
                 "enum": [
                     2000,
+                    2001,
                     1,
                     10,
                     11,
@@ -22881,34 +22923,6 @@
                         "description": "No description available"
                     }
                 },
-                "tags": [
-                    "api"
-                ]
-            }
-        },
-        "/api/widget-configs/{kind}/": {
-            "get": {
-                "security": [
-                    {
-                        "bearer": []
-                    }
-                ],
-                "responses": {
-                    "default": {
-                        "description": "No description available"
-                    }
-                },
-                "parameters": [
-                    {
-                        "name": "kind",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "kind"
-                    }
-                ],
                 "tags": [
                     "api"
                 ]
@@ -43570,7 +43584,13 @@
                             }
                         }
                     },
+                    "403": {
+                        "description": "No description available"
+                    },
                     "404": {
+                        "description": "No description available"
+                    },
+                    "429": {
                         "description": "No description available"
                     }
                 },
@@ -49431,6 +49451,86 @@
                 ]
             }
         },
+        "/api/admin/conversations/{user_id}/": {
+            "get": {
+                "x-right-required": "OPERATOR",
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "description": "Read the official account's conversation with one user",
+                "responses": {
+                    "default": {
+                        "description": "No description available"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "user_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "user_id"
+                    }
+                ],
+                "tags": [
+                    "api"
+                ],
+                "x-badges": [
+                    {
+                        "label": "Spacebar-only",
+                        "color": "red"
+                    }
+                ]
+            },
+            "post": {
+                "x-right-required": "OPERATOR",
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "description": "Send one encrypted DM as the official account",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AdminOfficialMessageCreateSchema"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "default": {
+                        "description": "No description available"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "user_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "user_id"
+                    }
+                ],
+                "tags": [
+                    "api"
+                ],
+                "x-badges": [
+                    {
+                        "label": "Spacebar-only",
+                        "color": "red"
+                    }
+                ]
+            }
+        },
         "/api/admin/badges/": {
             "get": {
                 "x-right-required": "MANAGE_USERS",
@@ -49612,7 +49712,7 @@
                         "bearer": []
                     }
                 ],
-                "description": "Recent staff announcements",
+                "description": "Recent staff announcements and durable delivery counts",
                 "responses": {
                     "default": {
                         "description": "No description available"
@@ -49635,17 +49735,6 @@
                         "bearer": []
                     }
                 ],
-                "description": "DM an announcement from the official account, as a plain message with any attached files",
-                "requestBody": {
-                    "required": true,
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "$ref": "#/components/schemas/AdminAnnouncementCreateSchema"
-                            }
-                        }
-                    }
-                },
                 "responses": {
                     "default": {
                         "description": "No description available"
@@ -49824,6 +49913,281 @@
                 },
                 "tags": [
                     "api"
+                ],
+                "x-badges": [
+                    {
+                        "label": "Spacebar-only",
+                        "color": "red"
+                    }
+                ]
+            }
+        },
+        "/__development/build_overrides/": {
+            "get": {
+                "security": [
+                    {}
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No description available"
+                    }
+                },
+                "tags": [
+                    "__development"
+                ]
+            }
+        },
+        "/_spacebar/api/version/": {
+            "get": {
+                "security": [
+                    {}
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SpacebarVersionResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "tags": [
+                    "_spacebar"
+                ],
+                "x-badges": [
+                    {
+                        "label": "Spacebar-only",
+                        "color": "red"
+                    }
+                ]
+            }
+        },
+        "/_spacebar/api/v1/integrations/gif/": {
+            "get": {
+                "security": [
+                    {}
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/GifIntegrationsResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "tags": [
+                    "_spacebar"
+                ],
+                "x-badges": [
+                    {
+                        "label": "Spacebar-only",
+                        "color": "red"
+                    }
+                ]
+            }
+        },
+        "/_spacebar/api/v1/channels/{channel_id}/attachments/": {
+            "get": {
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AttachmentListResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/APIErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/APIErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "channel_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "channel_id"
+                    },
+                    {
+                        "name": "sort_order",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Sort order for results"
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "schema": {
+                            "type": "number"
+                        },
+                        "description": "Max. amount of items to return"
+                    },
+                    {
+                        "name": "after",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Get results after $ATTACHMENT_ID (depends on sort_order)"
+                    }
+                ],
+                "tags": [
+                    "_spacebar"
+                ]
+            }
+        },
+        "/_spacebar/api/v1/avatar_decorations/": {
+            "get": {
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "description": "Get available avatar decorations",
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PublicAvatarDecorationListResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "tags": [
+                    "_spacebar"
+                ],
+                "x-badges": [
+                    {
+                        "label": "Spacebar-only",
+                        "color": "red"
+                    }
+                ]
+            }
+        },
+        "/_spacebar/api/v1/avatar_decorations/{id}/": {
+            "patch": {
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "description": "Get available avatar decorations",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateAvatarDecorationSchema"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PublicAvatarDecorationListResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "id"
+                    }
+                ],
+                "tags": [
+                    "_spacebar"
+                ],
+                "x-badges": [
+                    {
+                        "label": "Spacebar-only",
+                        "color": "red"
+                    }
+                ]
+            }
+        },
+        "/_spacebar/api/schemas.json/": {
+            "get": {
+                "security": [
+                    {}
+                ],
+                "responses": {
+                    "default": {
+                        "description": "No description available"
+                    }
+                },
+                "tags": [
+                    "_spacebar"
+                ],
+                "x-badges": [
+                    {
+                        "label": "Spacebar-only",
+                        "color": "red"
+                    }
+                ]
+            }
+        },
+        "/_spacebar/api/openapi.json/": {
+            "get": {
+                "security": [
+                    {}
+                ],
+                "responses": {
+                    "default": {
+                        "description": "No description available"
+                    }
+                },
+                "tags": [
+                    "_spacebar"
                 ],
                 "x-badges": [
                     {
@@ -50160,281 +50524,6 @@
                         "label": "Spacebar-only",
                         "color": "red"
                     }
-                ]
-            }
-        },
-        "/_spacebar/api/version/": {
-            "get": {
-                "security": [
-                    {}
-                ],
-                "responses": {
-                    "200": {
-                        "description": "",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/SpacebarVersionResponse"
-                                }
-                            }
-                        }
-                    }
-                },
-                "tags": [
-                    "_spacebar"
-                ],
-                "x-badges": [
-                    {
-                        "label": "Spacebar-only",
-                        "color": "red"
-                    }
-                ]
-            }
-        },
-        "/_spacebar/api/v1/integrations/gif/": {
-            "get": {
-                "security": [
-                    {}
-                ],
-                "responses": {
-                    "200": {
-                        "description": "",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/GifIntegrationsResponse"
-                                }
-                            }
-                        }
-                    }
-                },
-                "tags": [
-                    "_spacebar"
-                ],
-                "x-badges": [
-                    {
-                        "label": "Spacebar-only",
-                        "color": "red"
-                    }
-                ]
-            }
-        },
-        "/_spacebar/api/v1/channels/{channel_id}/attachments/": {
-            "get": {
-                "security": [
-                    {
-                        "bearer": []
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/AttachmentListResponse"
-                                }
-                            }
-                        }
-                    },
-                    "403": {
-                        "description": "",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/APIErrorResponse"
-                                }
-                            }
-                        }
-                    },
-                    "422": {
-                        "description": "",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/APIErrorResponse"
-                                }
-                            }
-                        }
-                    }
-                },
-                "parameters": [
-                    {
-                        "name": "channel_id",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "channel_id"
-                    },
-                    {
-                        "name": "sort_order",
-                        "in": "query",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Sort order for results"
-                    },
-                    {
-                        "name": "limit",
-                        "in": "query",
-                        "schema": {
-                            "type": "number"
-                        },
-                        "description": "Max. amount of items to return"
-                    },
-                    {
-                        "name": "after",
-                        "in": "query",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Get results after $ATTACHMENT_ID (depends on sort_order)"
-                    }
-                ],
-                "tags": [
-                    "_spacebar"
-                ]
-            }
-        },
-        "/_spacebar/api/v1/avatar_decorations/": {
-            "get": {
-                "security": [
-                    {
-                        "bearer": []
-                    }
-                ],
-                "description": "Get available avatar decorations",
-                "responses": {
-                    "200": {
-                        "description": "",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/PublicAvatarDecorationListResponse"
-                                }
-                            }
-                        }
-                    }
-                },
-                "tags": [
-                    "_spacebar"
-                ],
-                "x-badges": [
-                    {
-                        "label": "Spacebar-only",
-                        "color": "red"
-                    }
-                ]
-            }
-        },
-        "/_spacebar/api/v1/avatar_decorations/{id}/": {
-            "patch": {
-                "security": [
-                    {
-                        "bearer": []
-                    }
-                ],
-                "description": "Get available avatar decorations",
-                "requestBody": {
-                    "required": true,
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "$ref": "#/components/schemas/UpdateAvatarDecorationSchema"
-                            }
-                        }
-                    }
-                },
-                "responses": {
-                    "200": {
-                        "description": "",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/PublicAvatarDecorationListResponse"
-                                }
-                            }
-                        }
-                    }
-                },
-                "parameters": [
-                    {
-                        "name": "id",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "id"
-                    }
-                ],
-                "tags": [
-                    "_spacebar"
-                ],
-                "x-badges": [
-                    {
-                        "label": "Spacebar-only",
-                        "color": "red"
-                    }
-                ]
-            }
-        },
-        "/_spacebar/api/schemas.json/": {
-            "get": {
-                "security": [
-                    {}
-                ],
-                "responses": {
-                    "default": {
-                        "description": "No description available"
-                    }
-                },
-                "tags": [
-                    "_spacebar"
-                ],
-                "x-badges": [
-                    {
-                        "label": "Spacebar-only",
-                        "color": "red"
-                    }
-                ]
-            }
-        },
-        "/_spacebar/api/openapi.json/": {
-            "get": {
-                "security": [
-                    {}
-                ],
-                "responses": {
-                    "default": {
-                        "description": "No description available"
-                    }
-                },
-                "tags": [
-                    "_spacebar"
-                ],
-                "x-badges": [
-                    {
-                        "label": "Spacebar-only",
-                        "color": "red"
-                    }
-                ]
-            }
-        },
-        "/__development/build_overrides/": {
-            "get": {
-                "security": [
-                    {}
-                ],
-                "responses": {
-                    "200": {
-                        "description": "No description available"
-                    }
-                },
-                "tags": [
-                    "__development"
                 ]
             }
         },

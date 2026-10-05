@@ -24,13 +24,13 @@ const vm = require("node:vm");
 
 test("native official reply patch preserves other system and guild restrictions", () => {
     const module = { exports: {} };
-    const source = ts.transpileModule(fs.readFileSync("client/plugins/fosscordOfficialMessages/index.ts", "utf8"), {
+    const source = ts.transpileModule(fs.readFileSync("client/plugins/larpcordOfficialMessages/index.ts", "utf8"), {
         compilerOptions: { module: ts.ModuleKind.CommonJS, esModuleInterop: true },
     }).outputText;
     vm.runInNewContext(source, {
         module,
         exports: module.exports,
-        require: (name) => (name === "@utils/types" ? { default: (value) => value, __esModule: true } : { FosscordAuthor: {} }),
+        require: (name) => (name === "@utils/types" ? { default: (value) => value, __esModule: true } : { LarpCordAuthor: {} }),
     });
     const patch = module.exports.default.patches[0].replacement;
     const match = new RegExp(patch.match.source.replaceAll("\\i", "[A-Za-z_$][\\w$]*"), patch.match.flags);

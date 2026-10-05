@@ -29,7 +29,7 @@ const users = [];
 const policy = { cdn: { maxAttachmentSize: 1024 * 1024 * 1024, endpointPublic: "http://localhost" }, limits: { message: { maxAttachments: 15 } } };
 before(async () => {
     if (!enabled) return;
-    assert.equal(new URL(process.env.DATABASE).pathname, "/fosscord_codex_admin");
+    assert.equal(new URL(process.env.DATABASE).pathname, "/larpcord_codex_admin");
     assert.ok(["localhost", "127.0.0.1"].includes(new URL(process.env.DATABASE).hostname));
     e = require("../../dist/database");
     db = await e.initDatabase();

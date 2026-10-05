@@ -8,19 +8,19 @@ import { crc32, deflateSync } from "node:zlib";
 import { join } from "node:path";
 import assert from "node:assert/strict";
 
-const require = createRequire(`${homedir()}/.cache/fosscord-tools/`);
+const require = createRequire(`${homedir()}/.cache/larpcord-tools/`);
 const { chromium } = require("playwright-core");
 
 const port = process.env.PORT || "3120";
 const api = `http://localhost:${port}/api/v9`;
-const origin = `http://fosscord.localhost:${port}`;
+const origin = `http://larpcord.localhost:${port}`;
 const database = Object.fromEntries(
     readFileSync(new URL("../../.env", import.meta.url), "utf8")
         .split("\n")
         .filter((l) => l.includes("="))
         .map((l) => [l.slice(0, l.indexOf("=")), l.slice(l.indexOf("=") + 1)]),
 ).DATABASE;
-const expectedDatabase = process.env.E2EE_TEST_DATABASE_NAME || "fosscord_codex_admin";
+const expectedDatabase = process.env.E2EE_TEST_DATABASE_NAME || "larpcord_codex_admin";
 let actualDatabase = "";
 try {
     actualDatabase = decodeURIComponent(new URL(database).pathname.slice(1));
@@ -30,7 +30,7 @@ try {
 assert.equal(actualDatabase, expectedDatabase, "Encryption tests must run against the explicitly selected isolated database");
 const recoveryOnly = process.env.E2EE_PASSWORD_RECOVERY_ONLY === "1";
 const FALLBACK = "🔒 Encrypted message";
-const profiles = mkdtempSync(join(tmpdir(), "fosscord-e2ee-"));
+const profiles = mkdtempSync(join(tmpdir(), "larpcord-e2ee-"));
 const started = Date.now();
 const shots = process.env.E2EE_SHOTS;
 const shot = (s, name) => shots && s.page.screenshot({ path: join(shots, `${name}.png`) });
@@ -51,7 +51,7 @@ const sql = (query) => execFileSync("psql", [database, "-At", "-c", query], { en
 
 const suffix = randomBytes(4).toString("hex");
 const account = async (name) => {
-    const email = `e2ee-${name}-${suffix}@fosscord.test`;
+    const email = `e2ee-${name}-${suffix}@larpcord.test`;
     const password = randomBytes(12).toString("hex");
     const res = await call("POST", "/auth/register", null, { email, username: `e2ee${name}${suffix}`, password, date_of_birth: "2000-01-01", consent: true });
     assert.ok(res.body?.token, `register ${name}: ${JSON.stringify(res.body)}`);
@@ -98,8 +98,8 @@ const open = async (context, user, { login = false, extraInit, strictSafety = fa
                     sessionStorage.setItem("e2ee-test-cleared", nonce);
                     localStorage.clear();
                 }
-                if (strictSafety) localStorage.setItem("fosscord-e2ee-strict-safety", "true");
-                else localStorage.removeItem("fosscord-e2ee-strict-safety");
+                if (strictSafety) localStorage.setItem("larpcord-e2ee-strict-safety", "true");
+                else localStorage.removeItem("larpcord-e2ee-strict-safety");
             },
             { nonce: randomBytes(8).toString("hex"), strictSafety },
         );
@@ -108,8 +108,8 @@ const open = async (context, user, { login = false, extraInit, strictSafety = fa
             ({ token, strictSafety }) => {
                 localStorage.setItem("token", JSON.stringify(token));
                 localStorage.removeItem("tokens");
-                if (strictSafety) localStorage.setItem("fosscord-e2ee-strict-safety", "true");
-                else localStorage.removeItem("fosscord-e2ee-strict-safety");
+                if (strictSafety) localStorage.setItem("larpcord-e2ee-strict-safety", "true");
+                else localStorage.removeItem("larpcord-e2ee-strict-safety");
             },
             { token: user.token, strictSafety },
         );
@@ -172,9 +172,9 @@ const waitFor = async (what, check, timeout = 20000) => {
     }
 };
 
-const status = (s) => s.page.evaluate(() => window.__fosscordE2ee?.status?.());
-const waitReady = (s) => s.page.waitForFunction(() => window.__fosscordE2ee?.status?.()?.ready === true, null, { timeout: 30000 });
-const waitEncrypted = (s) => s.page.waitForFunction((id) => window.__fosscordE2ee?.status?.()?.encryptedChannels.includes(id), dm.id, { timeout: 10000 });
+const status = (s) => s.page.evaluate(() => window.__larpcordE2ee?.status?.());
+const waitReady = (s) => s.page.waitForFunction(() => window.__larpcordE2ee?.status?.()?.ready === true, null, { timeout: 30000 });
+const waitEncrypted = (s) => s.page.waitForFunction((id) => window.__larpcordE2ee?.status?.()?.encryptedChannels.includes(id), dm.id, { timeout: 10000 });
 const send = async (s, text) => {
     const box = s.page.locator('[role="textbox"]').first();
     await box.click();
@@ -185,7 +185,7 @@ const waitDecrypted = (s, text) =>
     s.page.waitForFunction(
         (text) =>
             [...document.querySelectorAll('[id^="message-content-"]')].some(
-                (el) => el.textContent.includes(text) && window.__fosscordE2ee?.status?.()?.states?.[el.id.replace("message-content-", "")]?.state === "decrypted",
+                (el) => el.textContent.includes(text) && window.__larpcordE2ee?.status?.()?.states?.[el.id.replace("message-content-", "")]?.state === "decrypted",
             ),
         text,
         { timeout: 12000 },
@@ -213,7 +213,7 @@ const diagnose = async (...sessions) => {
     for (const s of sessions) {
         const state = await s.page
             .evaluate(() => ({
-                status: window.__fosscordE2ee?.status?.(),
+                status: window.__larpcordE2ee?.status?.(),
                 notice: document.querySelector(".fe2ee-notice")?.innerText,
                 messages: [...document.querySelectorAll('[id^="message-content-"]')].map((el) => el.id + ": " + el.textContent).slice(-5),
             }))
@@ -281,10 +281,10 @@ const restoreFixtureAccess = async () => {
             await r.page.locator(".fe2ee-notice button", { hasText: "Unlock" }).click();
             await r.page.getByLabel("Recovery code").fill(recoveryCode);
             await r.page.locator("dialog.fe2ee-dialog button", { hasText: /^Unlock$/ }).click();
-            await r.page.waitForFunction(() => window.__fosscordE2ee.status().linked === true);
+            await r.page.waitForFunction(() => window.__larpcordE2ee.status().linked === true);
         }
         if (backupRow().mode === "recovery") {
-            await r.page.evaluate(() => window.__fosscordE2ee.openSettings());
+            await r.page.evaluate(() => window.__larpcordE2ee.openSettings());
             await r.page.getByLabel("Account password").fill(tester.password);
             await r.page.getByRole("button", { name: "Use my password instead", exact: true }).click();
             await waitFor("fixture password backup", () => backupRow()?.mode === "password");
@@ -293,7 +293,7 @@ const restoreFixtureAccess = async () => {
             const before = backupRow().version;
             const token = await r.page.evaluate(
                 async ({ previous, next }) => {
-                    const req = window.__fosscordE2ee.reqs.filter((r) => r.c).sort((x, y) => Object.keys(y.c).length - Object.keys(x.c).length)[0];
+                    const req = window.__larpcordE2ee.reqs.filter((r) => r.c).sort((x, y) => Object.keys(y.c).length - Object.keys(x.c).length)[0];
                     const values = Object.values(req.c).flatMap((m) => Object.values(m.exports ?? {}));
                     const http = values.find((v) => v && typeof v === "object" && typeof v.patch === "function" && String(v.patch).includes("AUTH_URL"));
                     const result = await http.patch({ url: "/users/@me", body: { password: previous, new_password: next }, rejectWithError: false });
@@ -719,7 +719,7 @@ try {
             assert.equal((await status(a)).hasSecret, true);
             const token = await a.page.evaluate(
                 async ({ previous, next }) => {
-                    const req = window.__fosscordE2ee.reqs.filter((r) => r.c).sort((x, y) => Object.keys(y.c).length - Object.keys(x.c).length)[0];
+                    const req = window.__larpcordE2ee.reqs.filter((r) => r.c).sort((x, y) => Object.keys(y.c).length - Object.keys(x.c).length)[0];
                     const values = Object.values(req.c).flatMap((m) => {
                         try {
                             return Object.values(m.exports ?? {});
@@ -839,7 +839,7 @@ try {
                 await shot(a, "8-approve-prompt");
                 await shot(f, "9-approve-waiting");
                 await prompt.locator("button", { hasText: "Approve login" }).click();
-                await f.page.waitForFunction(() => window.__fosscordE2ee?.status?.()?.linked === true, null, { timeout: 15000 });
+                await f.page.waitForFunction(() => window.__larpcordE2ee?.status?.()?.linked === true, null, { timeout: 15000 });
                 await waitDecrypted(f, edited);
                 await waitDecrypted(f, fromNewBrowser);
                 assert.equal(await dialogOpen(f), 0, "the unlock dialog closed by itself");
@@ -859,7 +859,7 @@ try {
         const holder = await launch(tester);
         try {
             await waitReady(holder);
-            await holder.page.waitForFunction(() => window.__fosscordE2ee.status().serverRecoveryReady === true, null, { timeout: 10000 });
+            await holder.page.waitForFunction(() => window.__larpcordE2ee.status().serverRecoveryReady === true, null, { timeout: 10000 });
         } catch (error) {
             await diagnose(holder);
             throw error;
@@ -882,7 +882,7 @@ try {
                 "password-gated server recovery supplied the existing keys",
             );
             assert.match(await recovered.page.locator(".fe2ee-toggle").getAttribute("aria-label"), /^Encrypted/);
-            await recovered.page.screenshot({ path: join(tmpdir(), "fosscord-password-server-recovery.png") });
+            await recovered.page.screenshot({ path: join(tmpdir(), "larpcord-password-server-recovery.png") });
             log("password-only server recovery preserved the existing identity and encrypted history without an online holder");
         } finally {
             await close(recovered);
@@ -893,7 +893,7 @@ try {
         const [a, g] = await launchAll([tester], [tester, { profile: fresh("tester-auto") }]);
         try {
             await Promise.all([waitReady(a), waitReady(g)]);
-            await g.page.waitForFunction(() => window.__fosscordE2ee?.status?.()?.linked === true, null, { timeout: 20000 });
+            await g.page.waitForFunction(() => window.__larpcordE2ee?.status?.()?.linked === true, null, { timeout: 20000 });
             await waitDecrypted(g, edited);
             assert.equal(await dialogOpen(a), 0, "signed-in browser links without an approval dialog");
             assert.equal(await dialogOpen(g), 0, "authenticated new browser links without a recovery dialog");
@@ -944,7 +944,7 @@ try {
             await waitDecrypted(h, text);
             assert.equal(h.sent.at(-1).content, FALLBACK);
             assert.ok(h.sent.at(-1).encrypted);
-            await h.page.screenshot({ path: join(tmpdir(), "fosscord-e2ee-required-password-unlocked.png") });
+            await h.page.screenshot({ path: join(tmpdir(), "larpcord-e2ee-required-password-unlocked.png") });
             log("required password rejected an incorrect password, retained the draft, and sent ciphertext after unlock");
         } catch (error) {
             await diagnose(h);

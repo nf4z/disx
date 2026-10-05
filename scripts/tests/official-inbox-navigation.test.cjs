@@ -18,7 +18,7 @@ try {
     chromium = require("playwright-core").chromium;
 } catch {
     try {
-        chromium = createRequire(path.join(homedir(), ".cache/fosscord-tools/package.json"))("playwright-core").chromium;
+        chromium = createRequire(path.join(homedir(), ".cache/larpcord-tools/package.json"))("playwright-core").chromium;
     } catch {}
 }
 const browserPath = process.env.CHROME_PATH || "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser";

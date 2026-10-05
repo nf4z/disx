@@ -137,7 +137,7 @@ export const isWidgetComplete = (config?: ApplicationWidgetConfig | null): confi
     !!config?.surfaces?.widget_top && !!config.surfaces.widget_bottom && !!config.surfaces.add_widget_preview;
 
 // The config object the client reads from /applications/:id/widget-configs and /widget-configs/*. `owned` puts the
-// widgets someone made themselves in their own tab of the Add Widget picker (see FosscordApps).
+// widgets someone made themselves in their own tab of the Add Widget picker (see LarpCordApps).
 export function toClientWidgetConfig(app: Application, viewerId?: string) {
     const config = app.widget_config!;
     return {

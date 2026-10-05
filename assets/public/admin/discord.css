@@ -1,0 +1,805 @@
+/* Discord client look for the admin dashboard, layered over admin.css with the markup unchanged.
+   Tokens and component metrics are taken from the Canary web client (build 629173): the refreshed
+   neutral palette, 8px controls, 12px surfaces, 48x24 switches and hairline borders. */
+
+:root {
+    --bg: #202024; /* background-base-low */
+    --sidebar: #1a1a1e; /* background-base-lower */
+    --panel: #242429; /* background-surface-high */
+    --panel-2: #29292d; /* background-surface-higher */
+    --floating: #2c2d32; /* background-surface-highest */
+    --border: rgba(151, 151, 159, 0.12); /* border-subtle */
+    --border-normal: rgba(151, 151, 159, 0.2);
+    --border-strong: rgba(151, 151, 159, 0.44);
+    --text: #eeeef1; /* text-default */
+    --header: #fbfbfb; /* text-strong */
+    --muted: #94969f; /* text-muted */
+    --interactive: #a9abb4; /* interactive-text-default */
+    --interactive-hover: #fbfbfb;
+    --hover: rgba(151, 151, 159, 0.12); /* interactive-background-hover */
+    --selected: rgba(151, 151, 159, 0.16);
+    --input: rgba(0, 0, 0, 0.12); /* input-background-default */
+    --accent: #5865f2; /* control-primary-background-default */
+    --accent-hover: #444fbc;
+    --accent-active: #3a42a1;
+    --accent-text: #9aa3f8; /* control-brand-foreground */
+    --secondary: rgba(151, 151, 159, 0.12); /* control-secondary-background-default */
+    --secondary-hover: rgba(151, 151, 159, 0.16);
+    --danger: #d22d39; /* control-critical-primary-background-default */
+    --danger-hover: #a8242e;
+    --danger-text: #f6807e; /* text-feedback-critical */
+    --ok: #23a55a; /* status-positive */
+    --warn: #f0b132; /* status-warning */
+    --link: #4b9df0; /* text-link */
+    --switch-off: rgba(0, 0, 0, 0.12);
+    --scroll-thumb: #5f6170; /* scrollbar-thin-thumb */
+    --radius-xs: 4px;
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --radius: var(--radius-md);
+    --shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+}
+
+@media (prefers-color-scheme: light) {
+    :root {
+        --bg: #fbfbfb;
+        --sidebar: #f3f3f4;
+        --panel: #ffffff;
+        --panel-2: #f3f3f4;
+        --floating: #ffffff;
+        --border: rgba(110, 112, 122, 0.12);
+        --border-normal: rgba(110, 112, 122, 0.2);
+        --border-strong: rgba(110, 112, 122, 0.44);
+        --text: #2c2d32;
+        --header: #070709;
+        --muted: #5c5e68;
+        --interactive: #4e505a;
+        --interactive-hover: #070709;
+        --hover: rgba(110, 112, 122, 0.12);
+        --selected: rgba(110, 112, 122, 0.16);
+        --input: rgba(255, 255, 255, 0.8);
+        --secondary: rgba(110, 112, 122, 0.12);
+        --secondary-hover: rgba(110, 112, 122, 0.18);
+        --danger-text: #c42933;
+        --link: #0068e0;
+        --switch-off: rgba(110, 112, 122, 0.2);
+        --scroll-thumb: #c4c6cc;
+        --shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
+    }
+}
+
+html,
+body {
+    background: var(--bg);
+    color: var(--text);
+    font-size: 16px;
+    line-height: 1.25;
+}
+
+a {
+    color: var(--link);
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+/* heading-lg/semibold, heading-md/semibold */
+h1 {
+    color: var(--header);
+    font-size: 20px;
+    line-height: 24px;
+    font-weight: 600;
+}
+
+h2 {
+    color: var(--header);
+    font-size: 16px;
+    line-height: 20px;
+    font-weight: 600;
+}
+
+/* section titles are sentence case now, not the old uppercase eyebrow */
+h3,
+.card > h3 {
+    color: var(--header);
+    font-size: 16px;
+    line-height: 20px;
+    font-weight: 600;
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+.muted,
+.page-head p {
+    color: var(--muted);
+}
+
+* {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scroll-thumb) transparent;
+}
+
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--scroll-thumb);
+    border-radius: 4px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+/* settings sidebar */
+.sidebar {
+    background: var(--sidebar);
+    border-right: 1px solid var(--border);
+    padding: 16px 12px 16px;
+    gap: 12px;
+}
+
+.brand {
+    padding: 4px 8px 8px;
+    gap: 12px;
+}
+
+.brand-icon {
+    border-radius: 50%;
+}
+
+.brand strong {
+    color: var(--header);
+    font-weight: 600;
+}
+
+.nav-search {
+    padding: 0;
+    color: transparent;
+    font-size: 0;
+}
+
+.nav-search .hint {
+    display: none;
+}
+
+.nav-label {
+    display: block;
+    padding: 12px 8px 6px;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 16px;
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+.nav-group + .nav-group {
+    border-top: none;
+    margin-top: 4px;
+    padding-top: 0;
+}
+
+nav a {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 36px;
+    padding: 8px;
+    margin-bottom: 2px;
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font-size: 16px;
+    line-height: 20px;
+    font-weight: 400;
+    text-decoration: none;
+    transition: background 0.1s ease;
+}
+
+nav a:hover {
+    background: var(--hover);
+    color: var(--header);
+    text-decoration: none;
+}
+
+nav a.active {
+    background: var(--selected);
+    color: var(--header);
+    font-weight: 500;
+    box-shadow: none;
+}
+
+nav a.active::before {
+    display: none;
+}
+
+.nav-count {
+    margin-left: auto;
+    background: var(--danger);
+    color: #fff;
+    border-radius: 999px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 5px;
+    font-size: 12px;
+    line-height: 16px;
+    font-weight: 700;
+}
+
+.sidebar-foot {
+    border-top: 1px solid var(--border);
+    padding-top: 12px;
+}
+
+/* content column */
+.view {
+    padding: 40px 40px 80px;
+    max-width: 820px;
+}
+
+.page-head {
+    margin-bottom: 24px;
+}
+
+.page-head p {
+    font-size: 14px;
+    line-height: 18px;
+}
+
+/* surfaces */
+.card,
+.settings-section,
+.table-wrap {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+}
+
+.card {
+    padding: 16px;
+}
+
+.stat .value {
+    color: var(--header);
+    font-size: 24px;
+    line-height: 30px;
+    font-weight: 700;
+}
+
+/* form labels: text-md/medium, sentence case */
+label {
+    color: var(--header);
+    font-size: 14px;
+    line-height: 18px;
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: 0;
+    gap: 8px;
+}
+
+label .hint,
+.hint {
+    color: var(--muted);
+    font-size: 14px;
+    line-height: 18px;
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+/* text inputs: 40px, 8px radius, hairline border */
+input,
+select,
+textarea {
+    background: var(--input);
+    color: var(--text);
+    border: 1px solid var(--border-normal);
+    border-radius: var(--radius-sm);
+    padding: 0 12px;
+    height: 40px;
+    font-size: 16px;
+    line-height: 20px;
+    font-family: inherit;
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: 0;
+    outline: none;
+    transition:
+        border-color 0.15s ease,
+        box-shadow 0.15s ease;
+}
+
+textarea {
+    height: auto;
+    min-height: 88px;
+    padding: 10px 12px;
+    resize: vertical;
+}
+
+input::placeholder,
+textarea::placeholder {
+    color: var(--muted);
+}
+
+input:hover,
+select:hover,
+textarea:hover {
+    border-color: var(--border-strong);
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+    border-color: var(--accent);
+    box-shadow: none;
+    outline: none;
+}
+
+select {
+    appearance: none;
+    padding-right: 36px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath fill='%23a9abb4' d='M5.3 9.3a1 1 0 0 1 1.4 0l5.3 5.29 5.3-5.3a1 1 0 1 1 1.4 1.42l-6 6a1 1 0 0 1-1.4 0l-6-6a1 1 0 0 1 0-1.42Z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+    background-size: 20px;
+    cursor: pointer;
+}
+
+input[type="color"] {
+    padding: 4px;
+    width: 64px;
+}
+
+input[type="file"] {
+    height: auto;
+    padding: 6px;
+}
+
+input[type="file"]::file-selector-button {
+    height: 32px;
+    margin-right: 12px;
+    padding: 0 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--secondary);
+    color: var(--header);
+    font: 500 14px "gg sans", sans-serif;
+    cursor: pointer;
+}
+
+input[type="file"]::file-selector-button:hover {
+    background: var(--secondary-hover);
+}
+
+/* switches: 48x24 track, 16px white thumb, blurple when on */
+.toggle {
+    align-items: center;
+    justify-content: space-between;
+    flex-direction: row-reverse;
+    gap: 16px;
+    color: var(--header);
+    font-size: 16px;
+    line-height: 20px;
+    font-weight: 500;
+    padding: 6px 0;
+}
+
+.toggle > span {
+    flex: 1;
+}
+
+.toggle > span.row {
+    display: flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 8px;
+}
+
+.toggle input[type="checkbox"] {
+    appearance: none;
+    flex: none;
+    width: 48px;
+    height: 24px;
+    margin: 0;
+    padding: 0;
+    border: 1px solid var(--border-normal);
+    border-radius: var(--radius-lg);
+    background: var(--switch-off);
+    position: relative;
+    cursor: pointer;
+    transition:
+        background 0.2s ease,
+        border-color 0.2s ease;
+}
+
+.toggle input[type="checkbox"]::after {
+    content: "";
+    position: absolute;
+    top: 3px;
+    left: 4px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #fff;
+    transition: transform 0.2s ease;
+}
+
+.toggle input[type="checkbox"]:checked {
+    background: var(--accent);
+    border-color: var(--border);
+}
+
+.toggle input[type="checkbox"]:checked::after {
+    transform: translateX(22px);
+}
+
+.toggle input[type="checkbox"]:hover {
+    border-color: var(--border-strong);
+}
+
+.toggle input[type="checkbox"]:focus-visible {
+    outline: 2px solid var(--link);
+    outline-offset: 2px;
+}
+
+.toggle input[type="checkbox"]:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* plain checkboxes and radios */
+input[type="checkbox"]:not(.toggle input),
+input[type="radio"] {
+    appearance: none;
+    flex: none;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    margin: 0;
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    background: var(--input);
+    cursor: pointer;
+}
+
+input[type="radio"] {
+    border-radius: 50%;
+}
+
+input[type="checkbox"]:not(.toggle input):checked {
+    background: var(--accent) no-repeat center / 14px
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23fff' d='M8.99 17.4 3.6 12l1.4-1.4 4 4 10-10 1.4 1.4z'/%3E%3C/svg%3E");
+    border-color: var(--accent);
+}
+
+input[type="radio"]:checked {
+    border: 6px solid var(--accent);
+    background: #fff;
+}
+
+/* buttons: 40px md / 32px sm, 8px radius, hairline border on secondary */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    box-sizing: border-box;
+    height: 40px;
+    min-width: 0;
+    padding: 0 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--secondary);
+    color: var(--header);
+    font-size: 14px;
+    line-height: 18px;
+    font-weight: 500;
+    text-decoration: none;
+    transition:
+        background 0.15s ease,
+        color 0.15s ease;
+}
+
+.btn:hover {
+    background: var(--secondary-hover);
+    text-decoration: none;
+}
+
+a.btn:hover {
+    color: var(--header);
+}
+
+.btn:active {
+    transform: none;
+}
+
+.btn.primary {
+    background: var(--accent);
+    border-color: transparent;
+    color: #fff;
+}
+
+.btn.primary:hover {
+    background: var(--accent-hover);
+}
+
+.btn.primary:active {
+    background: var(--accent-active);
+}
+
+.btn.danger {
+    background: var(--danger);
+    border-color: transparent;
+    color: #fff;
+}
+
+.btn.danger:hover {
+    background: var(--danger-hover);
+}
+
+.btn.ghost {
+    background: transparent;
+    border-color: transparent;
+    color: var(--interactive);
+}
+
+.btn.ghost:hover {
+    background: var(--hover);
+    color: var(--header);
+}
+
+.btn.small {
+    height: 32px;
+    padding: 0 12px;
+    font-size: 14px;
+}
+
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.btn[data-close] {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: 16px;
+    color: var(--interactive);
+}
+
+.form-actions {
+    gap: 8px;
+}
+
+/* tables */
+.table-wrap {
+    overflow: hidden;
+}
+
+table {
+    border-collapse: collapse;
+}
+
+th {
+    background: transparent;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 16px;
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: 0;
+    border-bottom: 1px solid var(--border);
+}
+
+td {
+    border-bottom: 1px solid var(--border);
+    font-size: 14px;
+    line-height: 18px;
+}
+
+tbody tr:hover {
+    background: var(--hover);
+}
+
+.list-item {
+    border-bottom: 1px solid var(--border);
+}
+
+/* pills */
+.badge,
+.chip,
+.tag-chip {
+    border: none;
+    border-radius: var(--radius-xs);
+    font-size: 12px;
+    line-height: 16px;
+    font-weight: 600;
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+.badge,
+.chip {
+    background: var(--secondary);
+    color: var(--text);
+}
+
+.badge.ok {
+    background: rgba(35, 165, 90, 0.16);
+    color: #3fca7a;
+}
+
+.badge.warn {
+    background: rgba(240, 177, 50, 0.16);
+    color: var(--warn);
+}
+
+.badge.danger {
+    background: rgba(210, 45, 57, 0.16);
+    color: var(--danger-text);
+}
+
+.badge.info,
+.badge.accent {
+    background: rgba(88, 101, 242, 0.2);
+    color: var(--accent-text);
+}
+
+/* pickers */
+.badge-option,
+.preset {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--panel-2);
+}
+
+.badge-option:hover,
+.preset:hover {
+    background: var(--hover);
+}
+
+.badge-option.active,
+.preset.active {
+    border-color: var(--accent);
+    box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+details > summary {
+    color: var(--header);
+    font-weight: 600;
+    cursor: pointer;
+}
+
+/* drawers open as centred modals */
+.drawer-backdrop {
+    background: rgba(0, 0, 0, 0.7);
+}
+
+.drawer-panel {
+    top: 50%;
+    left: 50%;
+    right: auto;
+    bottom: auto;
+    transform: translate(-50%, -50%);
+    width: min(620px, calc(100% - 32px));
+    max-height: calc(100vh - 64px);
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.drawer-head {
+    padding: 20px 20px 12px;
+    border-bottom: none;
+}
+
+.drawer-head h2 {
+    font-size: 20px;
+    line-height: 24px;
+}
+
+.drawer-body {
+    padding: 0 20px 20px;
+    overflow-y: auto;
+}
+
+.drawer-body > * {
+    flex-shrink: 0;
+}
+
+.drawer-body .card {
+    background: var(--panel-2);
+}
+
+.drawer-body form > .form-actions {
+    background: var(--panel);
+    border-top: 1px solid var(--border);
+    margin: 16px -20px -20px;
+    padding: 16px 20px;
+    justify-content: flex-end;
+    position: sticky;
+    bottom: -20px;
+}
+
+.danger-zone {
+    border: 1px solid rgba(210, 45, 57, 0.4);
+    background: rgba(210, 45, 57, 0.06);
+    border-radius: var(--radius-md);
+}
+
+/* toasts */
+.toast {
+    background: var(--floating);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow);
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.toast.error {
+    background: var(--danger);
+    border-color: transparent;
+    color: #fff;
+}
+
+/* login */
+.login {
+    background: var(--sidebar);
+}
+
+.login-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+    padding: 32px;
+    width: min(480px, 100%);
+}
+
+.login-card h1 {
+    text-align: center;
+    font-size: 24px;
+    line-height: 30px;
+}
+
+.login-card > p {
+    text-align: center;
+}
+
+.login-card .btn.primary {
+    width: 100%;
+    height: 44px;
+    font-size: 16px;
+}
+
+.form-error {
+    color: var(--danger-text);
+    font-size: 14px;
+}
+
+@media (max-width: 860px) {
+    .sidebar {
+        padding: 12px;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .view {
+        padding: 24px 16px 60px;
+    }
+}

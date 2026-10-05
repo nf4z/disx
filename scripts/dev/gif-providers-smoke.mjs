@@ -24,12 +24,12 @@ import dotenv from "dotenv";
 import { solveCap } from "./cap-token.mjs";
 import { createRequire } from "node:module";
 import { homedir } from "node:os";
-const require = createRequire(`${homedir()}/.cache/fosscord-tools/`);
+const require = createRequire(`${homedir()}/.cache/larpcord-tools/`);
 const { chromium } = require("playwright-core");
-const origin = `http://fosscord.localhost:${process.env.PORT || 3290}`;
+const origin = `http://larpcord.localhost:${process.env.PORT || 3290}`;
 const env = dotenv.parse(readFileSync(process.env.DOTENV_CONFIG_PATH || ".env"));
 const database = process.env.DATABASE || env.DATABASE;
-assert.equal(new URL(database).pathname, "/fosscord_codex_admin", "Use the isolated admin demo database");
+assert.equal(new URL(database).pathname, "/larpcord_codex_admin", "Use the isolated admin demo database");
 assert.ok(["localhost", "127.0.0.1"].includes(new URL(database).hostname));
 const { Client } = createRequire(import.meta.url)("pg");
 const db = new Client({ connectionString: database });
@@ -68,7 +68,7 @@ try {
     await db.connect();
     const signup = async () => {
         const suffix = randomBytes(6).toString("hex");
-        const fixture = { email: `gif-smoke-${suffix}@fosscord.test`, password: `Aa2!${randomBytes(18).toString("hex")}` };
+        const fixture = { email: `gif-smoke-${suffix}@larpcord.test`, password: `Aa2!${randomBytes(18).toString("hex")}` };
         fixtures.push(fixture);
         const captcha_key = await solveCap({ origin, browser });
         const registered = await fetch(`${origin}/api/v9/auth/register`, {
@@ -154,7 +154,7 @@ try {
     await page.keyboard.press("Escape");
     await openGifSettings();
     await selector.selectOption("klipy");
-    assert.equal(await page.evaluate(() => localStorage.getItem("fosscord.gifProvider")), "klipy");
+    assert.equal(await page.evaluate(() => localStorage.getItem("larpcord.gifProvider")), "klipy");
     await page.reload();
     await page.getByRole("button", { name: "User Settings", exact: true }).waitFor();
     await openGifSettings();

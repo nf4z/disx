@@ -1,4 +1,4 @@
-name: fosscord
+name: larpcord
 
 x-server: &server
     build:
@@ -7,7 +7,7 @@ x-server: &server
         args:
             REVISION: ${REVISION:-}
             REVISION_TIME: ${REVISION_TIME:-0}
-    image: fosscord-server:latest
+    image: larpcord-server:latest
     init: true
 
 services:
@@ -15,13 +15,13 @@ services:
         image: postgres:18-alpine
         restart: unless-stopped
         environment:
-            POSTGRES_USER: fosscord
+            POSTGRES_USER: larpcord
             POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
-            POSTGRES_DB: fosscord
+            POSTGRES_DB: larpcord
         volumes:
             - postgres:/var/lib/postgresql
         healthcheck:
-            test: ["CMD-SHELL", "pg_isready -U fosscord -d fosscord"]
+            test: ["CMD-SHELL", "pg_isready -U larpcord -d larpcord"]
             interval: 10s
             timeout: 5s
             retries: 5
@@ -40,7 +40,7 @@ services:
         build:
             context: .
             target: sfu
-        image: fosscord-sfu:latest
+        image: larpcord-sfu:latest
         init: true
         restart: unless-stopped
         environment:
@@ -69,7 +69,7 @@ services:
             client:
                 condition: service_completed_successfully
         environment:
-            DATABASE: postgres://fosscord:${POSTGRES_PASSWORD}@postgres:5432/fosscord
+            DATABASE: postgres://larpcord:${POSTGRES_PASSWORD}@postgres:5432/larpcord
             DOMAIN: ${DOMAIN:?set DOMAIN in .env}
             INSTANCE_NAME: ${INSTANCE_NAME:-}
             TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}

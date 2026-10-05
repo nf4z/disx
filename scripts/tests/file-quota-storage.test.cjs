@@ -49,7 +49,7 @@ vm.runInNewContext(
 const { FileQuotaStorageAdapter } = moduleFixture.exports;
 const hash = (value) => createHash("sha256").update(value).digest("hex");
 async function fixture(t, options = {}) {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "fosscord-file-quota-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "larpcord-file-quota-"));
     t.after(() => fs.rm(root, { recursive: true, force: true }));
     const adapter = new FileQuotaStorageAdapter(root, "fixture", options);
     const request = (id, bytes = 128, filename = "attachments/10/file.bin") => ({

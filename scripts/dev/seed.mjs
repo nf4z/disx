@@ -11,8 +11,8 @@ const call = async (method, path, token, body) => {
 
 const testPassword = randomBytes(12).toString("hex");
 const friendPassword = randomBytes(12).toString("hex");
-const { token } = await call("POST", "/auth/register", null, { email: "tester@fosscord.test", username: "tester", password: testPassword, date_of_birth: "2000-01-01", consent: true });
-const friend = await call("POST", "/auth/register", null, { email: "friend@fosscord.test", username: "friend", password: friendPassword, date_of_birth: "2000-01-01", consent: true });
+const { token } = await call("POST", "/auth/register", null, { email: "tester@larpcord.test", username: "tester", password: testPassword, date_of_birth: "2000-01-01", consent: true });
+const friend = await call("POST", "/auth/register", null, { email: "friend@larpcord.test", username: "friend", password: friendPassword, date_of_birth: "2000-01-01", consent: true });
 const me = await call("GET", "/users/@me", token);
 const them = await call("GET", "/users/@me", friend.token);
 
@@ -28,5 +28,5 @@ const invite = await call("POST", `/channels/${text.id}/invites`, token, {});
 await call("POST", `/invites/${invite.code}`, friend.token, {});
 for (const content of ["hello world", "**bold** _italic_ `code` ||spoiler||", "https://example.com", "> quote\n- list item"]) await call("POST", `/channels/${text.id}/messages`, token, { content });
 await call("POST", `/channels/${text.id}/messages`, friend.token, { content: `hi <@${me.id}>` });
-writeFileSync(new URL("./.test-account", import.meta.url), `TEST_EMAIL=tester@fosscord.test\nTEST_PASSWORD=${testPassword}\nFRIEND_PASSWORD=${friendPassword}\n`);
+writeFileSync(new URL("./.test-account", import.meta.url), `TEST_EMAIL=tester@larpcord.test\nTEST_PASSWORD=${testPassword}\nFRIEND_PASSWORD=${friendPassword}\n`);
 console.log(JSON.stringify({ guild: guild.id, channel: text.id, dm: dm.id, invite: invite.code }));

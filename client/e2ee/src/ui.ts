@@ -990,8 +990,8 @@ export const createUi = ({ engine, ready, states, enableChannel, link, verifyPas
         strict.type = "checkbox";
         strict.checked = !engine.trustsServer;
         strict.addEventListener("change", () => {
-            if (strict.checked) browserStorage?.setItem("fosscord-e2ee-strict-safety", "true");
-            else browserStorage?.removeItem("fosscord-e2ee-strict-safety");
+            if (strict.checked) browserStorage?.setItem("larpcord-e2ee-strict-safety", "true");
+            else browserStorage?.removeItem("larpcord-e2ee-strict-safety");
             engine.invalidateAll();
             refresh();
         });

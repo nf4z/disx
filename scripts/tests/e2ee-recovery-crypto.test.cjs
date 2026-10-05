@@ -95,7 +95,7 @@ test("actual client HKDF sealed keys validate and recovery proof signs decoded-s
     assert.equal(
         proof,
         [
-            "fosscord-e2ee/v1/server-recovery",
+            "larpcord-e2ee/v1/server-recovery",
             userId,
             backup.identity_key,
             "4",
@@ -167,7 +167,7 @@ test("escrow AES-GCM roundtrip binds user, identity and backup key and rejects t
 
 test("concurrent generation publishes one persistent mode0600 master and blank env falls back", async () => {
     const { secret, backup } = await fixture;
-    const directory = await fsp.mkdtemp(path.join(os.tmpdir(), "fosscord-recovery-test-"));
+    const directory = await fsp.mkdtemp(path.join(os.tmpdir(), "larpcord-recovery-test-"));
     const keyFile = path.join(directory, ".e2ee-recovery.key");
     const env = { CONFIG_PATH: path.join(directory, "config.json"), E2EE_RECOVERY_MASTER_KEY: "  " };
     try {
@@ -184,7 +184,7 @@ test("concurrent generation publishes one persistent mode0600 master and blank e
 
 test("missing master with existing escrow rows returns safe503 and never generates replacement", async () => {
     const { secret, backup } = await fixture;
-    const directory = await fsp.mkdtemp(path.join(os.tmpdir(), "fosscord-recovery-test-"));
+    const directory = await fsp.mkdtemp(path.join(os.tmpdir(), "larpcord-recovery-test-"));
     try {
         const helper = load({ E2EE_RECOVERY_KEY_FILE: path.join(directory, "missing.key") }, async () => 1);
         await assert.rejects(helper.sealRecoverySecret(userId, backup.identity_key, backup.backup_public_key, secret), unavailable);
@@ -196,7 +196,7 @@ test("missing master with existing escrow rows returns safe503 and never generat
 
 test("invalid, insecure and symlink master files fail safely without overwriting them", async () => {
     const { secret, backup } = await fixture;
-    const directory = await fsp.mkdtemp(path.join(os.tmpdir(), "fosscord-recovery-test-"));
+    const directory = await fsp.mkdtemp(path.join(os.tmpdir(), "larpcord-recovery-test-"));
     const keyFile = path.join(directory, "master.key");
     try {
         await fsp.writeFile(keyFile, "broken", { mode: 0o600 });

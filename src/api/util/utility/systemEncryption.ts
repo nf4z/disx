@@ -64,7 +64,7 @@ interface ManagedSender {
 
 const publicRaw = (key: KeyObject) => String(createPublicKey(key).export({ format: "jwk" }).x);
 const privateKey = (seed: Buffer, label: string, curve: "Ed25519" | "X25519") => {
-    const secret = Buffer.from(hkdfSync("sha256", seed, Buffer.alloc(32), `fosscord-e2ee/v1/system-sender/${label}`, 32));
+    const secret = Buffer.from(hkdfSync("sha256", seed, Buffer.alloc(32), `larpcord-e2ee/v1/system-sender/${label}`, 32));
     try {
         const prefix = Buffer.from(curve === "Ed25519" ? "302e020100300506032b657004220420" : "302e020100300506032b656e04220420", "hex");
         return createPrivateKey({ key: Buffer.concat([prefix, secret]), format: "der", type: "pkcs8" });
@@ -216,7 +216,7 @@ export const encryptSystemPayload = async (sender: User, members: string[], chan
     }
     if (targets.length > e2eeLimits().maxEnvelopeDevices) throw new Error("Too many active recipient encryption devices");
     const bind = `n:${nonce}`;
-    const aad = `fosscord-e2ee/v1/msg\n${channelId}\n${sender.id}\n${managed.deviceId}\n${bind}`;
+    const aad = `larpcord-e2ee/v1/msg\n${channelId}\n${sender.id}\n${managed.deviceId}\n${bind}`;
     const key = randomBytes(32);
     try {
         const iv = randomBytes(12);
@@ -228,11 +228,11 @@ export const encryptSystemPayload = async (sender: User, members: string[], chan
                 user_id: target.userId,
                 device_id: target.deviceId,
                 prekey_id: target.prekeyId,
-                ...(await seal(target.publicKey, key, "fosscord-e2ee/v1/wrap", `${aad}\n${target.deviceId}`)),
+                ...(await seal(target.publicKey, key, "larpcord-e2ee/v1/wrap", `${aad}\n${target.deviceId}`)),
             })),
         );
         const backup = await Promise.all(
-            backups.map(async (target) => ({ user_id: target.userId, ...(await seal(target.publicKey, key, "fosscord-e2ee/v1/backup-wrap", `${aad}\nbackup:${target.userId}`)) })),
+            backups.map(async (target) => ({ user_id: target.userId, ...(await seal(target.publicKey, key, "larpcord-e2ee/v1/backup-wrap", `${aad}\nbackup:${target.userId}`)) })),
         );
         const unsigned = {
             v: 1,
@@ -244,7 +244,7 @@ export const encryptSystemPayload = async (sender: User, members: string[], chan
             ...(backup.length ? { backup } : {}),
         };
         const signed: unknown[] = [
-            "fosscord-e2ee/v1/sig",
+            "larpcord-e2ee/v1/sig",
             channelId,
             sender.id,
             bind,
@@ -274,7 +274,7 @@ export const encryptSystemFiles = (files: Pick<Express.Multer.File, "fieldname" 
             const nonce = Buffer.from(iv);
             nonce.writeUInt32BE((nonce.readUInt32BE(8) ^ chunk) >>> 0, 8);
             const cipher = createCipheriv("aes-256-gcm", key, nonce);
-            cipher.setAAD(Buffer.from(`fosscord-e2ee/v1/file\n${chunk}\n${chunk === count - 1 ? 1 : 0}`));
+            cipher.setAAD(Buffer.from(`larpcord-e2ee/v1/file\n${chunk}\n${chunk === count - 1 ? 1 : 0}`));
             parts.push(Buffer.concat([cipher.update(file.buffer.subarray(chunk * 65536, (chunk + 1) * 65536)), cipher.final(), cipher.getAuthTag()]));
         }
         const meta = {
@@ -292,7 +292,7 @@ export const encryptSystemFiles = (files: Pick<Express.Multer.File, "fieldname" 
 export async function sealSystemSpool(sender: User, announcementId: string, value: string): Promise<Buffer> {
     await ensureSystemSender(sender);
     const seed = await loadSeed(sender.id);
-    const key = Buffer.from(hkdfSync("sha256", seed, Buffer.alloc(32), "fosscord-e2ee/v1/announcement-spool", 32));
+    const key = Buffer.from(hkdfSync("sha256", seed, Buffer.alloc(32), "larpcord-e2ee/v1/announcement-spool", 32));
     seed.fill(0);
     try {
         const iv = randomBytes(12);
@@ -305,7 +305,7 @@ export async function sealSystemSpool(sender: User, announcementId: string, valu
 }
 export async function openSystemSpool(sender: User, announcementId: string, value: Buffer): Promise<string> {
     const seed = await loadSeed(sender.id);
-    const key = Buffer.from(hkdfSync("sha256", seed, Buffer.alloc(32), "fosscord-e2ee/v1/announcement-spool", 32));
+    const key = Buffer.from(hkdfSync("sha256", seed, Buffer.alloc(32), "larpcord-e2ee/v1/announcement-spool", 32));
     seed.fill(0);
     try {
         const cipher = createDecipheriv("aes-256-gcm", key, value.subarray(0, 12));

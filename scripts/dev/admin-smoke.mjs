@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { homedir } from "node:os";
-const require = createRequire(`${homedir()}/.cache/fosscord-tools/`);
+const require = createRequire(`${homedir()}/.cache/larpcord-tools/`);
 const { chromium } = require("playwright-core");
-const origin = `http://fosscord.localhost:${process.env.PORT || 3290}`;
+const origin = `http://larpcord.localhost:${process.env.PORT || 3290}`;
 const account = Object.fromEntries(
     readFileSync(new URL("./.test-account", import.meta.url), "utf8")
         .trim()
@@ -68,9 +68,9 @@ try {
     console.log("PASS profile save, cosmetic selectors, dirty drawer protection and channel editor");
     await page.locator("#nav a[data-tab=performance]").click();
     await page.getByRole("heading", { name: "Slowest routes" }).waitFor();
-    await page.screenshot({ path: "/tmp/fosscord-performance-desktop.png", fullPage: true });
+    await page.screenshot({ path: "/tmp/larpcord-performance-desktop.png", fullPage: true });
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.screenshot({ path: "/tmp/fosscord-performance-mobile.png", fullPage: false });
+    await page.screenshot({ path: "/tmp/larpcord-performance-mobile.png", fullPage: false });
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > innerWidth);
     assert.equal(overflow, false, "mobile document overflow");
     assert.deepEqual(errors, []);

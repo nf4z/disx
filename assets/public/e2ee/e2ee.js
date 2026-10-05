@@ -88,7 +88,7 @@
     view.setUint32(8, (view.getUint32(8) ^ index) >>> 0);
     return nonce;
   };
-  var chunkAad = (index, final) => utf8(`fosscord-e2ee/v1/file
+  var chunkAad = (index, final) => utf8(`larpcord-e2ee/v1/file
 ${index}
 ${final ? 1 : 0}`);
   var fileKey = (raw, usage) => crypto.subtle.importKey("raw", raw, { name: "AES-GCM" }, false, [usage]);
@@ -207,8 +207,8 @@ ${final ? 1 : 0}`);
         const data = event.data;
         const port = event.ports[0];
         if (!port) return;
-        if (data?.type === "fosscord-e2ee-file") port.postMessage(registry.get(String(data.path)) ?? null);
-        if (data?.type === "fosscord-e2ee-poster" && data.blob instanceof Blob)
+        if (data?.type === "larpcord-e2ee-file") port.postMessage(registry.get(String(data.path)) ?? null);
+        if (data?.type === "larpcord-e2ee-poster" && data.blob instanceof Blob)
           renderPoster(data.blob, String(data.content_type)).then(
             (image) => port.postMessage(image),
             () => port.postMessage(null)
@@ -232,7 +232,7 @@ ${final ? 1 : 0}`);
       });
       container.register(SW_PATH, { scope: "/" }).then(
         (registration) => {
-          if (!container.controller) registration.active?.postMessage({ type: "fosscord-e2ee-claim" });
+          if (!container.controller) registration.active?.postMessage({ type: "larpcord-e2ee-claim" });
         },
         (error) => console.error("[e2ee] couldn't register the attachment service worker", error)
       );
@@ -2111,18 +2111,18 @@ ${final ? 1 : 0}`);
     if (raw.length < 28) throw new Error("box too short");
     return aesDecrypt(key, raw.slice(0, 12), raw.slice(12), aad);
   };
-  var rotationMessage = (userId, previousKey, nextKey) => `fosscord-e2ee/v1/identity-rotate
+  var rotationMessage = (userId, previousKey, nextKey) => `larpcord-e2ee/v1/identity-rotate
 ${userId}
 ${previousKey}
 ${nextKey}`;
-  var backupKeyMessage = (userId, publicKey) => `fosscord-e2ee/v1/backup-key
+  var backupKeyMessage = (userId, publicKey) => `larpcord-e2ee/v1/backup-key
 ${userId}
 ${publicKey}`;
-  var deviceMessage = (userId, deviceId, signingKey) => `fosscord-e2ee/v1/device
+  var deviceMessage = (userId, deviceId, signingKey) => `larpcord-e2ee/v1/device
 ${userId}
 ${deviceId}
 ${signingKey}`;
-  var prekeyMessage = (deviceId, prekeyId, publicKey) => `fosscord-e2ee/v1/prekey
+  var prekeyMessage = (deviceId, prekeyId, publicKey) => `larpcord-e2ee/v1/prekey
 ${deviceId}
 ${prekeyId}
 ${publicKey}`;
@@ -2771,14 +2771,14 @@ ${publicKey}`;
         memorySize: kdf.memory ?? 65536,
         hashLength: 32,
         outputType: "binary"
-      }).then((bytes) => new Uint8Array(bytes)) : hkdf(utf8(normalizeRecoveryCode(input)), fromB64u(salt), "fosscord-e2ee/v1/recovery-code");
+      }).then((bytes) => new Uint8Array(bytes)) : hkdf(utf8(normalizeRecoveryCode(input)), fromB64u(salt), "larpcord-e2ee/v1/recovery-code");
       pending.catch(() => derived.delete(cacheKey));
       derived.clear();
       derived.set(cacheKey, pending);
     }
     return pending;
   };
-  var secretAad = (userId) => `fosscord-e2ee/v1/backup-secret
+  var secretAad = (userId) => `larpcord-e2ee/v1/backup-secret
 ${userId}`;
   var wrapSecret = async (userId, mode, input, secret) => {
     const kdf = mode === "password" ? PASSWORD_KDF : RECOVERY_KDF;
@@ -2791,7 +2791,7 @@ ${userId}`;
     const key = await deriveBackupKey(record.kdf, record.salt, input);
     return openBox(key, record.wrapped_secret, secretAad(userId));
   };
-  var secretKey = (secret, label) => hkdf(secret, new Uint8Array(32), `fosscord-e2ee/v1/backup/${label}`);
+  var secretKey = (secret, label) => hkdf(secret, new Uint8Array(32), `larpcord-e2ee/v1/backup/${label}`);
   var sealJwk = async (secret, label, userId, jwk) => sealBox(await secretKey(secret, label), utf8(JSON.stringify(jwk)), `${label}
 ${userId}`);
   var sealTrust = async (secret, userId, trust) => sealBox(await secretKey(secret, "trust"), utf8(JSON.stringify(trust)), `trust
@@ -2817,7 +2817,7 @@ ${userId}`)));
   // client/e2ee/src/store.ts
   var database = null;
   var open = () => database ??= new Promise((resolve, reject) => {
-    const request = indexedDB.open("fosscord-e2ee", 1);
+    const request = indexedDB.open("larpcord-e2ee", 1);
     request.onupgradeneeded = () => request.result.createObjectStore("kv");
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
@@ -3750,8 +3750,8 @@ ${userId}`)));
 
   // client/e2ee/src/engine.ts
   var FALLBACK_CONTENT = "🔒 Encrypted message";
-  var WRAP_INFO = "fosscord-e2ee/v1/wrap";
-  var BACKUP_INFO = "fosscord-e2ee/v1/backup-wrap";
+  var WRAP_INFO = "larpcord-e2ee/v1/wrap";
+  var BACKUP_INFO = "larpcord-e2ee/v1/backup-wrap";
   var PREKEY_ROTATE_MS = 7 * 24 * 3600 * 1e3;
   var PREKEY_KEEP_MS = 30 * 24 * 3600 * 1e3;
   var DIRECTORY_TTL_MS = 5 * 60 * 1e3;
@@ -3786,12 +3786,12 @@ ${userId}`)));
     }
   };
   var binding = (mid, nonce) => mid ? `m:${mid}` : `n:${nonce ?? ""}`;
-  var messageAad = (channelId, senderId, senderDevice, bind) => `fosscord-e2ee/v1/msg
+  var messageAad = (channelId, senderId, senderDevice, bind) => `larpcord-e2ee/v1/msg
 ${channelId}
 ${senderId}
 ${senderDevice}
 ${bind}`;
-  var storedKeyAad = (userId, messageId, sig) => `fosscord-e2ee/v1/backup-key
+  var storedKeyAad = (userId, messageId, sig) => `larpcord-e2ee/v1/backup-key
 ${userId}
 ${messageId}
 ${sig}`;
@@ -3801,7 +3801,7 @@ ${sig}`;
   });
   var signedPayload = (channelId, senderId, bind, env) => {
     const base = [
-      "fosscord-e2ee/v1/sig",
+      "larpcord-e2ee/v1/sig",
       channelId,
       senderId,
       bind,
@@ -3980,7 +3980,7 @@ ${sig}`;
       return run2;
     }
     exclusive(task) {
-      return navigator.locks ? navigator.locks.request(`fosscord-e2ee-keys:${this.userId}`, task) : task();
+      return navigator.locks ? navigator.locks.request(`larpcord-e2ee-keys:${this.userId}`, task) : task();
     }
     async refresh() {
       const wasLinked = this.linked;
@@ -4072,7 +4072,7 @@ ${sig}`;
       const key = `${backup.identity_key}:${backup.version}:${this.device.deviceId}`;
       if (this.recoveryPublished === key) return;
       const digest = toB64u(await sha256(this.secret));
-      const message = `fosscord-e2ee/v1/server-recovery
+      const message = `larpcord-e2ee/v1/server-recovery
 ${this.userId}
 ${backup.identity_key}
 ${backup.version}
@@ -5157,7 +5157,7 @@ backup:${this.userId}`).catch(() => null);
   var OFFER_WINDOW_MS = 1200;
   var MAX_APPROVERS = 4;
   var sasFor = async (requestId, requester, approver) => {
-    const digest = await sha256(utf8(`fosscord-e2ee/v1/sas
+    const digest = await sha256(utf8(`larpcord-e2ee/v1/sas
 ${requestId}
 ${requester}
 ${approver}`));
@@ -5165,8 +5165,8 @@ ${approver}`));
     const digits = String(value % 1e6).padStart(6, "0");
     return `${digits.slice(0, 3)} ${digits.slice(3)}`;
   };
-  var channelKey = async (pair, peer, requestId) => hkdf(await x25519(pair.privateKey, peer), utf8(requestId), "fosscord-e2ee/v1/link");
-  var channelAad = (requestId, requester, approver) => `fosscord-e2ee/v1/link
+  var channelKey = async (pair, peer, requestId) => hkdf(await x25519(pair.privateKey, peer), utf8(requestId), "larpcord-e2ee/v1/link");
+  var channelAad = (requestId, requester, approver) => `larpcord-e2ee/v1/link
 ${requestId}
 ${requester}
 ${approver}`;
@@ -5436,7 +5436,7 @@ ${approver}`;
     const start2 = (userId) => {
       if (channel || leader || stopped) return;
       if (typeof BroadcastChannel === "function") {
-        channel = new BroadcastChannel(`fosscord-e2ee-link:${userId}`);
+        channel = new BroadcastChannel(`larpcord-e2ee-link:${userId}`);
         channel.addEventListener("message", (event) => onTab(event.data));
       }
       addEventListener("pagehide", () => {
@@ -5445,7 +5445,7 @@ ${approver}`;
         hooks2.beacon({ request_id: current.requestId, stage: "cancel", device_id: engine2.device.deviceId });
       });
       if (!navigator.locks || !channel) return becomeLeader();
-      navigator.locks.request(`fosscord-e2ee-link:${userId}`, () => {
+      navigator.locks.request(`larpcord-e2ee-link:${userId}`, () => {
         if (stopped) return;
         becomeLeader();
         return new Promise((resolve) => {
@@ -6391,8 +6391,8 @@ ${approver}`;
       strict.type = "checkbox";
       strict.checked = !engine2.trustsServer;
       strict.addEventListener("change", () => {
-        if (strict.checked) browserStorage?.setItem("fosscord-e2ee-strict-safety", "true");
-        else browserStorage?.removeItem("fosscord-e2ee-strict-safety");
+        if (strict.checked) browserStorage?.setItem("larpcord-e2ee-strict-safety", "true");
+        else browserStorage?.removeItem("larpcord-e2ee-strict-safety");
         engine2.invalidateAll();
         refresh();
       });
@@ -6842,7 +6842,7 @@ ${approver}`;
 
   // client/e2ee/src/index.ts
   var HOOK_TIMEOUT_MS = 2e4;
-  var loader = window.__fosscordE2ee ??= { reqs: [] };
+  var loader = window.__larpcordE2ee ??= { reqs: [] };
   var states = /* @__PURE__ */ new Map();
   var targets = {};
   var http = null;
@@ -6876,7 +6876,7 @@ ${approver}`;
     if (channel?.e2ee_enabled) return true;
     return channel ? channel.type === 1 || channel.type === 3 : location.pathname === `/channels/@me/${channelId}`;
   };
-  var trustsServer = () => window.GLOBAL_ENV?.E2EE_TRUST_SERVER !== false && browserStorage?.getItem("fosscord-e2ee-strict-safety") !== "true";
+  var trustsServer = () => window.GLOBAL_ENV?.E2EE_TRUST_SERVER !== false && browserStorage?.getItem("larpcord-e2ee-strict-safety") !== "true";
   var engine = new Engine(api, classifyChannel, trustsServer);
   var attachments = createAttachments();
   attachments.start();

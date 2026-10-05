@@ -5,12 +5,12 @@ import { homedir } from "node:os";
 import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 
-const require = createRequire(`${homedir()}/.cache/fosscord-tools/`);
+const require = createRequire(`${homedir()}/.cache/larpcord-tools/`);
 const { chromium } = require("playwright-core");
 
 const port = process.env.PORT || "3001";
 const api = `http://localhost:${port}/api/v9`;
-const origin = `http://fosscord.localhost:${port}`;
+const origin = `http://larpcord.localhost:${port}`;
 const browserPath = process.env.CHROME_PATH || "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser";
 
 const call = async (method, path, { token, json, form, basic } = {}) => {

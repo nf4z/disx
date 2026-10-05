@@ -40,7 +40,19 @@ const configuredIcon = () => {
     }
 };
 
+// Discord's own default avatars, as the downloaded client bundles them (DEFAULT_AVATARS, in order)
+const OFFICIAL_AVATARS = ["18e336a74a159cfd", "788f05731f8aa02e", "9855d7e3b9780976", "2ccd8ae8b2379360", "411d8a698dd15ddf", "320d5a40d309f942"].map((hash) =>
+    path.join(ROOT, "assets", "cache", `${hash}.png`),
+);
+
 const main = async () => {
+    // a configured instance icon draws its own avatars; otherwise use Discord's when the client has been downloaded
+    if (!localFile(process.env.DEFAULT_AVATAR_ICON) && !configuredIcon() && OFFICIAL_AVATARS.every((file) => fs.existsSync(file))) {
+        fs.mkdirSync(DEFAULT_AVATARS_FOLDER, { recursive: true });
+        OFFICIAL_AVATARS.forEach((file, index) => fs.copyFileSync(file, path.join(DEFAULT_AVATARS_FOLDER, `${index}.png`)));
+        console.log(`[default-avatars] copied Discord's ${OFFICIAL_AVATARS.length} default avatars from the client`);
+        return;
+    }
     let sharp;
     try {
         sharp = require("sharp");

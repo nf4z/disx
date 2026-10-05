@@ -20,9 +20,9 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { homedir } from "node:os";
-const require = createRequire(`${homedir()}/.cache/fosscord-tools/`);
+const require = createRequire(`${homedir()}/.cache/larpcord-tools/`);
 const { chromium } = require("playwright-core");
-const origin = `http://fosscord.localhost:${process.env.PORT || 3290}`;
+const origin = `http://larpcord.localhost:${process.env.PORT || 3290}`;
 const account = Object.fromEntries(
     readFileSync(new URL("./.test-account", import.meta.url), "utf8")
         .trim()
@@ -131,9 +131,9 @@ try {
     await page.getByLabel("Find a section").fill("");
     await page.getByLabel("Find users", { exact: true }).fill("newest");
     await page.getByText("Result newest 0", { exact: true }).waitFor();
-    await page.screenshot({ path: "/tmp/fosscord-admin-search-desktop.png", fullPage: true });
+    await page.screenshot({ path: "/tmp/larpcord-admin-search-desktop.png", fullPage: true });
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.screenshot({ path: "/tmp/fosscord-admin-search-mobile.png", fullPage: true });
+    await page.screenshot({ path: "/tmp/larpcord-admin-search-mobile.png", fullPage: true });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
     assert.deepEqual(errors, []);
     console.log("PASS tab cancellation, delayed callbacks, filtered navigation and desktop/mobile render");

@@ -41,7 +41,7 @@ const run = (directory, origin, args = []) =>
         child.on("exit", (code) => resolve({ code, output }));
     });
 const fixture = async (t, files) => {
-    const directory = await fs.mkdtemp(path.join(os.tmpdir(), "fosscord-client-assets-"));
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), "larpcord-client-assets-"));
     const cache = path.join(directory, "cache");
     await fs.mkdir(cache);
     const requests = [];

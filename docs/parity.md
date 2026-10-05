@@ -225,4 +225,4 @@ Each feature has one of four marks:
 
 ## Gateway host and session checks (2026-10-04)
 
-The bundled browser uses its own `location.host` for initial and resumed gateway connections. Real compressed HELLO checks passed on `localhost:3290` and `fosscord.localhost:3290`. Gateway resume is bound to the original authentication session; cross-session resume is rejected, same-session resume works, and revocation closes only the targeted session. The full encryption suite passed in 320.3 seconds with two UI retries. These checks do not establish production capacity.
+The bundled browser uses its own `location.host` for initial and resumed gateway connections. Real compressed HELLO checks passed on `localhost:3290` and `larpcord.localhost:3290`. Gateway resume is bound to the original authentication session; cross-session resume is rejected, same-session resume works, and revocation closes only the targeted session. The full encryption suite passed in 320.3 seconds with two UI retries. These checks do not establish production capacity.

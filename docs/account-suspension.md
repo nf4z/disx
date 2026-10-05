@@ -3,10 +3,10 @@
 Run only against the local, isolated admin demo:
 
 ```sh
-RUN_SUSPENSION_SMOKE=1 DOTENV_CONFIG_PATH=/tmp/fosscord-admin-perf/.env node scripts/dev/account-suspension-smoke.mjs
+RUN_SUSPENSION_SMOKE=1 DOTENV_CONFIG_PATH=/tmp/larpcord-admin-perf/.env node scripts/dev/account-suspension-smoke.mjs
 ```
 
-The opt-in script guards the database name `fosscord_codex_admin` and local API/database hosts. It creates three disposable accounts through Cap and grants the temporary administrator only `MANAGE_USERS` in addition to its existing ordinary-account rights. It does not use or modify existing users.
+The opt-in script guards the database name `larpcord_codex_admin` and local API/database hosts. It creates three disposable accounts through Cap and grants the temporary administrator only `MANAGE_USERS` in addition to its existing ordinary-account rights. It does not use or modify existing users.
 
 The target sends a real encrypted native message to the witness before suspension. Two target sessions and their gateway connections are then tested against an unrelated witness connection. A temporary application and hashed OAuth bearer credential are seeded only for these fixtures; HTTP OAuth authorization is tested, rather than the OAuth issuance flow.
 

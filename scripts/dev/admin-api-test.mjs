@@ -22,7 +22,7 @@ const login = async (email, password) => {
     return result.data.token;
 };
 const token = await login(account.TEST_EMAIL, account.TEST_PASSWORD);
-const friend = await login("friend@fosscord.test", account.FRIEND_PASSWORD);
+const friend = await login("friend@larpcord.test", account.FRIEND_PASSWORD);
 const myResponse = await request("/users/@me", token);
 assert.equal(myResponse.status, 200, JSON.stringify(myResponse.data));
 const me = myResponse.data;

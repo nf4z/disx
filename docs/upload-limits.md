@@ -17,7 +17,7 @@ The CDN checks internal POST signatures and exact cloud-upload reservations befo
 
 ## Verification
 
-`scripts/tests/cdn-upload-authorization.test.cjs` checks real HTTP requests with bodies withheld to prove early rejection, chunked and multipart size enforcement, valid writes, deleted reservations and zero-byte raw uploads. `scripts/tests/attachment-upload-quota.postgres.cjs` uses disposable records in `fosscord_codex_admin` to verify malformed declarations, DM outsiders, guild overwrites, concurrent reservations and pending/retained count and byte limits. The full native encryption suite also passed against the refreshed demo.
+`scripts/tests/cdn-upload-authorization.test.cjs` checks real HTTP requests with bodies withheld to prove early rejection, chunked and multipart size enforcement, valid writes, deleted reservations and zero-byte raw uploads. `scripts/tests/attachment-upload-quota.postgres.cjs` uses disposable records in `larpcord_codex_admin` to verify malformed declarations, DM outsiders, guild overwrites, concurrent reservations and pending/retained count and byte limits. The full native encryption suite also passed against the refreshed demo.
 
 ## Remaining storage work
 

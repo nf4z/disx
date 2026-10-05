@@ -1,0 +1,70 @@
+.larpcord-cap-verification {
+    margin-block: 20px;
+    color: var(--text-default);
+    font-size: 14px;
+}
+.larpcord-cap-label {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 8px;
+    font-weight: 600;
+}
+.larpcord-cap-label span,
+.larpcord-cap-verification p {
+    color: var(--text-muted);
+    font-size: 12px;
+}
+.larpcord-cap-verification p {
+    margin-block: 8px;
+    line-height: 1.4;
+    text-wrap: pretty;
+}
+.larpcord-cap-container {
+    min-height: 52px;
+    max-width: 100%;
+}
+.larpcord-cap-container:focus-visible {
+    outline: 2px solid var(--focus-primary);
+    outline-offset: 4px;
+}
+.larpcord-cap-verification cap-widget {
+    --cap-background: var(--background-base-lowest, var(--input-background-default));
+    --cap-border-color: var(--input-border-default, var(--background-mod-strong));
+    --cap-color: var(--text-default);
+    --cap-border-radius: 6px;
+    --cap-checkbox-background: var(--background-base-lowest, var(--input-background-default));
+    --cap-checkbox-border: 1px solid var(--interactive-text-default);
+    --cap-focus-ring: var(--focus-primary);
+    --cap-font: var(--font-primary);
+    --cap-spinner-color: var(--text-default);
+    --cap-spinner-background-color: var(--background-mod-strong);
+    display: block;
+    max-width: 100%;
+}
+.larpcord-cap-verification button {
+    min-height: 36px;
+    padding: 6px 12px;
+    border: 1px solid var(--input-border-default, var(--background-mod-strong));
+    border-radius: 4px;
+    background: var(--background-base-lowest, var(--input-background-default));
+    color: var(--text-default);
+    cursor: pointer;
+}
+.larpcord-cap-verification button:focus-visible {
+    outline: 2px solid var(--focus-primary);
+    outline-offset: 2px;
+}
+@media (hover: hover) {
+    .larpcord-cap-verification button:hover {
+        background: var(--background-modifier-hover);
+    }
+}
+@media (prefers-reduced-motion: no-preference) {
+    .larpcord-cap-verification button {
+        transition: scale 200ms ease-out;
+    }
+    .larpcord-cap-verification button:active {
+        scale: 0.97;
+    }
+}

@@ -295,7 +295,7 @@ test("server recovery upload binds the decoded secret digest and current backup/
     assert.equal(calls.length, 1);
     assert.equal(calls[0].path, "/users/@me/e2ee/backup/escrow");
     const digest = Buffer.from(await crypto.subtle.digest("SHA-256", secret)).toString("base64url");
-    const message = `fosscord-e2ee/v1/server-recovery\n5\n${backup.identity_key}\n1\ndevice-fixture\n${digest}`;
+    const message = `larpcord-e2ee/v1/server-recovery\n5\n${backup.identity_key}\n1\ndevice-fixture\n${digest}`;
     assert.equal(await verify(backup.identity_key, message, calls[0].body.signature), true);
     assert.equal(engine.serverRecoveryReady, true);
     await engine.publishServerRecovery();

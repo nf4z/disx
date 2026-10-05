@@ -53,7 +53,7 @@ for (const [i, userId] of userIds.entries()) {
         JSON.stringify(settingsBase),
     ]);
     await db.query(`INSERT INTO users SELECT (json_populate_record(null::users, $1)).*`, [
-        JSON.stringify({ ...friend, id: userId, username: `scale${i}`, email: `scale${i}@fosscord.test`, discriminator: String(i % 10000).padStart(4, "0"), settingsIndex: settings.index }),
+        JSON.stringify({ ...friend, id: userId, username: `scale${i}`, email: `scale${i}@larpcord.test`, discriminator: String(i % 10000).padStart(4, "0"), settingsIndex: settings.index }),
     ]);
     const member = await one(
         `INSERT INTO members (id, guild_id, joined_at, deaf, mute, pending, settings, bio, flags) VALUES ($1, $2, now(), false, false, false, '{}', '', 0) RETURNING index`,

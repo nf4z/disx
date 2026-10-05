@@ -20,9 +20,9 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { homedir } from "node:os";
-const require = createRequire(`${homedir()}/.cache/fosscord-tools/`);
+const require = createRequire(`${homedir()}/.cache/larpcord-tools/`);
 const { chromium } = require("playwright-core");
-const origin = `http://fosscord.localhost:${process.env.PORT || 3290}`;
+const origin = `http://larpcord.localhost:${process.env.PORT || 3290}`;
 const account = Object.fromEntries(
     readFileSync(process.env.TEST_ACCOUNT_FILE || new URL("./.test-account", import.meta.url), "utf8")
         .trim()
@@ -38,7 +38,7 @@ const login = async (email, password) => {
     assert.equal(response.status, 200);
     return response.json();
 };
-const [admin, friend] = await Promise.all([login(account.TEST_EMAIL, account.TEST_PASSWORD), login("friend@fosscord.test", account.FRIEND_PASSWORD)]);
+const [admin, friend] = await Promise.all([login(account.TEST_EMAIL, account.TEST_PASSWORD), login("friend@larpcord.test", account.FRIEND_PASSWORD)]);
 const api = async (token, route, method = "GET", body) => {
     const response = await fetch(`${origin}/api/v9${route}`, {
         method,

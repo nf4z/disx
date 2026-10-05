@@ -2,7 +2,7 @@ import { createRequire } from "node:module";
 import { homedir } from "node:os";
 import { existsSync, readFileSync } from "node:fs";
 
-const require = createRequire(`${homedir()}/.cache/fosscord-tools/`);
+const require = createRequire(`${homedir()}/.cache/larpcord-tools/`);
 const { chromium } = require("playwright-core");
 
 const port = process.env.PORT || "3001";
@@ -40,7 +40,7 @@ page.on("response", (res) => {
     if (res.url().includes("/messages?")) requests.push(`${res.status()} ${Math.round(res.request().timing().responseEnd)}ms ${res.url().split("/api/v9")[1]}`);
     if (res.url().includes("/api/") && res.status() >= 400) failures.push(`${res.status()} ${res.request().method()} ${res.url().split("/api/v9")[1]}`);
 });
-await page.goto(`http://fosscord.localhost:${port}/channels/${guild}/${general}`);
+await page.goto(`http://larpcord.localhost:${port}/channels/${guild}/${general}`);
 await page.waitForSelector('[data-list-id="chat-messages"]', { timeout: 60_000 });
 await sleep(4000);
 for (let i = 0; i < 3; i++) await page.keyboard.press("Escape");
@@ -97,5 +97,5 @@ if (process.env.RELOAD) {
 }
 console.log((await page.evaluate(() => window.__listOps)).join("\n"));
 console.log("failed requests", failures.join("\n"));
-console.log("console", consoleLines.filter((x) => /Fosscord/.test(x)).join("\n"));
+console.log("console", consoleLines.filter((x) => /LarpCord/.test(x)).join("\n"));
 await browser.close();

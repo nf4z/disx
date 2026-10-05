@@ -52,4 +52,5 @@ export * from "./Presence";
 export * from "./MediaProxy";
 export * from "./VideoFrame";
 export * from "./ApexExperiments";
+export * from "./BadgeDirectory";
 export * from "./VoiceHealth";

@@ -110,10 +110,10 @@ export const openBox = (key: Bytes, box: string, aad: string) => {
     return aesDecrypt(key, raw.slice(0, 12), raw.slice(12), aad);
 };
 
-export const rotationMessage = (userId: string, previousKey: string, nextKey: string) => `fosscord-e2ee/v1/identity-rotate\n${userId}\n${previousKey}\n${nextKey}`;
+export const rotationMessage = (userId: string, previousKey: string, nextKey: string) => `larpcord-e2ee/v1/identity-rotate\n${userId}\n${previousKey}\n${nextKey}`;
 
-export const backupKeyMessage = (userId: string, publicKey: string) => `fosscord-e2ee/v1/backup-key\n${userId}\n${publicKey}`;
+export const backupKeyMessage = (userId: string, publicKey: string) => `larpcord-e2ee/v1/backup-key\n${userId}\n${publicKey}`;
 
-export const deviceMessage = (userId: string, deviceId: string, signingKey: string) => `fosscord-e2ee/v1/device\n${userId}\n${deviceId}\n${signingKey}`;
+export const deviceMessage = (userId: string, deviceId: string, signingKey: string) => `larpcord-e2ee/v1/device\n${userId}\n${deviceId}\n${signingKey}`;
 
-export const prekeyMessage = (deviceId: string, prekeyId: number, publicKey: string) => `fosscord-e2ee/v1/prekey\n${deviceId}\n${prekeyId}\n${publicKey}`;
+export const prekeyMessage = (deviceId: string, prekeyId: number, publicKey: string) => `larpcord-e2ee/v1/prekey\n${deviceId}\n${prekeyId}\n${publicKey}`;

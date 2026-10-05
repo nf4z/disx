@@ -18,7 +18,7 @@
 
 export class ClientConfiguration {
     useTestClient: boolean = true;
-    instanceName: string = "Fosscord";
+    instanceName: string = "LarpCord";
     icon: string | null = null;
     logo: string | null = null;
     helpUrl: string | null = null;
@@ -26,4 +26,14 @@ export class ClientConfiguration {
     loadingTips: string[] | null = null;
     loadingSvg: string | null = null;
     experiments: Record<string, number> = {};
+    // turn on every experiment the downloaded client defines (assets/cache/experiments.json, from scripts/experiments.js)
+    rolloutAllExperiments: boolean = true;
+    // experiment names or ids left out of that rollout; a trailing * matches a prefix
+    experimentExclusions: string[] = [
+        "2026-03-icymi-*", // "In case you missed it"
+        "2026-04-icymi-*",
+        "2026-04-desktop-notification-center", // notifications button above the server list
+        "2026-01-cms-layouts", // Shop pages from Discord's CMS, which this server does not serve
+        "2026-06-improved-shop-loading", // Shop tab layouts, same reason
+    ];
 }

@@ -1,7 +1,7 @@
 {
   "date": "2026-10-04",
-  "environment": "isolated persistent demo /tmp/fosscord-admin-perf, fosscord_codex_admin",
-  "host": "http://fosscord.localhost:3290",
+  "environment": "isolated persistent demo /tmp/larpcord-admin-perf, larpcord_codex_admin",
+  "host": "http://larpcord.localhost:3290",
   "checks": {
     "admin_encrypted_send_status": 201,
     "native_encrypted_reply_status": 200,

@@ -27,7 +27,7 @@ const webhookUsers = [];
 
 before(async () => {
     if (!enabled) return;
-    assert.equal(new URL(process.env.DATABASE).pathname, "/fosscord_codex_admin");
+    assert.equal(new URL(process.env.DATABASE).pathname, "/larpcord_codex_admin");
     entities = require("../../dist/database");
     db = await entities.initDatabase();
     ({ Permissions, getPermission } = require("../../dist/util/util/Permissions"));

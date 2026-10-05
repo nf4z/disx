@@ -17,7 +17,9 @@
 */
 
 import EventEmitter from "node:events";
-import { DgramSocket } from "node-unix-socket";
+// node-unix-socket is Unix-only; loaded lazily so Windows can run without systemd notify support
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const loadDgramSocket = (): typeof import("node-unix-socket").DgramSocket => require("node-unix-socket").DgramSocket;
 
 interface ProcessLifecycleEvents {
     starting: unknown[];
@@ -69,13 +71,13 @@ process.on("SIGUSR1", async () => {
 export class SystemdLifecycle {
     private static writeData(data: string): Promise<void> {
         const socketPath = process.env.NOTIFY_SOCKET;
-        if (!socketPath) return Promise.resolve();
+        if (!socketPath || process.platform === "win32") return Promise.resolve();
 
         const buf = Buffer.from(data);
         console.log("Systemd notify socket path:", socketPath, "-", buf.length, "bytes");
 
         return new Promise((res, rej) => {
-            new DgramSocket().sendTo(buf, 0, buf.length, socketPath, (err) => {
+            new (loadDgramSocket())().sendTo(buf, 0, buf.length, socketPath, (err) => {
                 if (err) rej(err);
                 res();
             });

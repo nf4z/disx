@@ -96,9 +96,9 @@ test("profile response keeps free feature entitlements and custom badges without
 
 test("branding removes subscription labels in nested translation text while keeping ICU arguments and technical keys", () => {
     const { brandMessages } = load(
-        "client/plugins/fosscordBranding/messages.ts",
+        "client/plugins/larpcordBranding/messages.ts",
         {},
-        { window: { GLOBAL_ENV: { INSTANCE_NAME: "Test Instance" } }, location: { host: "fosscord.localhost", origin: "http://fosscord.localhost" } },
+        { window: { GLOBAL_ENV: { INSTANCE_NAME: "Test Instance" } }, location: { host: "larpcord.localhost", origin: "http://larpcord.localhost" } },
     );
     const messages = {
         PREMIUM_TIER_2: ["Nitro and Premium customization", [8, "$b", ["NITRO CLASSIC"]], [6, "premiumTier", { one: ["Nitro Basic"], other: ["Premium features"] }]],
@@ -116,7 +116,7 @@ test("branding removes subscription labels in nested translation text while keep
 test("native gradient toggle disables pending colors and restores the selected pair through native save state", () => {
     let remembered;
     const React = { createElement: (type, props, ...children) => ({ type, props: { ...props, children } }), useRef: (initial) => (remembered ??= { current: initial }) };
-    const gradient = load("client/plugins/fosscordNoNitroUpsells/gradient.tsx", { "@webpack/common": { React, Checkbox: "Checkbox", Text: "Text" } });
+    const gradient = load("client/plugins/larpcordNoNitroUpsells/gradient.tsx", { "@webpack/common": { React, Checkbox: "Checkbox", Text: "Text" } });
     assert.equal(gradient.renderGradientToggle({ user: { id: "self" }, guildId: "guild" }, [123, 456], [111, 222]), null);
     let selected;
     const props = { user: { id: "self" }, onThemeColorsChange: (colors) => (selected = colors) };

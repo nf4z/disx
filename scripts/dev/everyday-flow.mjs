@@ -3,7 +3,7 @@ import { homedir } from "node:os";
 import { randomBytes } from "node:crypto";
 import { readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 
-const require = createRequire(`${homedir()}/.cache/fosscord-tools/`);
+const require = createRequire(`${homedir()}/.cache/larpcord-tools/`);
 const { chromium } = require("playwright-core");
 
 const args = process.argv.slice(2);
@@ -15,7 +15,7 @@ const port = flag("port", process.env.PORT || "3001");
 const executablePath = flag("browser");
 const serverLog = flag("server-log");
 const shots = flag("shots");
-const origin = `http://fosscord.localhost:${port}`;
+const origin = `http://larpcord.localhost:${port}`;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const logStart = serverLog ? statSync(serverLog).size : 0;
 

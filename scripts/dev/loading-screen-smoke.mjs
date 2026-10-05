@@ -23,10 +23,10 @@ import { homedir } from "node:os";
 import path from "node:path";
 import dotenv from "dotenv";
 
-const playwright = createRequire(path.join(homedir(), ".cache/fosscord-tools/package.json"))("playwright-core");
+const playwright = createRequire(path.join(homedir(), ".cache/larpcord-tools/package.json"))("playwright-core");
 const origin = (process.env.ORIGIN || "http://localhost:3290").replace(/\/$/, "");
-assert.ok(["localhost", "fosscord.localhost", "127.0.0.1"].includes(new URL(origin).hostname));
-const account = dotenv.parse(fs.readFileSync(process.env.TEST_ACCOUNT_FILE || "/tmp/fosscord-admin-perf/scripts/dev/.test-account"));
+assert.ok(["localhost", "larpcord.localhost", "127.0.0.1"].includes(new URL(origin).hostname));
+const account = dotenv.parse(fs.readFileSync(process.env.TEST_ACCOUNT_FILE || "/tmp/larpcord-admin-perf/scripts/dev/.test-account"));
 const login = await fetch(`${origin}/api/v9/auth/login`, {
     method: "POST",
     headers: { "content-type": "application/json" },

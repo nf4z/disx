@@ -20,9 +20,9 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { homedir } from "node:os";
-const require = createRequire(`${homedir()}/.cache/fosscord-tools/`);
+const require = createRequire(`${homedir()}/.cache/larpcord-tools/`);
 const { chromium } = require("playwright-core");
-const origin = `http://fosscord.localhost:${process.env.PORT || 3290}`;
+const origin = `http://larpcord.localhost:${process.env.PORT || 3290}`;
 const account = Object.fromEntries(
     readFileSync(process.env.TEST_ACCOUNT_FILE || new URL("./.test-account", import.meta.url), "utf8")
         .trim()
@@ -163,10 +163,10 @@ try {
     assert.equal(await page.locator("#server-resources").evaluate((element) => element.open), true);
     await page.locator("#server-resources").scrollIntoViewIfNeeded();
     assert.ok((await page.locator("#toasts .toast").count()) <= 3);
-    await page.screenshot({ path: "/tmp/fosscord-admin-resources.png", fullPage: true });
+    await page.screenshot({ path: "/tmp/larpcord-admin-resources.png", fullPage: true });
     await page.setViewportSize({ width: 390, height: 844 });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
-    await page.screenshot({ path: "/tmp/fosscord-admin-resources-mobile.png", fullPage: true });
+    await page.screenshot({ path: "/tmp/larpcord-admin-resources-mobile.png", fullPage: true });
     assert.deepEqual(errors, []);
     console.log("PASS browser category/voice/role creation, refreshed lists and mobile layout");
 } finally {

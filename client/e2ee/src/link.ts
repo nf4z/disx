@@ -115,15 +115,15 @@ const OFFER_WINDOW_MS = 1200;
 const MAX_APPROVERS = 4;
 
 const sasFor = async (requestId: string, requester: string, approver: string) => {
-    const digest = await sha256(utf8(`fosscord-e2ee/v1/sas\n${requestId}\n${requester}\n${approver}`));
+    const digest = await sha256(utf8(`larpcord-e2ee/v1/sas\n${requestId}\n${requester}\n${approver}`));
     const value = ((digest[0] << 24) | (digest[1] << 16) | (digest[2] << 8) | digest[3]) >>> 0;
     const digits = String(value % 1000000).padStart(6, "0");
     return `${digits.slice(0, 3)} ${digits.slice(3)}`;
 };
 
-const channelKey = async (pair: CryptoKeyPair, peer: string, requestId: string) => hkdf(await x25519(pair.privateKey, peer), utf8(requestId), "fosscord-e2ee/v1/link");
+const channelKey = async (pair: CryptoKeyPair, peer: string, requestId: string) => hkdf(await x25519(pair.privateKey, peer), utf8(requestId), "larpcord-e2ee/v1/link");
 
-const channelAad = (requestId: string, requester: string, approver: string) => `fosscord-e2ee/v1/link\n${requestId}\n${requester}\n${approver}`;
+const channelAad = (requestId: string, requester: string, approver: string) => `larpcord-e2ee/v1/link\n${requestId}\n${requester}\n${approver}`;
 
 export const createLink = (engine: Engine, api: Api, hooks: LinkHooks) => {
     let outgoing: OutgoingInternal | null = null;
@@ -417,7 +417,7 @@ export const createLink = (engine: Engine, api: Api, hooks: LinkHooks) => {
     const start = (userId: string) => {
         if (channel || leader || stopped) return;
         if (typeof BroadcastChannel === "function") {
-            channel = new BroadcastChannel(`fosscord-e2ee-link:${userId}`);
+            channel = new BroadcastChannel(`larpcord-e2ee-link:${userId}`);
             channel.addEventListener("message", (event: MessageEvent<TabMessage>) => onTab(event.data));
         }
         addEventListener("pagehide", () => {
@@ -426,7 +426,7 @@ export const createLink = (engine: Engine, api: Api, hooks: LinkHooks) => {
             hooks.beacon({ request_id: current.requestId, stage: "cancel", device_id: engine.device.deviceId });
         });
         if (!navigator.locks || !channel) return becomeLeader();
-        navigator.locks.request(`fosscord-e2ee-link:${userId}`, () => {
+        navigator.locks.request(`larpcord-e2ee-link:${userId}`, () => {
             if (stopped) return;
             becomeLeader();
             return new Promise<void>((resolve) => {

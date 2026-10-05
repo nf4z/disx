@@ -254,6 +254,10 @@ export class User extends BaseClass {
     @Column({ type: "text", array: true, default: "{}", select: false })
     pride_badges?: string[];
 
+    // Discord badge ids the user hid from their profile, and the order of the rest (see BadgeDirectory)
+    @Column({ type: "jsonb", nullable: true, select: false })
+    badge_settings?: { hidden_badges: number[]; display_order: number[] } | null;
+
     @Column({ type: "jsonb", nullable: true })
     profile_widgets?: ProfileWidget[] | null;
 

@@ -27,7 +27,7 @@ try {
     playwright = require("playwright-core");
 } catch {
     try {
-        playwright = createRequire(path.join(homedir(), ".cache/fosscord-tools/package.json"))("playwright-core");
+        playwright = createRequire(path.join(homedir(), ".cache/larpcord-tools/package.json"))("playwright-core");
     } catch {}
 }
 const executablePath = process.env.CHROME_PATH || "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser";
@@ -55,7 +55,7 @@ test(
     async (t) => {
         const browser = await playwright.chromium.launch({ executablePath, headless: true });
         const nativeCss = fs.readFileSync(cachedCss, "utf8");
-        const patchCss = fs.readFileSync("client/plugins/fosscordModals/style.css", "utf8");
+        const patchCss = fs.readFileSync("client/plugins/larpcordModals/style.css", "utf8");
         try {
             for (const width of [1440, 390])
                 await t.test(`${width}px original interception reproduced; current backdrop and popout work`, async () => {

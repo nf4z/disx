@@ -91,9 +91,9 @@ function harness(origin = "https://meowcord.example:8443") {
     return { window, HTMLImageElement, CSSStyleDeclaration, XMLHttpRequest };
 }
 test("loopback clan badges follow current host, scheme and port at DOM/CSS/network boundaries", () => {
-    for (const origin of ["http://localhost:3290", "http://fosscord.localhost:3290", "https://meowcord.example:8443", "http://[::1]:3290"]) {
+    for (const origin of ["http://localhost:3290", "http://larpcord.localhost:3290", "https://meowcord.example:8443", "http://[::1]:3290"]) {
         const h = harness(origin);
-        for (const host of ["localhost:3290", "127.0.0.1:3290", "[::1]:3290", "0.0.0.0:3290", "fosscord.localhost:3290"]) {
+        for (const host of ["localhost:3290", "127.0.0.1:3290", "[::1]:3290", "0.0.0.0:3290", "larpcord.localhost:3290"]) {
             const bad = `https://${host}/clan-badges/123/hash.png?size=16#preview`;
             const expected = `${origin}/clan-badges/123/hash.png?size=16#preview`;
             const image = new h.HTMLImageElement();

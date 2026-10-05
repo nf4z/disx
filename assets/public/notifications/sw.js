@@ -48,7 +48,7 @@ self.addEventListener("notificationclick", (event) => {
             const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
             const open = windows.find((client) => new URL(client.url).origin === url.origin);
             if (!open) return self.clients.openWindow(url.href);
-            open.postMessage({ type: "fosscord-notification-click", path: url.pathname });
+            open.postMessage({ type: "larpcord-notification-click", path: url.pathname });
             return open.focus();
         })(),
     );

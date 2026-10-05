@@ -180,7 +180,7 @@ test("Cap core ignores stored standalone credentials and makes no external reque
     assert.equal(cap.capEndpoint(), "/api/v9/auth/cap/");
     assert.equal(cap.registrationCapEndpoint(), "/api/v9/auth/cap/");
     assert.equal(cap.captchaEnabled(), true);
-    assert.equal((await cap.checkCaptcha(true, null)).captcha_sitekey, "fosscord");
+    assert.equal((await cap.checkCaptcha(true, null)).captcha_sitekey, "larpcord");
     assert.equal((await cap.verifyCaptcha("valid-local")).success, true);
     assert.equal(await cap.checkRegistrationCaptcha("valid-local"), null);
     assert.equal((await cap.checkRegistrationCaptcha("wrong-local")).captcha_key[0], "invalid-input-response");

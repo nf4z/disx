@@ -25,15 +25,15 @@ import path from "node:path";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const require = createRequire(path.join(root, "package.json"));
-const playwright = createRequire(path.join(homedir(), ".cache/fosscord-tools/package.json"))("playwright-core");
+const playwright = createRequire(path.join(homedir(), ".cache/larpcord-tools/package.json"))("playwright-core");
 const account = require("dotenv").parse(readFileSync(process.env.TEST_ACCOUNT_FILE || path.join(root, "scripts/dev/.test-account")));
-const origin = (process.env.ORIGIN || "http://fosscord.localhost:3290").replace(/\/$/, "");
+const origin = (process.env.ORIGIN || "http://larpcord.localhost:3290").replace(/\/$/, "");
 const login = async (login, password) => {
     const response = await fetch(`${origin}/api/v9/auth/login`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ login, password }) });
     assert.equal(response.status, 200, "fixture login");
     return response.json();
 };
-const [self, friend] = await Promise.all([login(account.TEST_EMAIL, account.TEST_PASSWORD), login("friend@fosscord.test", account.FRIEND_PASSWORD)]);
+const [self, friend] = await Promise.all([login(account.TEST_EMAIL, account.TEST_PASSWORD), login("friend@larpcord.test", account.FRIEND_PASSWORD)]);
 const api = async (method, route, body) => {
     const response = await fetch(`${origin}/api/v9${route}`, {
         method,

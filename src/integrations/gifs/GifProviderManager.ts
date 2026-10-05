@@ -19,6 +19,7 @@
 import { Config } from "@spacebar/util";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import type { IGifProvider } from "./IGifProvider";
 
 export class GifProviderManager {
@@ -33,7 +34,7 @@ export class GifProviderManager {
         const providerImports = await Promise.all(
             (await fs.readdir(path.join(__dirname, "providers"))) /**/
                 .filter((p) => p.endsWith(".js"))
-                .map((f) => import(path.join(__dirname, "providers", f))),
+                .map((f) => import(pathToFileURL(path.join(__dirname, "providers", f)).href)),
         );
 
         for (const providerImport of providerImports) {

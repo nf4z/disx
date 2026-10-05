@@ -66,13 +66,13 @@ export const decodeKey = (value: string, length: number) => {
 
 export const e2eeDeviceId = (signingKey: string) => createHash("sha256").update(Buffer.from(signingKey, "base64url")).digest().subarray(0, 16).toString("base64url");
 
-export const e2eeDeviceMessage = (userId: string, deviceId: string, signingKey: string) => `fosscord-e2ee/v1/device\n${userId}\n${deviceId}\n${signingKey}`;
+export const e2eeDeviceMessage = (userId: string, deviceId: string, signingKey: string) => `larpcord-e2ee/v1/device\n${userId}\n${deviceId}\n${signingKey}`;
 
-export const e2eePrekeyMessage = (deviceId: string, prekeyId: number, publicKey: string) => `fosscord-e2ee/v1/prekey\n${deviceId}\n${prekeyId}\n${publicKey}`;
+export const e2eePrekeyMessage = (deviceId: string, prekeyId: number, publicKey: string) => `larpcord-e2ee/v1/prekey\n${deviceId}\n${prekeyId}\n${publicKey}`;
 
-export const e2eeRotationMessage = (userId: string, previousKey: string, nextKey: string) => `fosscord-e2ee/v1/identity-rotate\n${userId}\n${previousKey}\n${nextKey}`;
+export const e2eeRotationMessage = (userId: string, previousKey: string, nextKey: string) => `larpcord-e2ee/v1/identity-rotate\n${userId}\n${previousKey}\n${nextKey}`;
 
-export const e2eeBackupKeyMessage = (userId: string, publicKey: string) => `fosscord-e2ee/v1/backup-key\n${userId}\n${publicKey}`;
+export const e2eeBackupKeyMessage = (userId: string, publicKey: string) => `larpcord-e2ee/v1/backup-key\n${userId}\n${publicKey}`;
 
 export async function e2eeUserKeys(ids: string[]) {
     const users: Record<string, E2eeUserKeysResponse> = {};

@@ -21,7 +21,7 @@ import { RateLimit } from "@spacebar/database";
 import { Config } from "@spacebar/util";
 import type { ValidateChallengeBody } from "capjs-core";
 
-const scope = "fosscord-registration";
+const scope = "larpcord-registration";
 const tokenKey = (token: string) => `cap-token:${createHash("sha256").update(token).digest("hex")}`;
 const signingKey = () => createHmac("sha256", Config.get().security.requestSignature).update(scope).digest("hex");
 

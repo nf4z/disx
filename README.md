@@ -1,9 +1,9 @@
 <p align="center">
   <img width="100" src="assets/icon.png" />
 </p>
-<h1 align="center">Fosscord</h1>
+<h1 align="center">LarpCord</h1>
 
-Fosscord is a self-hosted server that speaks Discord's API and gateway. It serves the official Discord web client from a local copy, with Vencord loaded in front of it, and rebrands that client as your instance. The instance's name, icon and wordmark replace Discord's, and Nitro is called Premium. People sign up on your server, log in with the real Discord UI and use it the way they use Discord, without a Discord account.
+LarpCord is a self-hosted server that speaks Discord's API and gateway. It serves the official Discord web client from a local copy, with Vencord loaded in front of it, and rebrands that client as your instance. The instance's name, icon and wordmark replace Discord's, and Nitro is called Premium. People sign up on your server, log in with the real Discord UI and use it the way they use Discord, without a Discord account.
 
 The server is a fork of [Spacebar server](https://github.com/spacebarchat/server), written in TypeScript on Express 5, TypeORM and PostgreSQL. Voice and video go through a pion SFU written in Go. The client the server tracks is Discord web build 627798.
 
@@ -41,17 +41,17 @@ You need Node.js 26, PostgreSQL (17 is what we run) and, for voice and video, Go
 ```sh
 npm ci
 npm run generate:client
-scripts/dev/worktree-setup.sh 3001 fosscord
+scripts/dev/worktree-setup.sh 3001 larpcord
 ```
 
 `npm ci` installs the dependencies and applies the fixes in `patches/`. `npm run generate:client` downloads the Discord web client into `assets/cache`, compresses it and builds Vencord with our plugins into `assets/vencord`. The download is about 300 MB. Building Vencord needs pnpm, and the script falls back to `corepack pnpm` or `npx pnpm` when `pnpm` isn't installed.
 
-`worktree-setup.sh <port> <database>` does the rest. It writes `.env` and `config.json`, builds `extra/pion-sfu` when Go is installed, drops and creates the database as your system user on the local Postgres, builds the server, starts it and seeds two accounts with a DM and a server. It overwrites an existing `.env` and `config.json`. In a git worktree it also symlinks `node_modules` and `assets/cache` from the main checkout, so a worktree starts without its own install or download. Then open `http://fosscord.localhost:3001` and log in as `tester@fosscord.test` or `friend@fosscord.test`. The seed script writes their passwords to `scripts/dev/.test-account`.
+`worktree-setup.sh <port> <database>` does the rest. It writes `.env` and `config.json`, builds `extra/pion-sfu` when Go is installed, drops and creates the database as your system user on the local Postgres, builds the server, starts it and seeds two accounts with a DM and a server. It overwrites an existing `.env` and `config.json`. In a git worktree it also symlinks `node_modules` and `assets/cache` from the main checkout, so a worktree starts without its own install or download. Then open `http://larpcord.localhost:3001` and log in as `tester@larpcord.test` or `friend@larpcord.test`. The seed script writes their passwords to `scripts/dev/.test-account`.
 
 To open the admin dashboard as the seeded user, give it the operator right:
 
 ```sh
-psql fosscord -c "update users set rights = '1' where username = 'tester'"
+psql larpcord -c "update users set rights = '1' where username = 'tester'"
 ```
 
 ### Scripts
@@ -63,7 +63,7 @@ psql fosscord -c "update users set rights = '1' where username = 'tester'"
 | `npm run build:vencord`                              | Rebuilds `assets/vencord` after a change to `client/plugins`, `client/vencord-patches` or `client/vencord.json`.                                                                                            |
 | `npm run build:e2ee`                                 | Bundles `client/e2ee` into `assets/public/e2ee`.                                                                                                                                                            |
 | `PORT=3001 scripts/dev/restart.sh`                   | Stops whatever listens on the port, starts the built server in the background and waits for `/api/ping`. `SERVER_LOG` sets the log file.                                                                    |
-| `DB_NAME=fosscord PORT=3001 scripts/dev/reset-db.sh` | Stops the server and recreates the database. Start the server again to run the migrations.                                                                                                                  |
+| `DB_NAME=larpcord PORT=3001 scripts/dev/reset-db.sh` | Stops the server and recreates the database. Start the server again to run the migrations.                                                                                                                  |
 | `PORT=3001 node scripts/dev/seed.mjs`                | Registers the test accounts, a DM and a server with a few messages.                                                                                                                                         |
 | `PORT=3001 node scripts/dev/parity-probe.mjs`        | Runs the parity checks against the API. A word after it runs only the checks whose name contains it, but many checks reuse what earlier ones created, so a filtered run can fail where the full run passes. |
 | `PORT=3001 node scripts/dev/e2ee-test.mjs`           | Drives several browser profiles through encrypted DMs, key backup, recovery codes and device approval. Takes about five minutes.                                                                            |
@@ -71,10 +71,10 @@ psql fosscord -c "update users set rights = '1' where username = 'tester'"
 | `PORT=3001 node scripts/dev/probe.mjs <path>`        | Opens a client page as the test user and prints its text, console errors and failed requests. `--shot <file>` saves a screenshot and `--as friend` switches account.                                        |
 | `PORT=3001 npm run check:client`                     | Builds Vencord's reporter and checks that every patch still finds its target in the cached client. The first run checks out Vencord into `.vencord`, about 300 MB.                                          |
 
-The browser scripts load `playwright-core` from `~/.cache/fosscord-tools`. Install it there once:
+The browser scripts load `playwright-core` from `~/.cache/larpcord-tools`. Install it there once:
 
 ```sh
-npm install --prefix ~/.cache/fosscord-tools playwright-core
+npm install --prefix ~/.cache/larpcord-tools playwright-core
 ```
 
 `e2ee-test.mjs` and `check:client` use Google Chrome unless `CHROME_PATH` names another Chromium build. Recent Chrome releases on macOS quit headless sessions after about 30 seconds, and Brave works:
@@ -95,7 +95,7 @@ CHROME_PATH="/Applications/Brave Browser.app/Contents/MacOS/Brave Browser" PORT=
 
 | Key                              | What it controls                                                                                                                                                                                                                                                                                                                                                                                               |
 | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `client.instanceName`            | The name that replaces Discord in every string, the page title and the wordmark. `Fosscord` by default.                                                                                                                                                                                                                                                                                                        |
+| `client.instanceName`            | The name that replaces Discord in every string, the page title and the wordmark. `LarpCord` by default.                                                                                                                                                                                                                                                                                                        |
 | `client.icon`, `client.logo`     | Square icon and wordmark, as a URL or a path relative to the repository root. The icon falls back to `general.image`, then `assets/icon.png`.                                                                                                                                                                                                                                                                  |
 | `client.helpUrl`                 | Where help links go. Without it the help button is hidden.                                                                                                                                                                                                                                                                                                                                                     |
 | `client.experiments`             | Map from client experiment name to the variant to assign.                                                                                                                                                                                                                                                                                                                                                      |
@@ -125,7 +125,7 @@ This repository holds no Discord code. `npm run generate:client` downloads the w
 | Bundle            | `src/bundle`                                 | Runs all of the above in one process on one port, with the voice gateway under `/voice` unless `WRTC_WS_PORT` gives it its own port. It can also serve HTTPS and HTTP/2 itself.                                       |
 | Web client server | `src/bundle/TestClient.ts`                   | Serves the cached client with precompressed files, sets `GLOBAL_ENV` to this instance, injects Vencord and the client patch scripts, and swaps Discord's images for the instance's.                                   |
 | Vencord layer     | `client/plugins`, `client/vencord-patches`   | Vencord is built from a pinned commit with our source patches and plugins. The plugins strip upsells and tracking, apply the branding, and fix the parts of the client that assume discord.com.                       |
-| E2EE client       | `client/e2ee`, `client/plugins/fosscordE2ee` | The encryption code, bundled with esbuild and loaded by `assets/client_patches/10-e2ee-loader.js`. It hooks the client's message pipeline, and the plugin adds the lock button, safety numbers and the settings page. |
+| E2EE client       | `client/e2ee`, `client/plugins/larpcordE2ee` | The encryption code, bundled with esbuild and loaded by `assets/client_patches/10-e2ee-loader.js`. It hooks the client's message pipeline, and the plugin adds the lock button, safety numbers and the settings page. |
 | Shared code       | `src/util`, `src/database`, `src/schemas`    | Config, entities, migrations and the request and response schemas the API validates against.                                                                                                                          |
 
 `extra/admin-api`, a C# admin API, and the Nix files are inherited from Spacebar. Nothing in the Docker or development setup uses them, and the admin dashboard at `/admin` talks to the API in `src/api`.

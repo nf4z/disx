@@ -19,7 +19,7 @@
 import { Router, Response, Request } from "express";
 import crypto from "node:crypto";
 import { route } from "@spacebar/api/middlewares";
-import { Snowflake } from "@spacebar/util";
+import { getLegacyExperiments, Snowflake } from "@spacebar/util";
 
 const router = Router({ mergeParams: true });
 
@@ -32,7 +32,8 @@ router.get(
         // TODO:
         const header = req.headers["x-fingerprint"];
         const fingerprint = req.user_id ? undefined : typeof header === "string" && header ? header : `${Snowflake.generate()}.${crypto.randomBytes(20).toString("base64url")}`;
-        res.send({ fingerprint, assignments: [], guild_experiments: [] });
+        const { experiments, guild_experiments } = getLegacyExperiments();
+        res.send({ fingerprint, assignments: experiments, guild_experiments });
     },
 );
 

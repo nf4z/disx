@@ -16,14 +16,19 @@
 	along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+import crypto from "node:crypto";
 import { Request, Response, Router } from "express";
 import { route } from "@spacebar/api/middlewares";
-import { getApexExperiments } from "@spacebar/util";
+import { getApexExperiments, Snowflake } from "@spacebar/util";
 
 const router = Router({ mergeParams: true });
 
+// installation experiments are keyed by the client's installation id; a client without one is given one here
 router.get("/", route({ authentication: "optional" }), (req: Request, res: Response) => {
-    res.json(getApexExperiments(req.user_id));
+    const header = req.headers["x-installation-id"];
+    const known = typeof header === "string" && /^[\w.-]{1,128}$/.test(header) ? header : undefined;
+    const installation = known ?? `${Snowflake.generate()}.${crypto.randomBytes(20).toString("base64url")}`;
+    res.json({ ...(known ? {} : { installation }), ...getApexExperiments(req.user_id, { installationId: installation }) });
 });
 
 export default router;

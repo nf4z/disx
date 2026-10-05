@@ -1,6 +1,6 @@
 # Contributing
 
-Fosscord is a fork of [Spacebar server](https://github.com/spacebarchat/server). Changes made here stay here. A fix meant for Spacebar itself goes to their repository, under their own contribution rules.
+LarpCord is a fork of [Spacebar server](https://github.com/spacebarchat/server). Changes made here stay here. A fix meant for Spacebar itself goes to their repository, under their own contribution rules.
 
 Start with [README.md](README.md) for the development setup. [docs/parity.md](docs/parity.md) lists what still needs work, in its partial and not started rows.
 
@@ -9,12 +9,12 @@ Start with [README.md](README.md) for the development setup. [docs/parity.md](do
 Branch off `main` and keep one topic per branch. To work on several things at once, give each one its own git worktree, port and database:
 
 ```sh
-git worktree add ../fosscord-voice -b voice-reconnect
-cd ../fosscord-voice
-scripts/dev/worktree-setup.sh 3240 fosscord_voice
+git worktree add ../larpcord-voice -b voice-reconnect
+cd ../larpcord-voice
+scripts/dev/worktree-setup.sh 3240 larpcord_voice
 ```
 
-The setup script links `node_modules` and `assets/cache` from the main checkout, so a worktree needs no install or client download. `assets/vencord` is gitignored and not linked. Copy it from the main checkout, or run `npm run build:vencord` if you change the plugins. When the branch is done, stop its server and drop its database with `dropdb fosscord_voice`.
+The setup script links `node_modules` and `assets/cache` from the main checkout, so a worktree needs no install or client download. `assets/vencord` is gitignored and not linked. Copy it from the main checkout, or run `npm run build:vencord` if you change the plugins. When the branch is done, stop its server and drop its database with `dropdb larpcord_voice`.
 
 ## Commits
 
@@ -63,10 +63,10 @@ PORT=3001 node scripts/dev/parity-probe.mjs
 
 Rate limits persist in the database. Do not clear global rate-limit rows to make a probe pass. Use disposable test accounts, honor `Retry-After`, and let each fixture remove only records it created. Keep mutation probes on an explicitly isolated database.
 
-Run the end-to-end encryption test when you change messages, channels, sessions, the gateway or anything under `client/e2ee`, `client/plugins/fosscordE2ee` or the `e2ee` routes. The full suite takes several minutes. It creates disposable Cap-registered accounts, checks the selected database before writes, and preserves private browser profiles if key restoration fails. It does not reuse the demo login or clear global rate limits. Run from the isolated worktree whose `.env` names the test database. For the persistent local demo:
+Run the end-to-end encryption test when you change messages, channels, sessions, the gateway or anything under `client/e2ee`, `client/plugins/larpcordE2ee` or the `e2ee` routes. The full suite takes several minutes. It creates disposable Cap-registered accounts, checks the selected database before writes, and preserves private browser profiles if key restoration fails. It does not reuse the demo login or clear global rate limits. Run from the isolated worktree whose `.env` names the test database. For the persistent local demo:
 
 ```sh
-cd /tmp/fosscord-admin-perf
+cd /tmp/larpcord-admin-perf
 CHROME_PATH="/Applications/Brave Browser.app/Contents/MacOS/Brave Browser" PORT=3290 node scripts/dev/e2ee-test.mjs
 ```
 

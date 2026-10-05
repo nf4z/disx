@@ -37,7 +37,7 @@ const config = () => ({
 
 before(async () => {
     if (!enabled) return;
-    assert.equal(new URL(process.env.DATABASE).pathname, "/fosscord_codex_admin");
+    assert.equal(new URL(process.env.DATABASE).pathname, "/larpcord_codex_admin");
     e = require("../../dist/database");
     db = await e.initDatabase();
     ({ listUserIdentities, parseIdentityData } = require("../../dist/api/util/handlers/ApplicationWidgets"));

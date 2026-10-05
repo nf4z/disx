@@ -22,11 +22,11 @@ import { homedir } from "node:os";
 import path from "node:path";
 import { inflateSync, constants } from "node:zlib";
 
-const playwright = createRequire(path.join(homedir(), ".cache/fosscord-tools/package.json"))("playwright-core");
+const playwright = createRequire(path.join(homedir(), ".cache/larpcord-tools/package.json"))("playwright-core");
 const browserName = process.env.BROWSER || "firefox";
 assert.ok(["chromium", "webkit", "firefox"].includes(browserName));
 const origin = (process.env.ORIGIN || "http://localhost:3290").replace(/\/$/, "");
-assert.ok(["localhost", "fosscord.localhost", "127.0.0.1"].includes(new URL(origin).hostname));
+assert.ok(["localhost", "larpcord.localhost", "127.0.0.1"].includes(new URL(origin).hostname));
 const executablePath =
     browserName === "chromium"
         ? process.env.CHROME_PATH || "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser"

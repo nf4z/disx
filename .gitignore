@@ -56,3 +56,8 @@ scripts/dev/.scale-tokens.json
 
 .e2ee-system/
 .announcement-spool/
+
+# local-only: backups of downloaded Discord clients, and machine-specific setup notes with credentials
+assets/cache-*/
+assets/cache_compressed-*/
+LOCAL_SETUP.md

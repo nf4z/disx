@@ -20,7 +20,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { homedir } from "node:os";
-const require = createRequire(`${homedir()}/.cache/fosscord-tools/`);
+const require = createRequire(`${homedir()}/.cache/larpcord-tools/`);
 const { chromium } = require("playwright-core");
 
 const origin = `http://localhost:${process.env.PORT || 3290}/api/v9`;
@@ -79,11 +79,11 @@ try {
     const page = await context.newPage();
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
-    await page.goto(`http://fosscord.localhost:${process.env.PORT || 3290}/admin/#/store`);
+    await page.goto(`http://larpcord.localhost:${process.env.PORT || 3290}/admin/#/store`);
     await page.locator(`[data-pack="${packs[0].id}"]`).click();
     await page.locator(`[data-item="${item.id}"]`).click();
     await page.locator("#store-item-form select[name=pack_id]").selectOption(packs[1].id);
-    await page.screenshot({ path: "/tmp/fosscord-item-move-selector.png", fullPage: true });
+    await page.screenshot({ path: "/tmp/larpcord-item-move-selector.png", fullPage: true });
     const savedResponse = page.waitForResponse((response) => response.url().includes(`/admin/store/items/${item.id}`) && response.request().method() === "PATCH");
     await page.locator("#store-item-form button[type=submit]").click();
     const saved = await savedResponse;
@@ -93,7 +93,7 @@ try {
     await page.locator("#pack-form input[name=name]").waitFor();
     assert.equal(await page.locator("#pack-form input[name=name]").inputValue(), packs[1].name);
     await page.locator(`[data-item="${item.id}"]`).waitFor();
-    await page.screenshot({ path: "/tmp/fosscord-item-move-destination.png", fullPage: true });
+    await page.screenshot({ path: "/tmp/larpcord-item-move-destination.png", fullPage: true });
     const store = await (await request("/admin/store")).json();
     assert.equal(store.packs.find((pack) => pack.id === packs[0].id).items.length, 0);
     assert.deepEqual(store.packs.find((pack) => pack.id === packs[1].id).items, [moved]);

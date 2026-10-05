@@ -39,7 +39,7 @@ const privateFields = [
 const snapshot = () => e.User.findOneOrFail({ where: { id: fixture.id }, select: Object.fromEntries(privateFields.map((field) => [field, true])) });
 before(async () => {
     if (!enabled) return;
-    assert.equal(new URL(process.env.DATABASE).pathname, "/fosscord_codex_admin");
+    assert.equal(new URL(process.env.DATABASE).pathname, "/larpcord_codex_admin");
     e = require("../../dist/database");
     db = await e.initDatabase();
     require("../../dist/util").emitEvent = async () => {};

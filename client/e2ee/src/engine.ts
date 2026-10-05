@@ -45,8 +45,8 @@ import { Contact, dropPendingPassword, holdPendingPassword, scoped, Store, Store
 import { t } from "./i18n";
 
 export const FALLBACK_CONTENT = "🔒 Encrypted message";
-const WRAP_INFO = "fosscord-e2ee/v1/wrap";
-const BACKUP_INFO = "fosscord-e2ee/v1/backup-wrap";
+const WRAP_INFO = "larpcord-e2ee/v1/wrap";
+const BACKUP_INFO = "larpcord-e2ee/v1/backup-wrap";
 const PREKEY_ROTATE_MS = 7 * 24 * 3600 * 1000;
 const PREKEY_KEEP_MS = 30 * 24 * 3600 * 1000;
 const DIRECTORY_TTL_MS = 5 * 60 * 1000;
@@ -194,9 +194,9 @@ export const snowflakeTime = (id: string) => {
 
 const binding = (mid: string | undefined, nonce: string | undefined) => (mid ? `m:${mid}` : `n:${nonce ?? ""}`);
 
-const messageAad = (channelId: string, senderId: string, senderDevice: string, bind: string) => `fosscord-e2ee/v1/msg\n${channelId}\n${senderId}\n${senderDevice}\n${bind}`;
+const messageAad = (channelId: string, senderId: string, senderDevice: string, bind: string) => `larpcord-e2ee/v1/msg\n${channelId}\n${senderId}\n${senderDevice}\n${bind}`;
 
-const storedKeyAad = (userId: string, messageId: string, sig: string) => `fosscord-e2ee/v1/backup-key\n${userId}\n${messageId}\n${sig}`;
+const storedKeyAad = (userId: string, messageId: string, sig: string) => `larpcord-e2ee/v1/backup-key\n${userId}\n${messageId}\n${sig}`;
 
 const sameBytes = (a: Bytes, b: Bytes) => a.length === b.length && a.every((byte, i) => byte === b[i]);
 
@@ -207,7 +207,7 @@ const sleep = (ms: number) =>
 
 const signedPayload = (channelId: string, senderId: string, bind: string, env: Omit<Envelope, "sig">) => {
     const base = [
-        "fosscord-e2ee/v1/sig",
+        "larpcord-e2ee/v1/sig",
         channelId,
         senderId,
         bind,
@@ -432,7 +432,7 @@ export class Engine {
     }
 
     private exclusive<T>(task: () => Promise<T>): Promise<T> {
-        return navigator.locks ? navigator.locks.request(`fosscord-e2ee-keys:${this.userId}`, task) : task();
+        return navigator.locks ? navigator.locks.request(`larpcord-e2ee-keys:${this.userId}`, task) : task();
     }
 
     async refresh() {
@@ -537,7 +537,7 @@ export class Engine {
         const key = `${backup.identity_key}:${backup.version}:${this.device.deviceId}`;
         if (this.recoveryPublished === key) return;
         const digest = toB64u(await sha256(this.secret));
-        const message = `fosscord-e2ee/v1/server-recovery\n${this.userId}\n${backup.identity_key}\n${backup.version}\n${this.device.deviceId}\n${digest}`;
+        const message = `larpcord-e2ee/v1/server-recovery\n${this.userId}\n${backup.identity_key}\n${backup.version}\n${this.device.deviceId}\n${digest}`;
         await api.request("put", "/users/@me/e2ee/backup/escrow", {
             identity_key: backup.identity_key,
             backup_version: backup.version,

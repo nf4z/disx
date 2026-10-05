@@ -103,7 +103,7 @@ const account = (userId: string, identityKey: string) => {
 const aad = (userId: string, identityKey: string, backupPublicKey: string) => {
     account(userId, identityKey);
     decode(backupPublicKey, 32);
-    return Buffer.from(`fosscord-e2ee/v1/server-recovery-secret\n${userId}\n${identityKey}\n${backupPublicKey}`, "utf8");
+    return Buffer.from(`larpcord-e2ee/v1/server-recovery-secret\n${userId}\n${identityKey}\n${backupPublicKey}`, "utf8");
 };
 const encrypt = (key: Buffer, plaintext: Buffer, binding: Buffer) => {
     const iv = randomBytes(12);
@@ -148,7 +148,7 @@ export async function openRecoverySecret(userId: string, identityKey: string, ba
 }
 
 const privateKeyFromBox = (secret: Buffer, userId: string, label: string, box: string, curve: "Ed25519" | "X25519", expectedPublic: string) => {
-    const derived = Buffer.from(hkdfSync("sha256", secret, Buffer.alloc(32), `fosscord-e2ee/v1/backup/${label}`, 32));
+    const derived = Buffer.from(hkdfSync("sha256", secret, Buffer.alloc(32), `larpcord-e2ee/v1/backup/${label}`, 32));
     let plaintext: Buffer | undefined;
     try {
         plaintext = decrypt(derived, box, Buffer.from(`${label}\n${userId}`, "utf8"));
@@ -179,7 +179,7 @@ export function validateBackupSecret(userId: string, backup: RecoveryBackup, sec
         const identity = privateKeyFromBox(bytes, userId, "identity", backup.wrapped_identity, "Ed25519", backup.identity_key);
         privateKeyFromBox(bytes, userId, "backup-key", backup.wrapped_backup_key, "X25519", backup.backup_public_key);
         const signature = decode(backup.backup_key_signature, 64);
-        return verify(null, Buffer.from(`fosscord-e2ee/v1/backup-key\n${userId}\n${backup.backup_public_key}`, "utf8"), identity, signature);
+        return verify(null, Buffer.from(`larpcord-e2ee/v1/backup-key\n${userId}\n${backup.backup_public_key}`, "utf8"), identity, signature);
     } catch {
         return false;
     } finally {
@@ -193,7 +193,7 @@ export function recoveryProof(userId: string, identityKey: string, version: numb
     decode(deviceId, 16);
     const bytes = decode(secret, 32);
     try {
-        return `fosscord-e2ee/v1/server-recovery\n${userId}\n${identityKey}\n${version}\n${deviceId}\n${createHash("sha256").update(bytes).digest("base64url")}`;
+        return `larpcord-e2ee/v1/server-recovery\n${userId}\n${identityKey}\n${version}\n${deviceId}\n${createHash("sha256").update(bytes).digest("base64url")}`;
     } finally {
         bytes.fill(0);
     }

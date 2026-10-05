@@ -68,7 +68,7 @@ const chunkNonce = (iv: Bytes, index: number) => {
     return nonce;
 };
 
-const chunkAad = (index: number, final: boolean) => utf8(`fosscord-e2ee/v1/file\n${index}\n${final ? 1 : 0}`);
+const chunkAad = (index: number, final: boolean) => utf8(`larpcord-e2ee/v1/file\n${index}\n${final ? 1 : 0}`);
 
 const fileKey = (raw: Bytes, usage: KeyUsage) => crypto.subtle.importKey("raw", raw, { name: "AES-GCM" }, false, [usage]);
 

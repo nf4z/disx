@@ -21,7 +21,7 @@ import { createRequire } from "node:module";
 import { homedir } from "node:os";
 import path from "node:path";
 
-const playwright = createRequire(path.join(homedir(), ".cache/fosscord-tools/package.json"))("playwright-core");
+const playwright = createRequire(path.join(homedir(), ".cache/larpcord-tools/package.json"))("playwright-core");
 
 export async function solveCap({ origin = process.env.ORIGIN || `http://localhost:${process.env.PORT || 3290}`, browser: providedBrowser } = {}) {
     const browser =
@@ -52,16 +52,16 @@ export async function solveCap({ origin = process.env.ORIGIN || `http://localhos
             const widget = document.createElement("cap-widget");
             widget.setAttribute("data-cap-api-endpoint", endpoint);
             widget.addEventListener("solve", (event) => {
-                window.fosscordCapToken = event.detail.token;
+                window.larpcordCapToken = event.detail.token;
             });
             widget.addEventListener("error", () => {
-                window.fosscordCapError = true;
+                window.larpcordCapError = true;
             });
             document.querySelector("main").append(widget);
         }, config.endpoint);
         await page.locator("cap-widget").getByRole("button", { name: "Click to verify you're a human" }).click();
-        await page.waitForFunction(() => window.fosscordCapToken || window.fosscordCapError, { timeout: 60000 });
-        const token = await page.evaluate(() => window.fosscordCapToken);
+        await page.waitForFunction(() => window.larpcordCapToken || window.larpcordCapError, { timeout: 60000 });
+        const token = await page.evaluate(() => window.larpcordCapToken);
         assert.ok(typeof token === "string" && token.length > 0, "Cap challenge completed in a real browser");
         return token;
     } finally {

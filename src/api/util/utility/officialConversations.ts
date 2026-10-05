@@ -45,7 +45,7 @@ async function officialPrekey(userId: string, expectedPublic: string) {
         const value = (await file.readFile("utf8")).trim();
         seed = Buffer.from(value, "base64url");
         if (seed.length !== 32 || seed.toString("base64url") !== value) throw unavailable();
-        secret = Buffer.from(hkdfSync("sha256", seed, Buffer.alloc(32), "fosscord-e2ee/v1/system-sender/prekey", 32));
+        secret = Buffer.from(hkdfSync("sha256", seed, Buffer.alloc(32), "larpcord-e2ee/v1/system-sender/prekey", 32));
         const key = createPrivateKey({ key: Buffer.concat([Buffer.from("302e020100300506032b656e04220420", "hex"), secret]), format: "der", type: "pkcs8" });
         if (createPublicKey(key).export({ format: "jwk" }).x !== expectedPublic) throw unavailable();
         return await suite.kem.deserializePrivateKey(secret);
@@ -87,7 +87,7 @@ export async function decryptOfficialMessage(messageId: string): Promise<Officia
     if (!verified) throw unavailable();
     const bind = env.mid ? `m:${env.mid}` : `n:${message.nonce}`;
     const signed: unknown[] = [
-        "fosscord-e2ee/v1/sig",
+        "larpcord-e2ee/v1/sig",
         message.channel_id,
         message.author_id,
         bind,
@@ -104,11 +104,11 @@ export async function decryptOfficialMessage(messageId: string): Promise<Officia
     const managed = await ensureSystemSender(official);
     const target = env.keys.find((entry) => entry.user_id === official.id && entry.device_id === managed.deviceId && entry.prekey_id === 1);
     if (!target || !decodeKey(env.iv, 12) || !decodeKey(target.enc, 32)) throw unavailable();
-    const aad = `fosscord-e2ee/v1/msg\n${message.channel_id}\n${message.author_id}\n${env.sender_device}\n${bind}`;
+    const aad = `larpcord-e2ee/v1/msg\n${message.channel_id}\n${message.author_id}\n${env.sender_device}\n${bind}`;
     const recipientKey = await officialPrekey(official.id, managed.prekeyPublic);
     const key = Buffer.from(
         await suite.open(
-            { recipientKey, enc: Buffer.from(target.enc, "base64url"), info: Buffer.from("fosscord-e2ee/v1/wrap") },
+            { recipientKey, enc: Buffer.from(target.enc, "base64url"), info: Buffer.from("larpcord-e2ee/v1/wrap") },
             Buffer.from(target.wrapped, "base64url"),
             Buffer.from(`${aad}\n${target.device_id}`),
         ),

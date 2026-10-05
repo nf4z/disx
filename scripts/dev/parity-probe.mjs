@@ -35,7 +35,7 @@ async function call(method, path, token, body, extraHeaders = {}) {
 }
 
 async function login(who) {
-    const credentials = who === "friend" ? { login: "friend@fosscord.test", password: accounts.FRIEND_PASSWORD } : { login: accounts.TEST_EMAIL, password: accounts.TEST_PASSWORD };
+    const credentials = who === "friend" ? { login: "friend@larpcord.test", password: accounts.FRIEND_PASSWORD } : { login: accounts.TEST_EMAIL, password: accounts.TEST_PASSWORD };
     const r = await call("POST", "/auth/login", null, credentials);
     if (!r.body?.token) throw new Error(`login failed ${JSON.stringify(r.body)}`);
     return r.body.token;
@@ -159,7 +159,7 @@ await check("auth", "logout revokes token", async () => {
     return { ok: r.status === 401, note: `after logout ${r.status}` };
 });
 await check("auth", "sessions list", async () => st(await call("GET", "/auth/sessions", A), 200));
-await check("auth", "forgot password", async () => st(await call("POST", "/auth/forgot", null, { login: "tester@fosscord.test" }), 204, 200));
+await check("auth", "forgot password", async () => st(await call("POST", "/auth/forgot", null, { login: "tester@larpcord.test" }), 204, 200));
 await check("auth", "totp mfa enable", async () => {
     const C = globalThis.C;
     const secret = "JBSWY3DPEHPK3PXP".padEnd(16, "A");
@@ -984,13 +984,13 @@ await check("more", "email change flow", async () => {
     const C = (
         await call("POST", "/auth/register", null, {
             username: `mail${suffix}`,
-            email: `mail${suffix}@fosscord.test`,
+            email: `mail${suffix}@larpcord.test`,
             password: `pw-${suffix}-Abc123!`,
             date_of_birth: "2000-01-01",
             consent: true,
         })
     ).body.token;
-    const r = await call("PATCH", "/users/@me", C, { email: `new${suffix}@fosscord.test`, password: `pw-${suffix}-Abc123!` });
+    const r = await call("PATCH", "/users/@me", C, { email: `new${suffix}@larpcord.test`, password: `pw-${suffix}-Abc123!` });
     globalThis.M = r.body?.token ?? C;
     return { ok: r.status === 200 || r.status === 400, note: `${r.status} ${JSON.stringify(r.body).slice(0, 150)}` };
 });

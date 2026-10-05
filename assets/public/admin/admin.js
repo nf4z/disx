@@ -3676,7 +3676,7 @@ const fmtAgo = (value) => {
 };
 const item = (label, value) => html`<div class="list-item"><span class="grow muted">${label}</span><span style="text-align:right">${value}</span></div>`;
 const PATCH_GROUPS = [
-    ["fosscord", "Fosscord plugins", "danger"],
+    ["larpcord", "LarpCord plugins", "danger"],
     ["enabled", "Upstream plugins enabled by default", "warn"],
     ["upstream", "Other upstream plugins", ""],
 ];
@@ -3728,7 +3728,7 @@ function renderClientStatus({ client, vencord, patch_check: check }) {
               items: [
                   ...check.bad_patches.filter((p) => p.group === key).map((p) => ({ plugin: p.plugin, text: `Patch ${p.type}`, detail: p.error ?? p.match })),
                   ...check.bad_starts.filter((p) => p.group === key).map((p) => ({ plugin: p.plugin, text: "Failed to start", detail: p.error })),
-                  ...(key === "fosscord" ? check.unmatched_all_patches.map((p) => ({ plugin: p.plugin, text: "Patch found no module", detail: p.find })) : []),
+                  ...(key === "larpcord" ? check.unmatched_all_patches.map((p) => ({ plugin: p.plugin, text: "Patch found no module", detail: p.find })) : []),
                   ...(key === "upstream" ? check.bad_finds.map((find) => ({ plugin: "Webpack", text: "Find failed", detail: find })) : []),
               ],
           }))
@@ -3804,7 +3804,7 @@ function renderClientStatus({ client, vencord, patch_check: check }) {
                         ? html`<div class="list">
                               ${item("Built", html`${fmtDate(vencord.built_at)} <span class="muted">(${fmtAgo(vencord.built_at)})</span>`)}
                               ${item("Commit", vencord.commit ? html`<code>${vencord.commit.slice(0, 10)}</code>` : "—")} ${item("Bundle size", fmtBytes(vencord.size))}
-                              ${item("Fosscord plugins", html`<span class="badges" style="justify-content:flex-end">${vencord.plugins.map((p) => html`<span class="badge accent">${p.replace(/^fosscord/, "")}</span>`)}</span>`)}
+                              ${item("LarpCord plugins", html`<span class="badges" style="justify-content:flex-end">${vencord.plugins.map((p) => html`<span class="badge accent">${p.replace(/^larpcord/, "")}</span>`)}</span>`)}
                           </div>`
                         : html`<p class="muted" style="margin:0">The client runs without its mods. Run <code>npm run build:vencord</code> on the server.</p>`
                 }

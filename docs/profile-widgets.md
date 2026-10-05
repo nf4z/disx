@@ -12,7 +12,7 @@ The page edits the three parts of the card and draws them next to the form the w
 - Bottom: four items with an icon, a name and a description, six stats with a label, or a progress bar.
 - Profile popout: one line and an image, which defaults to the top image.
 
-Add to my profile puts it on your Board. It also shows up in the client's Add Widget picker under Your Profile Widgets, a tab `FosscordApps` adds for widgets of applications you own.
+Add to my profile puts it on your Board. It also shows up in the client's Add Widget picker under Your Profile Widgets, a tab `LarpCordApps` adds for widgets of applications you own.
 
 Text fields hold fixed text, or `{{key}}` to show a value set for each person. The Your values card sets your own, and the application's bot sets anyone's (see below). Numbers are formatted in the reader's language. The progress bar always reads its numbers from values.
 

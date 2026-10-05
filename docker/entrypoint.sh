@@ -12,6 +12,7 @@ client)
     node scripts/client.js
     node scripts/e2ee-anchors.js || echo "[client] warning: e2ee anchors are missing from this client build, encrypted DMs stay unavailable until client/e2ee is updated"
     node scripts/clan-badges.js || echo "[client] warning: could not extract server tag badges from this client build"
+    node scripts/experiments.js || echo "[client] warning: could not list the experiments in this client build"
     node scripts/compress-client.js
     ;;
 server)

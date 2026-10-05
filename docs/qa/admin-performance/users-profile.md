@@ -22,7 +22,7 @@ All three strategies produced identical JSON for the full page, partial and empt
 Run the profiler after compiling the current backend:
 
 ```sh
-ADMIN_USERS_PROFILE=1 DATABASE=postgres://USER@localhost:5432/fosscord_codex_admin \
+ADMIN_USERS_PROFILE=1 DATABASE=postgres://USER@localhost:5432/larpcord_codex_admin \
   ADMIN_USERS_PROFILE_OUTPUT=/tmp/admin-users-profile.json \
   node scripts/dev/admin-users-profile.cjs
 ```

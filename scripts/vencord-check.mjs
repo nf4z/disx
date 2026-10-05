@@ -34,14 +34,14 @@ if (!existsSync(reporterScript)) {
 }
 
 const playwright = (() => {
-    for (const base of [path.join(ROOT, "package.json"), path.join(homedir(), ".cache", "fosscord-tools", "package.json")]) {
+    for (const base of [path.join(ROOT, "package.json"), path.join(homedir(), ".cache", "larpcord-tools", "package.json")]) {
         try {
             return createRequire(base)("playwright-core");
         } catch {
             continue;
         }
     }
-    console.error("playwright-core is not installed, run `npm i -D playwright-core` or install it in ~/.cache/fosscord-tools");
+    console.error("playwright-core is not installed, run `npm i -D playwright-core` or install it in ~/.cache/larpcord-tools");
     process.exit(2);
 })();
 
@@ -116,20 +116,20 @@ await page.goto(`${origin}/login`);
 const outcome = await Promise.race([finished, new Promise((resolve) => setTimeout(() => resolve("timeout"), timeout))]);
 await browser.close().catch(() => {});
 
-const owner = (plugin) => (ours.has(plugin) ? "fosscord" : enabled.has(plugin) ? "enabled" : "upstream");
+const owner = (plugin) => (ours.has(plugin) ? "larpcord" : enabled.has(plugin) ? "enabled" : "upstream");
 const findOwner = (find) => [...ours].find((name) => find.includes(name));
 writeFileSync(reportPath, JSON.stringify({ outcome, origin, seconds: Math.round((Date.now() - started) / 1000), ...report }, null, 4));
 
-const groups = { fosscord: [], enabled: [], upstream: [] };
+const groups = { larpcord: [], enabled: [], upstream: [] };
 for (const patch of report.badPatches)
     groups[owner(patch.plugin)].push(`${patch.plugin}: patch ${patch.type}\n      ${patch.match.slice(0, 220)}${patch.error ? `\n      ${patch.error.slice(0, 220)}` : ""}`);
 for (const start of report.badStarts) groups[owner(start.plugin)].push(`${start.plugin}: failed to start\n      ${start.error.slice(0, 220)}`);
-for (const patch of report.unmatchedAllPatches) groups.fosscord.push(`${patch.plugin}: patch found no module\n      ${patch.find.slice(0, 220)}`);
-for (const find of report.badFinds) groups[findOwner(find) ? "fosscord" : "upstream"].push(`webpack find failed\n      ${find.slice(0, 220)}`);
+for (const patch of report.unmatchedAllPatches) groups.larpcord.push(`${patch.plugin}: patch found no module\n      ${patch.find.slice(0, 220)}`);
+for (const find of report.badFinds) groups[findOwner(find) ? "larpcord" : "upstream"].push(`webpack find failed\n      ${find.slice(0, 220)}`);
 
 console.log(`Vencord check against ${origin} (${outcome}, ${Math.round((Date.now() - started) / 1000)}s, build ${report.meta?.buildNumber ?? "unknown"})`);
 for (const [group, title] of [
-    ["fosscord", "Fosscord plugins"],
+    ["larpcord", "LarpCord plugins"],
     ["enabled", "Upstream plugins enabled by default"],
     ["upstream", "Other upstream plugins (disabled by default, informational)"],
 ]) {
@@ -143,4 +143,4 @@ if (outcome !== "done") {
     console.error(`\nThe reporter did not finish (${outcome}).`);
     process.exit(1);
 }
-process.exit(groups.fosscord.length || groups.enabled.length ? 1 : 0);
+process.exit(groups.larpcord.length || groups.enabled.length ? 1 : 0);

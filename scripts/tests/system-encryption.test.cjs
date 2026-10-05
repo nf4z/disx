@@ -44,7 +44,7 @@ const load = (file, imports) => {
             DataView,
             Blob,
             URL,
-            location: { origin: "http://fosscord.test" },
+            location: { origin: "http://larpcord.test" },
             atob,
             btoa,
         },
@@ -56,12 +56,12 @@ const client = load("client/e2ee/src/crypto.ts", { "./bytes": bytes });
 const files = load("client/e2ee/src/files.ts", { "./bytes": bytes });
 const attachments = load("client/e2ee/src/attachments.ts", { "./bytes": bytes, "./files": files });
 const deviceId = (key) => crypto.createHash("sha256").update(Buffer.from(key, "base64url")).digest().subarray(0, 16).toString("base64url");
-const deviceMessage = (u, d, k) => `fosscord-e2ee/v1/device\n${u}\n${d}\n${k}`;
-const prekeyMessage = (d, i, k) => `fosscord-e2ee/v1/prekey\n${d}\n${i}\n${k}`;
-const backupMessage = (u, k) => `fosscord-e2ee/v1/backup-key\n${u}\n${k}`;
+const deviceMessage = (u, d, k) => `larpcord-e2ee/v1/device\n${u}\n${d}\n${k}`;
+const prekeyMessage = (d, i, k) => `larpcord-e2ee/v1/prekey\n${d}\n${i}\n${k}`;
+const backupMessage = (u, k) => `larpcord-e2ee/v1/backup-key\n${u}\n${k}`;
 const sign = (key, value) => crypto.sign(null, Buffer.from(value), key).toString("base64url");
 async function harness() {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "fosscord-system-crypto-"));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "larpcord-system-crypto-"));
     const original = process.env.E2EE_SYSTEM_KEY_DIR;
     process.env.E2EE_SYSTEM_KEY_DIR = dir;
     const identities = new Map(),
@@ -155,13 +155,13 @@ test("system envelopes decrypt with the actual client HPKE/AES implementation an
         const managed = await h.helper.ensureSystemSender(h.sender);
         const target = envelope.keys.find((entry) => entry.user_id === h.recipient);
         const pair = await client.importAgreementJwk(h.prekey.privateKey.export({ format: "jwk" }));
-        const aad = `fosscord-e2ee/v1/msg\n1234567892\n${h.sender.id}\n${managed.deviceId}\nn:1234567893`;
-        const key = await client.hpkeOpen(pair, target.enc, target.wrapped, "fosscord-e2ee/v1/wrap", `${aad}\n${target.device_id}`);
+        const aad = `larpcord-e2ee/v1/msg\n1234567892\n${h.sender.id}\n${managed.deviceId}\nn:1234567893`;
+        const key = await client.hpkeOpen(pair, target.enc, target.wrapped, "larpcord-e2ee/v1/wrap", `${aad}\n${target.device_id}`);
         const plain = await client.aesDecrypt(key, bytes.fromB64u(envelope.iv), bytes.fromB64u(envelope.ct), aad);
         assert.equal(JSON.parse(bytes.fromUtf8(plain)).content, "Only the encrypted payload contains this announcement");
         await assert.rejects(client.aesDecrypt(key, bytes.fromB64u(envelope.iv), bytes.fromB64u(envelope.ct), aad + "tampered"));
         const canonical = [
-            "fosscord-e2ee/v1/sig",
+            "larpcord-e2ee/v1/sig",
             "1234567892",
             h.sender.id,
             "n:1234567893",
@@ -225,7 +225,7 @@ test("encrypted system attachments round-trip through actual client chunk decryp
             native.apply(message, { content: "Encrypted attachment", attachments: [file.meta] });
             assert.equal(message.attachments[0].filename, "private-name.txt");
             assert.equal(message.attachments[0].content_type, "text/plain");
-            assert.equal(message.attachments[0].url, "http://fosscord.test/e2ee/attachments/123/456/private-name.txt");
+            assert.equal(message.attachments[0].url, "http://larpcord.test/e2ee/attachments/123/456/private-name.txt");
             assert.equal(native.nameOf("456"), file.originalname);
             const data = Uint8Array.from(file.buffer).buffer;
             const decoded = await files.decryptFile(data, file.meta.key, file.meta.iv);

@@ -19,7 +19,7 @@
 import { Snowflake } from "@spacebar/util";
 
 export class GeneralConfiguration {
-    instanceName: string = "Fosscord";
+    instanceName: string = "LarpCord";
     serverName: string | null = null;
     instanceDescription: string | null = null;
     frontPage: string | null = null;

@@ -27,7 +27,7 @@ const login = async (email, password) => {
     return response.data.token;
 };
 const admin = await login(account.TEST_EMAIL, account.TEST_PASSWORD);
-const friend = await login("friend@fosscord.test", account.FRIEND_PASSWORD);
+const friend = await login("friend@larpcord.test", account.FRIEND_PASSWORD);
 const guilds = [];
 try {
     const server = await request(friend, "POST", "/guilds", { name: "Disposable admin creation API check" });

@@ -17,7 +17,7 @@
 */
 
 import { ConnectedAccount, Invite, Role, Emoji, Channel, User, Sticker, UserSettings, ReadState, PublicThreadMember } from "@spacebar/database";
-import { Activity, Presence, IReadyGuildDTO, ReadyUserGuildSettingsEntries, ReadyPrivateChannel, GuildOrUnavailable, Snowflake, getApexExperiments } from "@spacebar/util";
+import { Activity, Presence, IReadyGuildDTO, ReadyUserGuildSettingsEntries, ReadyPrivateChannel, GuildOrUnavailable, Snowflake, getApexExperiments, getLegacyExperiments } from "@spacebar/util";
 import { JsonValue } from "@protobuf-ts/runtime";
 import {
     ApplicationCommand,
@@ -81,17 +81,8 @@ export interface ReadyEventData {
     country_code?: string; // e.g. DE
     friend_suggestion_count?: number;
     geo_ordered_rtc_regions?: string[]; // ["europe","russie","india","us-east","us-central"]
-    experiments?: [number, number, number, number, number][];
-    guild_experiments?: [
-        // ? what are guild_experiments?
-        // this is the structure of it:
-        number,
-        null,
-        number,
-        [[number, { e: number; s: number }[]]],
-        [number, [[number, [number, number]]]],
-        { b: number; k: bigint[] }[],
-    ][];
+    experiments?: ReturnType<typeof getLegacyExperiments>["experiments"];
+    guild_experiments?: ReturnType<typeof getLegacyExperiments>["guild_experiments"];
     apex_experiments?: ReturnType<typeof getApexExperiments>;
     guild_join_requests?: unknown[]; // ? what is this? this is new
     shard?: [number, number];

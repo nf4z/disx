@@ -115,7 +115,7 @@ async function fixture(origin) {
 }
 test("validated ciphertext URLs follow opened origin and preserve complete signed locator", () => {
     const { attachmentCiphertextUrl } = registry("https://chat.example:8443");
-    for (const host of ["localhost:3290", "127.0.0.1:3290", "0.0.0.0:3290", "[::1]:3290", "fosscord.localhost:3290", "chat.example:8443"])
+    for (const host of ["localhost:3290", "127.0.0.1:3290", "0.0.0.0:3290", "[::1]:3290", "larpcord.localhost:3290", "chat.example:8443"])
         assert.equal(
             attachmentCiphertextUrl(`http://${host}/attachments/10/30/opaque.bin?sig=a%2Bb&size=16#x`, "10", "opaque.bin", "https://chat.example:8443"),
             "https://chat.example:8443/attachments/10/30/opaque.bin?sig=a%2Bb&size=16#x",
@@ -203,7 +203,7 @@ test("real browser service worker fetches registered ciphertext from opened orig
     const path = require("node:path");
     const os = require("node:os");
     const { createRequire } = require("node:module");
-    const { chromium } = createRequire(path.join(os.homedir(), ".cache/fosscord-tools/package.json"))("playwright-core");
+    const { chromium } = createRequire(path.join(os.homedir(), ".cache/larpcord-tools/package.json"))("playwright-core");
     const js = buildSync({
         stdin: {
             contents:

@@ -21,9 +21,9 @@ import { createRequire } from "node:module";
 import { homedir } from "node:os";
 import path from "node:path";
 
-const playwright = createRequire(path.join(homedir(), ".cache/fosscord-tools/package.json"))("playwright-core");
-const origin = (process.env.ORIGIN || `http://fosscord.localhost:${process.env.PORT || 3290}`).replace(/\/$/, "");
-assert.ok(["localhost", "fosscord.localhost", "127.0.0.1"].includes(new URL(origin).hostname), "Use an isolated localhost instance for signup fixtures");
+const playwright = createRequire(path.join(homedir(), ".cache/larpcord-tools/package.json"))("playwright-core");
+const origin = (process.env.ORIGIN || `http://larpcord.localhost:${process.env.PORT || 3290}`).replace(/\/$/, "");
+assert.ok(["localhost", "larpcord.localhost", "127.0.0.1"].includes(new URL(origin).hostname), "Use an isolated localhost instance for signup fixtures");
 const username = `capsmoke${Date.now()}`;
 const password = `${crypto.randomUUID()}A9`;
 const browserName = process.env.BROWSER || "chromium";
@@ -85,7 +85,7 @@ try {
             return route.fulfill({
                 status: 400,
                 contentType: "application/json",
-                body: JSON.stringify({ captcha_service: "cap", captcha_sitekey: "fosscord", captcha_key: ["invalid-input-response"] }),
+                body: JSON.stringify({ captcha_service: "cap", captcha_sitekey: "larpcord", captcha_key: ["invalid-input-response"] }),
             });
         });
         await page.getByRole("button", { name: "Create Account", exact: true }).click();
@@ -94,7 +94,7 @@ try {
         await page.unroute(registerRoute);
         await solve();
     }
-    await page.screenshot({ path: process.env.CAP_SCREENSHOT || "/tmp/fosscord-cap-signup.png", fullPage: true });
+    await page.screenshot({ path: process.env.CAP_SCREENSHOT || "/tmp/larpcord-cap-signup.png", fullPage: true });
     const registered = page.waitForResponse((response) => response.request().method() === "POST" && new URL(response.url()).pathname.endsWith("/auth/register"));
     await page.getByRole("button", { name: "Create Account", exact: true }).click();
     const response = await registered;
@@ -135,7 +135,7 @@ try {
     assert.equal(await mobilePage.locator("cap-widget").getAttribute("data-cap-worker-count"), "2");
     await mobilePage.locator("cap-widget").getByRole("button", { name: "Click to verify you're a human" }).click();
     await mobilePage.getByText("Verified. You can create your account.", { exact: true }).waitFor({ timeout: 60000 });
-    await mobilePage.screenshot({ path: "/tmp/fosscord-cap-mobile-bounded-workers.png", fullPage: true });
+    await mobilePage.screenshot({ path: "/tmp/larpcord-cap-mobile-bounded-workers.png", fullPage: true });
     await mobileContext.close();
     assert.deepEqual(pageErrors, [], "Signup has no unexpected browser runtime errors");
     console.log(

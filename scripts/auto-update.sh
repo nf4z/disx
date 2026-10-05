@@ -9,8 +9,8 @@
 #   UPDATE_CODE     0 to leave the code alone and only update the web client
 #   UPDATE_CLIENT   0 to leave the web client alone and only update the code
 #   SERVER_PORT     the server's port on the host's loopback, 3001 unless you changed it in the env file
-#   NOTIFY_WEBHOOK  a Discord or Fosscord webhook URL that gets a message when something was updated or went wrong
-#   LOCK_FILE       where the lock that stops two runs overlapping lives, /tmp/fosscord-auto-update.lock by default
+#   NOTIFY_WEBHOOK  a Discord or LarpCord webhook URL that gets a message when something was updated or went wrong
+#   LOCK_FILE       where the lock that stops two runs overlapping lives, /tmp/larpcord-auto-update.lock by default
 
 set -euo pipefail
 
@@ -31,7 +31,7 @@ compose() {
 }
 
 # one run at a time: a client download can take a few minutes
-LOCK_FILE=${LOCK_FILE:-/tmp/fosscord-auto-update.lock}
+LOCK_FILE=${LOCK_FILE:-/tmp/larpcord-auto-update.lock}
 if command -v flock >/dev/null; then
     exec 9>"$LOCK_FILE"
     flock -n 9 || { log "another update is still running, skipping"; exit 0; }

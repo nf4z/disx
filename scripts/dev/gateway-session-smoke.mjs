@@ -24,9 +24,9 @@ import { solveCap } from "./cap-token.mjs";
 const require = createRequire(import.meta.url);
 const WebSocket = require("ws");
 const origin = process.env.ORIGIN || "http://localhost:3290";
-assert.ok(["localhost", "fosscord.localhost", "127.0.0.1"].includes(new URL(origin).hostname));
-require("dotenv").config({ path: process.env.FIXTURE_ENV || "/tmp/fosscord-admin-perf/.env", quiet: true });
-assert.equal(new URL(process.env.DATABASE).pathname, "/fosscord_codex_admin");
+assert.ok(["localhost", "larpcord.localhost", "127.0.0.1"].includes(new URL(origin).hostname));
+require("dotenv").config({ path: process.env.FIXTURE_ENV || "/tmp/larpcord-admin-perf/.env", quiet: true });
+assert.equal(new URL(process.env.DATABASE).pathname, "/larpcord_codex_admin");
 const username = `resumesmoke${Date.now()}`;
 const password = `${randomUUID()}A9`;
 const sockets = [];
@@ -93,7 +93,7 @@ try {
         op: 2,
         d: {
             token: tokenA,
-            properties: { os: "Linux", browser: "Fosscord regression" },
+            properties: { os: "Linux", browser: "LarpCord regression" },
             intents: 0,
             capabilities: 30717,
             presence: { status: "online", activities: [], afk: false, since: 0 },

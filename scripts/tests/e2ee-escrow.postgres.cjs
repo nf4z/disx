@@ -31,7 +31,7 @@ const keypair = (curve) => {
 };
 const sign = (key, message) => crypto.sign(null, Buffer.from(message), key).toString("base64url");
 const box = (secret, userId, label, jwk) => {
-    const key = Buffer.from(crypto.hkdfSync("sha256", secret, Buffer.alloc(32), `fosscord-e2ee/v1/backup/${label}`, 32));
+    const key = Buffer.from(crypto.hkdfSync("sha256", secret, Buffer.alloc(32), `larpcord-e2ee/v1/backup/${label}`, 32));
     const iv = crypto.randomBytes(12);
     const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
     cipher.setAAD(Buffer.from(`${label}\n${userId}`));
@@ -126,7 +126,7 @@ const createFixture = async () => {
 };
 before(async () => {
     if (!enabled) return;
-    assert.equal(new URL(process.env.DATABASE).pathname, "/fosscord_codex_admin");
+    assert.equal(new URL(process.env.DATABASE).pathname, "/larpcord_codex_admin");
     process.env.E2EE_RECOVERY_MASTER_KEY = crypto.randomBytes(32).toString("base64url");
     entities = require("../../dist/database");
     db = await entities.initDatabase();

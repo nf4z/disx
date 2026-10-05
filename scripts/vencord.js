@@ -31,7 +31,8 @@ const OUTPUT = path.join(ROOT, "assets", "vencord");
 const reporter = process.argv.includes("--reporter");
 
 const run = (command, args, options = {}) => {
-    const result = spawnSync(command, args, { cwd: SOURCE, stdio: "inherit", ...options });
+    // pnpm/npx/corepack are .cmd shims on Windows and need a shell to launch
+    const result = spawnSync(command, args, { cwd: SOURCE, stdio: "inherit", shell: process.platform === "win32" && command !== "git", ...options });
     if (result.error) throw result.error;
     if (result.status !== 0) throw new Error(`${command} ${args.join(" ")} exited with ${result.status}`);
 };
@@ -63,7 +64,7 @@ const pnpm = () => {
     // a lockfile from another pnpm major fails --frozen-lockfile, so only take a pnpm matching vencord's pinned major
     const pinned = JSON.parse(fs.readFileSync(path.join(SOURCE, "package.json"), "utf8")).packageManager?.match(/^pnpm@(\d+)/)?.[1] ?? "11";
     const major = (candidate) =>
-        spawnSync(candidate[0], [...candidate.slice(1), "--version"], { cwd: SOURCE, encoding: "utf8" })
+        spawnSync(candidate[0], [...candidate.slice(1), "--version"], { cwd: SOURCE, encoding: "utf8", shell: process.platform === "win32" })
             .stdout?.trim()
             .split(".")[0];
     for (const candidate of [["pnpm"], ["corepack", "pnpm"], ["npx", "-y", `pnpm@${pinned}`]]) {
@@ -96,7 +97,7 @@ const seedDefaults = (defaults) => `(() => {
     const defaults = ${JSON.stringify(defaults)};
     try {
         const settings = JSON.parse(localStorage.getItem("VencordSettings") || "{}");
-        const seeded = new Set(JSON.parse(localStorage.getItem("FosscordVencordSeeded") || "[]"));
+        const seeded = new Set(JSON.parse(localStorage.getItem("LarpCordVencordSeeded") || "[]"));
         settings.plugins ??= {};
         for (const [name, value] of Object.entries(defaults.plugins)) {
             const key = typeof value === "boolean" ? name : \`\${name}:\${JSON.stringify(value)}\`;
@@ -106,7 +107,7 @@ const seedDefaults = (defaults) => `(() => {
         }
         for (const [key, value] of Object.entries(defaults.settings)) settings[key] ??= value;
         localStorage.setItem("VencordSettings", JSON.stringify(settings));
-        localStorage.setItem("FosscordVencordSeeded", JSON.stringify([...seeded]));
+        localStorage.setItem("LarpCordVencordSeeded", JSON.stringify([...seeded]));
     } catch (e) {
         console.error("[vencord] could not seed default settings", e);
     }
@@ -135,7 +136,7 @@ const writeOutput = (version) => {
     const pm = pnpm();
     install(pm);
     const plugins = copyPlugins();
-    console.log(`[vencord] building ${reporter ? "reporter" : "web"} target with ${plugins.length} fosscord plugins`);
+    console.log(`[vencord] building ${reporter ? "reporter" : "web"} target with ${plugins.length} larpcord plugins`);
     run(pm[0], [...pm.slice(1), "buildWeb", "--skip-extension", ...(reporter ? ["--reporter"] : [])], {
         env: { ...process.env, VENCORD_HASH: CONFIG.commit.slice(0, 7) },
     });

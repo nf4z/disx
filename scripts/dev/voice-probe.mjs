@@ -3,7 +3,7 @@ import { createRequire } from "node:module";
 import { homedir } from "node:os";
 import { readFileSync } from "node:fs";
 
-const require = createRequire(`${homedir()}/.cache/fosscord-tools/`);
+const require = createRequire(`${homedir()}/.cache/larpcord-tools/`);
 const { chromium } = require("playwright-core");
 
 const args = process.argv.slice(2);
@@ -17,7 +17,7 @@ const wait = Number(flag("wait", "10")) * 1000;
 const executablePath = flag("browser");
 const video = has("video");
 const dropVoice = has("drop-voice");
-const origin = `http://fosscord.localhost:${port}`;
+const origin = `http://larpcord.localhost:${port}`;
 const api = `http://localhost:${port}/api/v9`;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -29,7 +29,7 @@ const accounts = Object.fromEntries(
 );
 const users = {
     tester: { login: accounts.TEST_EMAIL, password: accounts.TEST_PASSWORD },
-    friend: { login: "friend@fosscord.test", password: accounts.FRIEND_PASSWORD },
+    friend: { login: "friend@larpcord.test", password: accounts.FRIEND_PASSWORD },
 };
 const call = async (token, method, path, body) =>
     fetch(`${api}${path}`, { method, headers: { "content-type": "application/json", ...(token && { authorization: token }) }, body: body && JSON.stringify(body) }).then((r) =>
@@ -75,8 +75,8 @@ try {
                         if (window.__workerDiagnostics.length < 300) window.__workerDiagnostics.push({ event: "worker-error", path, message: event.message?.slice(0, 300) });
                     });
                     worker.addEventListener("message", (event) => {
-                        if (event.data?.fosscordVoiceDiagnostic && window.__workerDiagnostics.length < 300)
-                            window.__workerDiagnostics.push({ path, ...event.data.fosscordVoiceDiagnostic });
+                        if (event.data?.larpcordVoiceDiagnostic && window.__workerDiagnostics.length < 300)
+                            window.__workerDiagnostics.push({ path, ...event.data.larpcordVoiceDiagnostic });
                     });
                     const send = worker.postMessage.bind(worker);
                     worker.postMessage = (data, ...rest) => {
@@ -138,20 +138,20 @@ try {
                 };
                 replace(
                     "let o=t.Encrypt(i,r,u,e.data.byteLength,s);",
-                    "let o=t.Encrypt(i,r,u,e.data.byteLength,s);self.__voiceFrames=(self.__voiceFrames||0)+1;if(self.__voiceFrames%100===1)postMessage({fosscordVoiceDiagnostic:{event:'encrypt',frames:self.__voiceFrames,result:o,size:e.data.byteLength,ssrc:r}});",
+                    "let o=t.Encrypt(i,r,u,e.data.byteLength,s);self.__voiceFrames=(self.__voiceFrames||0)+1;if(self.__voiceFrames%100===1)postMessage({larpcordVoiceDiagnostic:{event:'encrypt',frames:self.__voiceFrames,result:o,size:e.data.byteLength,ssrc:r}});",
                 );
                 replace(
                     "r.pipeThrough(n).pipeTo(t)",
-                    "r.pipeThrough(n).pipeTo(t).catch(error=>postMessage({fosscordVoiceDiagnostic:{event:'pipeline-error',error:String(error)}}))",
+                    "r.pipeThrough(n).pipeTo(t).catch(error=>postMessage({larpcordVoiceDiagnostic:{event:'pipeline-error',error:String(error)}}))",
                 );
                 replace(
                     "function v(e,r){try{",
-                    "function v(e,r){self.__voiceEntries=(self.__voiceEntries||0)+1;if(self.__voiceEntries%100===1)postMessage({fosscordVoiceDiagnostic:{event:'frame-entry',frames:self.__voiceEntries,size:e.data.byteLength,ssrc:e.getMetadata().synchronizationSource}});try{",
+                    "function v(e,r){self.__voiceEntries=(self.__voiceEntries||0)+1;if(self.__voiceEntries%100===1)postMessage({larpcordVoiceDiagnostic:{event:'frame-entry',frames:self.__voiceEntries,size:e.data.byteLength,ssrc:e.getMetadata().synchronizationSource}});try{",
                 );
-                replace("self.onmessage=e=>{O(e)}", 'postMessage({fosscordVoiceDiagnostic:{event:"handler-installed"}});self.onmessage=e=>{O(e)}');
-                replace('b="initialized",w)', 'b="initialized",postMessage({fosscordVoiceDiagnostic:{event:"wasm-ready"}}),w)');
+                replace("self.onmessage=e=>{O(e)}", 'postMessage({larpcordVoiceDiagnostic:{event:"handler-installed"}});self.onmessage=e=>{O(e)}');
+                replace('b="initialized",w)', 'b="initialized",postMessage({larpcordVoiceDiagnostic:{event:"wasm-ready"}}),w)');
                 source =
-                    'postMessage({fosscordVoiceDiagnostic:{event:"worker-start"}});self.addEventListener("unhandledrejection",event=>postMessage({fosscordVoiceDiagnostic:{event:"worker-rejection",message:String(event.reason).slice(0,300)}}));self.addEventListener("rtctransform",()=>postMessage({fosscordVoiceDiagnostic:{event:"rtctransform"}}));' +
+                    'postMessage({larpcordVoiceDiagnostic:{event:"worker-start"}});self.addEventListener("unhandledrejection",event=>postMessage({larpcordVoiceDiagnostic:{event:"worker-rejection",message:String(event.reason).slice(0,300)}}));self.addEventListener("rtctransform",()=>postMessage({larpcordVoiceDiagnostic:{event:"rtctransform"}}));' +
                     source;
                 await route.fulfill({ status: 200, contentType: "text/javascript", body: source });
             });

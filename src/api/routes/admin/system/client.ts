@@ -98,7 +98,7 @@ router.get("/", route({ right: "OPERATOR", spacebarOnly: true, description: "Cli
     const enabled = new Set(
         Object.entries(vencordConfig?.plugins ?? {}).flatMap(([name, value]) => ((typeof value === "boolean" ? value : value?.enabled) ? [name.toLowerCase()] : [])),
     );
-    const group = (plugin: string) => (ours.has(plugin.toLowerCase()) ? "fosscord" : enabled.has(plugin.toLowerCase()) ? "enabled" : "upstream");
+    const group = (plugin: string) => (ours.has(plugin.toLowerCase()) ? "larpcord" : enabled.has(plugin.toLowerCase()) ? "enabled" : "upstream");
 
     res.json({
         client: {

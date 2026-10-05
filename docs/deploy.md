@@ -7,9 +7,9 @@
 | Service    | Image                                        | What it does                                                                                                                                          |
 | ---------- | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `postgres` | `postgres:18-alpine`                         | The database.                                                                                                                                         |
-| `client`   | `fosscord-server`, built from `Dockerfile`   | Runs before the server starts. Downloads the Discord web client into the `client` volume when it is empty, then exits.                                |
-| `sfu`      | `fosscord-sfu`, the Go stage of `Dockerfile` | The pion SFU from `extra/pion-sfu`. It carries voice, video and Go Live media on a single UDP port.                                                   |
-| `server`   | `fosscord-server`                            | The bundle: API, CDN, gateway, voice gateway and the web client, all on port 3001 inside the compose network.                                         |
+| `client`   | `larpcord-server`, built from `Dockerfile`   | Runs before the server starts. Downloads the Discord web client into the `client` volume when it is empty, then exits.                                |
+| `sfu`      | `larpcord-sfu`, the Go stage of `Dockerfile` | The pion SFU from `extra/pion-sfu`. It carries voice, video and Go Live media on a single UDP port.                                                   |
+| `server`   | `larpcord-server`                            | The bundle: API, CDN, gateway, voice gateway and the web client, all on port 3001 inside the compose network.                                         |
 | `caddy`    | `caddy:2-alpine`                             | Optional, see below. Terminates TLS with automatic certificates, serves HTTP/1.1, HTTP/2 and HTTP/3, compresses responses and proxies the websockets. |
 
 Caddy and the SFU publish ports to the internet. The server is also published on the host's loopback, `127.0.0.1:3001`, for a reverse proxy outside compose. Postgres is reachable inside the compose network and nowhere else.
@@ -23,13 +23,13 @@ Caddy and the SFU publish ports to the internet. The server is also published on
 ### First start
 
 ```sh
-git clone <this repository> fosscord && cd fosscord
+git clone <this repository> larpcord && cd larpcord
 cp .env.example .env
 $EDITOR .env
 docker compose up -d --build
 ```
 
-On the first start the `client` service runs `scripts/client.js`, `scripts/e2ee-anchors.js`, `scripts/clan-badges.js` and `scripts/compress-client.js`, the same steps `npm run generate:client` runs. Vencord, the last step of `npm run generate:client`, is built into the image instead, from the pinned commit in `client/vencord.json` and the plugins in `client/plugins`. The download is about 300 MB and 12,000 files, and compressing them takes another minute. Nothing from Discord ends up in the image or in git. Follow it with:
+On the first start the `client` service runs `scripts/client.js`, `scripts/e2ee-anchors.js`, `scripts/clan-badges.js`, `scripts/experiments.js` and `scripts/compress-client.js`, the same steps `npm run generate:client` runs. Vencord, the last step of `npm run generate:client`, is built into the image instead, from the pinned commit in `client/vencord.json` and the plugins in `client/plugins`. The download is about 300 MB and 12,000 files, and compressing them takes another minute. Nothing from Discord ends up in the image or in git. Follow it with:
 
 ```sh
 docker compose logs -f client
@@ -46,7 +46,7 @@ Every variable lives in `.env`. `.env.example` lists all of them.
 | Variable                                             | Required | Meaning                                                                                                                                                                                                                                                                    |
 | ---------------------------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `DOMAIN`                                             | yes      | Host name the instance is served on, such as `chat.example.com`. Caddy requests the certificate for it and the server builds every public URL from it.                                                                                                                     |
-| `POSTGRES_PASSWORD`                                  | yes      | Password of the `fosscord` database user. It goes into a connection URL, so stick to letters and digits, `openssl rand -hex 24` for example. Postgres only reads it when the volume is empty, so changing it later also needs `ALTER USER` inside Postgres.                |
+| `POSTGRES_PASSWORD`                                  | yes      | Password of the `larpcord` database user. It goes into a connection URL, so stick to letters and digits, `openssl rand -hex 24` for example. Postgres only reads it when the volume is empty, so changing it later also needs `ALTER USER` inside Postgres.                |
 | `WRTC_PUBLIC_IP`                                     | yes      | Public IPv4 address clients send voice and video to. The SFU announces it in its ICE candidates. Behind NAT, use the outside address and forward the voice port to the host.                                                                                               |
 | `WRTC_PORT`                                          | no       | UDP port for all media, 50000 by default. It is published on the host under the same number, because the SFU announces the port it listens on.                                                                                                                             |
 | `INSTANCE_NAME`                                      | no       | Name shown in the client, emails, the developer portal and the status page. Sets `general.instanceName` and `client.instanceName` on the first start, and again whenever you change it here. In between, a name set in the admin panel stays.                              |
@@ -70,7 +70,7 @@ Every variable lives in `.env`. `.env.example` lists all of them.
 The server keeps its configuration in `/data/state/config.json` in the `state` volume. Before every start, `scripts/docker-configure.js` writes the values that come from the environment into it: the public endpoints for the API, CDN and gateway, the voice region endpoint `<DOMAIN>/voice`, the trusted proxies, and, when their variables are set, the instance name, Cap and SMTP. Everything else in the file stays as you or the admin panel left it. To change another setting, edit the file and restart the server:
 
 ```sh
-docker run --rm -it -v fosscord_state:/state alpine vi /state/config.json
+docker run --rm -it -v larpcord_state:/state alpine vi /state/config.json
 docker compose restart server
 ```
 
@@ -90,12 +90,12 @@ Unsetting `CAP_*` or `SMTP_*` later leaves the old values in the file, so turn t
 Losing `state` signs every user out and rotates the secrets in the config. Back up `postgres`, `state` and `storage` together:
 
 ```sh
-docker compose exec -T postgres pg_dump -U fosscord fosscord | gzip > fosscord-$(date +%F).sql.gz
-docker run --rm -v fosscord_state:/state -v fosscord_storage:/storage -v "$PWD":/backup alpine \
-    tar czf /backup/fosscord-files-$(date +%F).tar.gz /state /storage
+docker compose exec -T postgres pg_dump -U larpcord larpcord | gzip > larpcord-$(date +%F).sql.gz
+docker run --rm -v larpcord_state:/state -v larpcord_storage:/storage -v "$PWD":/backup alpine \
+    tar czf /backup/larpcord-files-$(date +%F).tar.gz /state /storage
 ```
 
-Compose prefixes volume names with the project name, `fosscord` here, set by `name:` in `docker-compose.yml`.
+Compose prefixes volume names with the project name, `larpcord` here, set by `name:` in `docker-compose.yml`.
 
 ### Updating
 
@@ -118,9 +118,9 @@ This fetches whatever build discord.com serves at that moment. Our Vencord plugi
 
 ```sh
 docker compose stop server
-docker run --rm -v fosscord_client:/data/client alpine rm -rf /data/client/cache /data/client/cache_compressed
-docker run --rm -v fosscord_client:/data/client -v "$PWD/assets/cache":/src:ro alpine cp -a /src/. /data/client/cache/
-docker run --rm -v fosscord_client:/data/client alpine chown -R 1000:1000 /data/client
+docker run --rm -v larpcord_client:/data/client alpine rm -rf /data/client/cache /data/client/cache_compressed
+docker run --rm -v larpcord_client:/data/client -v "$PWD/assets/cache":/src:ro alpine cp -a /src/. /data/client/cache/
+docker run --rm -v larpcord_client:/data/client alpine chown -R 1000:1000 /data/client
 docker compose run --rm client
 docker compose up -d
 ```
@@ -144,7 +144,7 @@ crontab -e
 
 ```cron
 # every 6 hours, at minute 17
-17 */6 * * * /home/fosscord/fosscord-server/scripts/auto-update.sh >> /home/fosscord/fosscord-update.log 2>&1
+17 */6 * * * /home/larpcord/larpcord-server/scripts/auto-update.sh >> /home/larpcord/larpcord-update.log 2>&1
 ```
 
 The script reads these optional environment variables, which go in front of the command in the crontab line:
@@ -155,7 +155,7 @@ The script reads these optional environment variables, which go in front of the 
 | `UPDATE_CODE`    | `0` to only keep the web client current and leave the code as you deploy it.                          |
 | `UPDATE_CLIENT`  | `0` to only update the code.                                                                          |
 | `SERVER_PORT`    | The server's port on the host's loopback, if you changed it from 3001.                                |
-| `NOTIFY_WEBHOOK` | A Discord or Fosscord webhook URL that gets a message when something was updated or an update failed. |
+| `NOTIFY_WEBHOOK` | A Discord or LarpCord webhook URL that gets a message when something was updated or an update failed. |
 
 A new Discord build can break Vencord patches or the e2ee anchors, as described above. With `NOTIFY_WEBHOOK` set you hear about every client update and can check the instance afterwards. Set `UPDATE_CLIENT=0` to stay on a build you tested.
 
@@ -179,7 +179,7 @@ Caddy's internal CA and a made-up domain are enough to run the whole stack on on
 
 ```sh
 cat > local.env <<EOF
-DOMAIN=fosscord.test
+DOMAIN=larpcord.test
 POSTGRES_PASSWORD=local
 WRTC_PUBLIC_IP=127.0.0.1
 COMPOSE_PROFILES=caddy
@@ -187,10 +187,10 @@ CADDY_GLOBAL_OPTIONS=local_certs
 EOF
 docker compose --env-file local.env up -d --build --wait
 docker compose --env-file local.env cp caddy:/data/caddy/pki/authorities/local/root.crt caddy-root.crt
-curl --cacert caddy-root.crt --resolve fosscord.test:443:127.0.0.1 https://fosscord.test/api/ping
+curl --cacert caddy-root.crt --resolve larpcord.test:443:127.0.0.1 https://larpcord.test/api/ping
 ```
 
-For a browser, add `127.0.0.1 fosscord.test` to `/etc/hosts` and trust `caddy-root.crt`, or start Chromium with `--host-resolver-rules="MAP fosscord.test 127.0.0.1" --ignore-certificate-errors`.
+For a browser, add `127.0.0.1 larpcord.test` to `/etc/hosts` and trust `caddy-root.crt`, or start Chromium with `--host-resolver-rules="MAP larpcord.test 127.0.0.1" --ignore-certificate-errors`.
 
 This setup was tested on Docker Desktop for macOS, once with build 626571 copied into the client volume and once with build 627798 fetched by the client service. On both, these worked through Caddy over HTTP/2: signup over the API, login on the real login page, a DM sent from the client and received by a second user's raw gateway websocket, the same message read back over the API, and a voice call between two browsers through the SFU container with audio received on both sides. An attachment uploaded through Caddy came back from the CDN byte for byte. `/api/ping` also answered over HTTP/3, and Caddy advertised `h3` in `Alt-Svc`. Restarting the SFU container made the server log the lost socket and reconnect within a few seconds.
 
@@ -216,12 +216,12 @@ The official Discord apps for Android and iOS can't be pointed at another server
 
 We checked build 627798 in a 390 by 844 touch viewport with Android Chrome, Samsung Internet and iOS Safari user agents. A tap on the message box focused it, typed text went in and the send button posted it. The drawer, settings and the friends list opened, a voice channel joined and connected, a signed-in user accepted an invite and stayed in the browser, and a signed-out user got the register form on the invite page.
 
-The stock client sent phones to the Discord app in two places, and `FosscordMobileWeb` (`client/plugins/fosscordMobileWeb`) fixes both:
+The stock client sent phones to the Discord app in two places, and `LarpCordMobileWeb` (`client/plugins/larpcordMobileWeb`) fixes both:
 
 - Invite and template links rendered a page whose only button opened `discordapp.onelink.me`, which hands off to the Discord app or the app store. The plugin renders the invite and template pages desktop browsers get, so the invite is accepted and the server is created right in the browser. Below 486 pixels it also stacks the two columns of the template page.
 - Discord enables voice only for browsers its browser detection names Chrome, Firefox, Opera, Safari or Microsoft Edge. On Android that library reports `Chrome Mobile`, `Firefox Mobile`, `Opera Mobile` or `Samsung Internet`, so a tap on a voice channel did nothing. The plugin drops the ` Mobile` suffix and treats Samsung Internet as the Chrome version in its user agent. iOS Safari already passed.
 
-`FosscordNoAppUpsells` removes the download prompts on every platform, phones included.
+`LarpCordNoAppUpsells` removes the download prompts on every platform, phones included.
 
 The server also rewrites Discord's viewport tag to add `interactive-widget=resizes-content`. With it, Chrome and Firefox on Android shrink the page when the on-screen keyboard opens instead of sliding it up, so the channel header stays visible above the message box. Safari ignores the key. Headless browsers have no on-screen keyboard, so we haven't tested this part.
 
@@ -236,7 +236,7 @@ Browsers only offer to install a site served over HTTPS or from localhost. Chrom
 Set `TLS_CERT` and `TLS_KEY` to PEM files to serve HTTPS with HTTP/2. By default HTTPS shares `PORT` with plain HTTP, and the server tells the two apart by the first byte of each connection. Set `HTTPS_PORT` to listen on a separate port instead. Gateway websockets keep working over both, because browsers open them as HTTP/1.1 upgrades.
 
 ```sh
-TLS_CERT=/etc/ssl/fosscord.pem TLS_KEY=/etc/ssl/fosscord.key HTTPS_PORT=443 npm start
+TLS_CERT=/etc/ssl/larpcord.pem TLS_KEY=/etc/ssl/larpcord.key HTTPS_PORT=443 npm start
 ```
 
 ## Behind Caddy

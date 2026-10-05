@@ -28,7 +28,7 @@ const login = async (login, password) => (await call("POST", "/auth/login", null
 
 sql("DELETE FROM rate_limits");
 const tester = await login(accounts.TEST_EMAIL, accounts.TEST_PASSWORD);
-const friend = await login("friend@fosscord.test", accounts.FRIEND_PASSWORD);
+const friend = await login("friend@larpcord.test", accounts.FRIEND_PASSWORD);
 const me = (await call("GET", "/users/@me", tester)).body;
 const them = (await call("GET", "/users/@me", friend)).body;
 const guild = (await call("GET", "/users/@me/guilds", tester)).body[0];

@@ -93,7 +93,7 @@ export async function checkCaptcha(required: boolean, response: string | null | 
     const { sitekey, service } = Config.get().security.captcha;
     const challenge = (codes: string[]) => ({
         captcha_key: codes,
-        captcha_sitekey: service === "cap" && Config.get().security.captcha.capMode !== "standalone" ? "fosscord" : sitekey!,
+        captcha_sitekey: service === "cap" && Config.get().security.captcha.capMode !== "standalone" ? "larpcord" : sitekey!,
         captcha_service: service!,
     });
     if (!response) return challenge(["captcha-required"]);
@@ -113,7 +113,7 @@ export async function checkRegistrationCaptcha(response: string | null | undefin
     if (!Config.get().register.requireCaptcha) return null;
     const endpoint = registrationCapEndpoint();
     const local = endpoint === "/api/v9/auth/cap/";
-    const sitekey = local ? "fosscord" : Config.get().security.captcha.sitekey!;
+    const sitekey = local ? "larpcord" : Config.get().security.captcha.sitekey!;
     const challenge = (codes: string[]): CaptchaRequiredResponse => ({ captcha_key: codes, captcha_sitekey: sitekey, captcha_service: "cap" });
     if (!response || typeof response !== "string" || response.length > 512) return challenge(["captcha-required"]);
     if (local) {

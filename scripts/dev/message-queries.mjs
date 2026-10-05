@@ -63,7 +63,7 @@ const queriesIn = (text) => text.split("\n").filter((line) => /^query( failed)?:
 
 const login = async (login, password) => (await call("POST", "/auth/login", null, { login, password })).body.token;
 const tester = await login(accounts.TEST_EMAIL, accounts.TEST_PASSWORD);
-const friend = await login("friend@fosscord.test", accounts.FRIEND_PASSWORD);
+const friend = await login("friend@larpcord.test", accounts.FRIEND_PASSWORD);
 const friendUser = (await call("GET", "/users/@me", friend)).body;
 const dms = (await call("GET", "/users/@me/channels", tester)).body;
 const dm = dms.find((c) => c.type === 1 && c.recipients?.some((r) => r.id === friendUser.id));

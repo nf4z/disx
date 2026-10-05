@@ -24,9 +24,9 @@ import path from "node:path";
 import dotenv from "dotenv";
 import sharp from "sharp";
 
-const playwright = createRequire(path.join(homedir(), ".cache/fosscord-tools/package.json"))("playwright-core");
-const origin = (process.env.ORIGIN || `http://fosscord.localhost:${process.env.PORT || 3290}`).replace(/\/$/, "");
-assert.ok(["localhost", "fosscord.localhost", "127.0.0.1"].includes(new URL(origin).hostname), "Use a localhost demo fixture");
+const playwright = createRequire(path.join(homedir(), ".cache/larpcord-tools/package.json"))("playwright-core");
+const origin = (process.env.ORIGIN || `http://larpcord.localhost:${process.env.PORT || 3290}`).replace(/\/$/, "");
+assert.ok(["localhost", "larpcord.localhost", "127.0.0.1"].includes(new URL(origin).hostname), "Use a localhost demo fixture");
 const account = dotenv.parse(fs.readFileSync(process.env.TEST_ACCOUNT_FILE || "scripts/dev/.test-account"));
 const response = await fetch(`${origin}/api/v9/auth/login`, {
     method: "POST",
@@ -41,7 +41,7 @@ const authorizedGet = async (endpoint) => {
     return result.json();
 };
 const users = await authorizedGet("/admin/users?q=friend&limit=20");
-const friend = users.users.find((user) => user.email === "friend@fosscord.test");
+const friend = users.users.find((user) => user.email === "friend@larpcord.test");
 assert.ok(friend, "The local friend fixture is required");
 const channels = await authorizedGet("/users/@me/channels");
 const dm = channels.find((channel) => channel.recipients?.some((user) => user.id === friend.id));
@@ -75,7 +75,7 @@ try {
     const page = await context.newPage();
     await page.goto(`${origin}/channels/@me/${dm.id}`);
     await page.getByRole("textbox").last().waitFor();
-    await page.locator(".fosscord-framed-sidebar").waitFor();
+    await page.locator(".larpcord-framed-sidebar").waitFor();
     await page.locator(".user-profile-sidebar [class*=banner]").last().click();
     await page.getByRole("button", { name: "Close", exact: true }).waitFor();
     assert.equal(await page.getByRole("dialog").count(), 1);

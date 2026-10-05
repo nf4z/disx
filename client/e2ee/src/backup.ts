@@ -97,7 +97,7 @@ export const deriveBackupKey = (kdf: BackupKdf, salt: string, input: string) => 
                       hashLength: 32,
                       outputType: "binary",
                   }).then((bytes) => new Uint8Array(bytes))
-                : hkdf(utf8(normalizeRecoveryCode(input)), fromB64u(salt), "fosscord-e2ee/v1/recovery-code");
+                : hkdf(utf8(normalizeRecoveryCode(input)), fromB64u(salt), "larpcord-e2ee/v1/recovery-code");
         pending.catch(() => derived.delete(cacheKey));
         derived.clear();
         derived.set(cacheKey, pending);
@@ -105,7 +105,7 @@ export const deriveBackupKey = (kdf: BackupKdf, salt: string, input: string) => 
     return pending;
 };
 
-const secretAad = (userId: string) => `fosscord-e2ee/v1/backup-secret\n${userId}`;
+const secretAad = (userId: string) => `larpcord-e2ee/v1/backup-secret\n${userId}`;
 
 export const wrapSecret = async (userId: string, mode: BackupMode, input: string, secret: Bytes) => {
     const kdf = mode === "password" ? PASSWORD_KDF : RECOVERY_KDF;
@@ -120,7 +120,7 @@ export const unwrapSecret = async (userId: string, record: BackupSecretFields, i
     return openBox(key, record.wrapped_secret, secretAad(userId));
 };
 
-const secretKey = (secret: Bytes, label: string) => hkdf(secret, new Uint8Array(32), `fosscord-e2ee/v1/backup/${label}`);
+const secretKey = (secret: Bytes, label: string) => hkdf(secret, new Uint8Array(32), `larpcord-e2ee/v1/backup/${label}`);
 
 export const sealJwk = async (secret: Bytes, label: string, userId: string, jwk: OkpJwk) =>
     sealBox(await secretKey(secret, label), utf8(JSON.stringify(jwk)), `${label}\n${userId}`);

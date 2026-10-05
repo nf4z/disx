@@ -6,7 +6,7 @@ Activities are embedded apps that run in an iframe inside a voice channel or a D
 
 The client loads an activity from `<application id>.<ACTIVITY_APPLICATION_HOST>`. On Discord that host is `discordsays.com`. Here `src/bundle/TestClient.ts` sets it to `client.activityApplicationHost` from the config, and when that is empty to `//<instance host>`, so the Whiteboard on `chat.example.com` loads from `https://1234567890123456789.chat.example.com`. That needs a wildcard DNS record and a wildcard certificate for the instance host. Set `client.activityApplicationHost` to something like `activities.example.com` to keep activities on their own domain instead.
 
-In development `*.localhost` resolves to 127.0.0.1, so `http://<id>.fosscord.localhost:3202` works without any setup.
+In development `*.localhost` resolves to 127.0.0.1, so `http://<id>.larpcord.localhost:3202` works without any setup.
 
 `src/api/activities/ActivityHost.ts` runs before everything else in the bundle. A request whose host is an application id followed by the activity host is answered from that application's URL mappings and never reaches the client or the API. The path is matched with and without Discord's `/.proxy` prefix, and the longest matching prefix wins:
 

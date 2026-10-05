@@ -40,13 +40,13 @@ interface LoaderState {
 
 declare global {
     interface Window {
-        __fosscordE2ee?: LoaderState;
+        __larpcordE2ee?: LoaderState;
     }
 }
 
 const HOOK_TIMEOUT_MS = 20000;
 
-const loader: LoaderState = (window.__fosscordE2ee ??= { reqs: [] });
+const loader: LoaderState = (window.__larpcordE2ee ??= { reqs: [] });
 const states = new Map<string, { state: MessageState; reason?: string }>();
 const targets: Targets = {};
 let http: HttpClient | null = null;
@@ -86,7 +86,7 @@ const classifyChannel = (channelId: string) => {
 };
 const trustsServer = () =>
     (window as unknown as { GLOBAL_ENV?: { E2EE_TRUST_SERVER?: boolean } }).GLOBAL_ENV?.E2EE_TRUST_SERVER !== false &&
-    browserStorage?.getItem("fosscord-e2ee-strict-safety") !== "true";
+    browserStorage?.getItem("larpcord-e2ee-strict-safety") !== "true";
 const engine = new Engine(api, classifyChannel, trustsServer);
 const attachments = createAttachments();
 attachments.start();

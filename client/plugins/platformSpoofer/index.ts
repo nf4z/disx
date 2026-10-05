@@ -20,7 +20,7 @@ import { definePluginSettings } from "@api/Settings";
 import definePlugin, { OptionType, StartAt } from "@utils/types";
 import { PresenceStore, React, UserStore } from "@webpack/common";
 
-import { FosscordAuthor } from "../fosscordCore/shared";
+import { LarpCordAuthor } from "../larpcordCore/shared";
 
 type Platform = "desktop" | "web" | "mobile" | "vr" | "embedded";
 type IdentifyProperties = { os?: string; browser?: string; device?: string; [key: string]: unknown };
@@ -131,7 +131,7 @@ const selfVROrConsole = () => vrOrConsole(selfClientStatus());
 export default definePlugin({
     name: "PlatformSpoofer",
     description: "Spoof what platform or device you're on",
-    authors: [FosscordAuthor],
+    authors: [LarpCordAuthor],
     settings,
     startAt: StartAt.Init,
 

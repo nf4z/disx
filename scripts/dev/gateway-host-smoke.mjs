@@ -22,17 +22,17 @@ import { homedir } from "node:os";
 import path from "node:path";
 import { inflateSync, constants } from "node:zlib";
 
-const { chromium } = createRequire(path.join(homedir(), ".cache/fosscord-tools/package.json"))("playwright-core");
+const { chromium } = createRequire(path.join(homedir(), ".cache/larpcord-tools/package.json"))("playwright-core");
 const port = process.env.PORT || "3290";
 const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROME_PATH || "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser" });
 try {
-    for (const host of [`localhost:${port}`, `fosscord.localhost:${port}`]) {
+    for (const host of [`localhost:${port}`, `larpcord.localhost:${port}`]) {
         const page = await browser.newPage();
         await page.goto(`http://${host}/login`);
         await page.locator('input[name="email"]').waitFor();
         const result = await page.evaluate(() => {
             const gateway = `ws://${location.host}`;
-            return { host: location.host, cdn: window.GLOBAL_ENV.CDN_HOST, media: window.GLOBAL_ENV.MEDIA_PROXY_ENDPOINT, gateway, initial: window.GLOBAL_ENV.GATEWAY_ENDPOINT, alternate: window.GLOBAL_ENV.GATEWAY_ALT_ENDPOINT, resume: Vencord.Plugins.plugins.Fosscord.gateway() };
+            return { host: location.host, cdn: window.GLOBAL_ENV.CDN_HOST, media: window.GLOBAL_ENV.MEDIA_PROXY_ENDPOINT, gateway, initial: window.GLOBAL_ENV.GATEWAY_ENDPOINT, alternate: window.GLOBAL_ENV.GATEWAY_ALT_ENDPOINT, resume: Vencord.Plugins.plugins.LarpCord.gateway() };
         });
         assert.equal(result.cdn, result.host);
         assert.equal(result.media, `//${result.host}`);

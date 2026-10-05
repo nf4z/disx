@@ -1,4 +1,4 @@
-# Fosscord work backlog
+# LarpCord work backlog
 
 This is the working queue for the continuing admin, app, compatibility and performance work. Unchecked entries are planned investigations or acceptance targets, not claims that every item is a confirmed bug. Source pointers identify where to start. Mark an item complete only after its behavior is verified; record the commit and evidence below.
 
@@ -38,7 +38,7 @@ P0 means a reported crash, trapped flow or broken core interaction. P1 means act
 
 ## Signup and Cap (P0)
 
-Start with `src/api/routes/auth; client/plugins/fosscordCap`.
+Start with `src/api/routes/auth; client/plugins/larpcordCap`.
 
 - [x] **CAP-001** Reproduce the native “Wait! Are you a human?” loop after failed registration.
 - [x] **CAP-002** Keep a valid core verification through correctable form validation errors.
@@ -76,7 +76,7 @@ Start with `client/plugins; assets/public/admin`.
 
 ## Pride flags and profile badges (P1)
 
-Start with `src/api/util/utility/prideBadges.ts; client/plugins/fosscordPride`.
+Start with `src/api/util/utility/prideBadges.ts; client/plugins/larpcordPride`.
 
 - [x] **FLAG-001** Vendor every real SVG from the pinned twemoji-flags catalog.
 - [x] **FLAG-002** Preserve existing badge slugs, IDs and saved selections.
@@ -260,7 +260,7 @@ Start with `docs/e2ee.md; client/e2ee`.
 
 ## Components and accessibility (P2)
 
-Start with `docs/native-ui.md; client/plugins/fosscordCore`.
+Start with `docs/native-ui.md; client/plugins/larpcordCore`.
 
 - [ ] **UI-001** Inventory duplicated buttons, fields, dialogs and search controls.
 - [ ] **UI-002** Reuse native Discord components where the interface supports them.
@@ -349,7 +349,7 @@ These are audit targets, not findings. Record a reproducible exploit or a concre
 - [x] **GIF-011** Remove the GIF picker provider dropdown and move provider selection to Settings.
 - [x] **DEMO-001** Check reported localhost outage with HTTP health and authenticated compressed gateway handshake. HTTP 200, HELLO and READY passed on 2026-10-04; the earlier refusal was not reproduced. The separately reported hardcoded-host bug is fixed in DEMO-002.
 
-- [x] **DEMO-002** Use `location.host` for both initial and resumed bundled-browser gateway connections. Real compressed HELLO checks passed on localhost and fosscord.localhost; HTTPS, ports and IPv6 URL checks passed.
+- [x] **DEMO-002** Use `location.host` for both initial and resumed bundled-browser gateway connections. Real compressed HELLO checks passed on localhost and larpcord.localhost; HTTPS, ports and IPv6 URL checks passed.
 
 - [x] **STICKER-001** Reproduce native sticker picker “Uh Oh!” and capture the failed endpoint/runtime error.
 - [x] **STICKER-002** Fix the confirmed cause and verify ordinary stickers render and send using disposable fixtures.
@@ -414,7 +414,7 @@ The initial queue contains 200 open acceptance targets across 15 workstreams, pl
 
 ## Verification rules
 
-Use `/tmp/fosscord-admin-perf`, `fosscord_codex_admin` and localhost port 3290 for the persistent demo. The production checkout's private `.env` is not a test database. Never clear global rate limits or reset another account to make a probe pass. Use disposable accounts and restore fixtures in awaited cleanup.
+Use `/tmp/larpcord-admin-perf`, `larpcord_codex_admin` and localhost port 3290 for the persistent demo. The production checkout's private `.env` is not a test database. Never clear global rate limits or reset another account to make a probe pass. Use disposable accounts and restore fixtures in awaited cleanup.
 
 A source review, unit fixture, live API check and browser render answer different questions; record the evidence actually obtained. Run the client patch checker for plugin changes, scoped builds/lint/formatting for source changes, and required integration probes for the touched subsystem. Load tests must state fixture size, concurrency, duration, revision and host limits. Preserve credentials, key files, recovery codes and browser profiles outside version control.
 
@@ -426,7 +426,7 @@ Current profiling owner: iphone_signup now owns admin user-list measurements; pa
 
 - [x] **SEC-017** Make account standing Suspended a durable, reversible account ban. Acceptance: standing500 blocks user/bot/OAuth tokens, pending login-token issuance and owned webhook sends; active sessions close; account/history remain; admin reversal restores login. Source freeze2026-10-04: six isolated execution regressions pass in `scripts/tests/account-suspension.test.cjs` (cached JWT, OAuth, token issuance, target-only revocation/self-protection, gateway close opcode4006, webhook owner/reversal). Scoped source ESLint and Prettier pass. Integration build, disposable-account real API/gateway proof and required E2EE integration remain with root; no source-only completion claim.
 
-Host follow-up `f00e0cdce`: CDN/media/asset environment now uses browser host too; legacy instance-local asset URLs follow browser origin. Five focused tests and real compressed gateway/CDN environment checks passed on localhost and fosscord.localhost. The parallel session also verified the supplied clan badge actually loaded under a simulated remote hostname.
+Host follow-up `f00e0cdce`: CDN/media/asset environment now uses browser host too; legacy instance-local asset URLs follow browser origin. Five focused tests and real compressed gateway/CDN environment checks passed on localhost and larpcord.localhost. The parallel session also verified the supplied clan badge actually loaded under a simulated remote hostname.
 
 User-list profiling `591d5108d`: retained current implementation; hydration is about0.06 ms per50-user page, alternatives gave mixed small gains and lost short-page count optimization. Guarded read-only profiler and sanitized reports committed.
 

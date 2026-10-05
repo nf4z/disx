@@ -24,10 +24,10 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
-const require = createRequire(`${homedir()}/.cache/fosscord-tools/`);
+const require = createRequire(`${homedir()}/.cache/larpcord-tools/`);
 const { chromium } = require("playwright-core");
 const port = process.env.PORT || "3290",
-    origin = `http://fosscord.localhost:${port}`,
+    origin = `http://larpcord.localhost:${port}`,
     api = `${origin}/api/v9`;
 const env = Object.fromEntries(
     readFileSync(new URL("../../.env", import.meta.url), "utf8")
@@ -35,13 +35,13 @@ const env = Object.fromEntries(
         .filter((line) => line.includes("="))
         .map((line) => [line.slice(0, line.indexOf("=")), line.slice(line.indexOf("=") + 1)]),
 );
-assert.equal(new URL(env.DATABASE).pathname, "/fosscord_codex_admin");
+assert.equal(new URL(env.DATABASE).pathname, "/larpcord_codex_admin");
 const sql = (query) => execFileSync("psql", [env.DATABASE, "-At", "-c", query], { encoding: "utf8" }).trim();
 const suffix = randomBytes(5).toString("hex"),
     password = randomBytes(18).toString("hex"),
-    email = `announcement-${suffix}@fosscord.test`;
+    email = `announcement-${suffix}@larpcord.test`;
 let token, id, announcementId, context;
-const profile = mkdtempSync(join(tmpdir(), "fosscord-announcement-render-"));
+const profile = mkdtempSync(join(tmpdir(), "larpcord-announcement-render-"));
 const errors = [];
 async function call(method, path, body) {
     const response = await fetch(`${api}${path}`, {
@@ -121,7 +121,7 @@ try {
     await page.goto(`${origin}/channels/@me/${channelId}`);
     await page.getByText(content, { exact: true }).waitFor({ timeout: 30000 });
     await page.getByText("announcement-proof.txt", { exact: true }).first().waitFor({ timeout: 20000 });
-    await page.screenshot({ path: "/tmp/fosscord-announcement-native.png" });
+    await page.screenshot({ path: "/tmp/larpcord-announcement-native.png" });
     const attachments = JSON.parse(
         sql(`SELECT coalesce(json_agg(json_build_object('id',id::text,'filename',filename,'content_type',content_type)), '[]') FROM attachments WHERE message_id='${messageId}'`),
     );
@@ -136,9 +136,9 @@ try {
     assert.equal(downloaded.status, 200);
     assert.equal(downloaded.text, "Encrypted announcement attachment proof");
     await page.waitForTimeout(500);
-    await page.screenshot({ path: "/tmp/fosscord-announcement-native.png" });
+    await page.screenshot({ path: "/tmp/larpcord-announcement-native.png" });
     await admin.locator(`[data-id="${announcementId}"] .announcement-progress`).filter({ hasText: "1 delivered" }).waitFor({ timeout: 20000 });
-    await admin.screenshot({ path: "/tmp/fosscord-announcement-admin.png" });
+    await admin.screenshot({ path: "/tmp/larpcord-announcement-admin.png" });
     assert.deepEqual(errors, []);
     console.log("PASS selected recipient native text/attachment decrypt, encrypted persisted message, accurate live admin counts, zero browser errors");
 } finally {

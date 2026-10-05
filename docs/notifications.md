@@ -6,7 +6,7 @@ The Discord client decides on its own whether a message shows a desktop notifica
 
 `MESSAGE_CREATE` carries `mentions`, `mention_roles`, `mention_everyone`, `flags` and the author's `member`, which is everything the client's notification check reads. It also needs the user's notification settings from `READY` and `USER_GUILD_SETTINGS_UPDATE`.
 
-On the web the client starts with desktop notifications set to "never". Turning on Settings > Notifications > Enable Desktop Notifications only flips that setting. Build 627798 never calls `Notification.requestPermission`, so a browser that hadn't granted the permission before would stay silent. The `FosscordNotifications` plugin patches the client's `setDesktopType` action to ask for the permission inside that click.
+On the web the client starts with desktop notifications set to "never". Turning on Settings > Notifications > Enable Desktop Notifications only flips that setting. Build 627798 never calls `Notification.requestPermission`, so a browser that hadn't granted the permission before would stay silent. The `LarpCordNotifications` plugin patches the client's `setDesktopType` action to ask for the permission inside that click.
 
 ## Notification settings
 

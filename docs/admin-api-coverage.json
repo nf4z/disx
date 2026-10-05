@@ -6856,49 +6856,49 @@
     },
     "client_extension_route_calls": [
         {
-            "source": "client/plugins/fosscordCap/index.tsx",
+            "source": "client/plugins/larpcordCap/index.tsx",
             "line": 88,
             "path_expression": "/auth/captcha",
             "method": "GET"
         },
         {
-            "source": "client/plugins/fosscordGifs/index.tsx",
+            "source": "client/plugins/larpcordGifs/index.tsx",
             "line": 76,
             "path_expression": "/gifs/providers",
             "method": "GET"
         },
         {
-            "source": "client/plugins/fosscordPride/index.tsx",
+            "source": "client/plugins/larpcordPride/index.tsx",
             "line": 46,
             "path_expression": "/users/${id}/profile",
             "method": "GET"
         },
         {
-            "source": "client/plugins/fosscordPride/index.tsx",
+            "source": "client/plugins/larpcordPride/index.tsx",
             "line": 76,
             "path_expression": "/users/@me/pride-badges",
             "method": "GET"
         },
         {
-            "source": "client/plugins/fosscordPride/index.tsx",
+            "source": "client/plugins/larpcordPride/index.tsx",
             "line": 100,
             "path_expression": "/users/@me/pride-badges",
             "method": "PATCH"
         },
         {
-            "source": "client/plugins/fosscordInsights/index.tsx",
+            "source": "client/plugins/larpcordInsights/index.tsx",
             "line": 61,
             "path_expression": "/guilds/${guildId}/analytics/${path}",
             "method": "GET"
         },
         {
-            "source": "client/plugins/fosscordTemplateLinks/index.tsx",
+            "source": "client/plugins/larpcordTemplateLinks/index.tsx",
             "line": 64,
             "path_expression": "/guilds/templates/${encodeURIComponent(code)}",
             "method": "GET"
         },
         {
-            "source": "client/plugins/fosscordTemplateLinks/index.tsx",
+            "source": "client/plugins/larpcordTemplateLinks/index.tsx",
             "line": 79,
             "path_expression": "/guilds/templates/${encodeURIComponent(template.code)}",
             "method": "POST"

@@ -24,7 +24,7 @@
     view.setUint32(8, (view.getUint32(8) ^ index) >>> 0);
     return nonce;
   };
-  var chunkAad = (index, final) => utf8(`fosscord-e2ee/v1/file
+  var chunkAad = (index, final) => utf8(`larpcord-e2ee/v1/file
 ${index}
 ${final ? 1 : 0}`);
   var fileKey = (raw, usage) => crypto.subtle.importKey("raw", raw, { name: "AES-GCM" }, false, [usage]);
@@ -104,7 +104,7 @@ ${final ? 1 : 0}`);
   var poster = async (path, entry, blob, clientId) => {
     let pending = posters.get(path);
     if (!pending) {
-      pending = ask({ type: "fosscord-e2ee-poster", blob, content_type: entry.content_type }, clientId);
+      pending = ask({ type: "larpcord-e2ee-poster", blob, content_type: entry.content_type }, clientId);
       posters.set(path, pending);
       pending.then((image2) => image2 || posters.delete(path));
     }
@@ -118,7 +118,7 @@ ${final ? 1 : 0}`);
     const path = url.pathname;
     let entry = entries.get(path);
     if (!entry) {
-      entry = await ask({ type: "fosscord-e2ee-file", path }) ?? void 0;
+      entry = await ask({ type: "larpcord-e2ee-file", path }) ?? void 0;
       if (!entry) return missing();
       entries.set(path, entry);
     }
@@ -159,7 +159,7 @@ ${final ? 1 : 0}`);
   });
   sw.addEventListener("activate", (event) => event.waitUntil(sw.clients.claim()));
   sw.addEventListener("message", (event) => {
-    if (event.data?.type === "fosscord-e2ee-claim") event.waitUntil(sw.clients.claim());
+    if (event.data?.type === "larpcord-e2ee-claim") event.waitUntil(sw.clients.claim());
   });
   sw.addEventListener("fetch", (event) => {
     const url = new URL(event.request.url);

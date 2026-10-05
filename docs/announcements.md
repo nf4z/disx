@@ -18,10 +18,10 @@ Delivered spools are retained with admin history so deletion and pending-recipie
 
 ## Validation
 
-`node --test scripts/tests/system-encryption.test.cjs` exercises actual client HPKE/AES and attachment decryption, signatures, binding, seed recovery refusal and authenticated spool storage. The production PostgreSQL handler/worker suite is opt-in and asserts the isolated `fosscord_codex_admin` database before mutations:
+`node --test scripts/tests/system-encryption.test.cjs` exercises actual client HPKE/AES and attachment decryption, signatures, binding, seed recovery refusal and authenticated spool storage. The production PostgreSQL handler/worker suite is opt-in and asserts the isolated `larpcord_codex_admin` database before mutations:
 
 ```sh
-ANNOUNCEMENT_DELIVERY_TEST=1 DB_POOL_SIZE=1 DOTENV_CONFIG_PATH=/tmp/fosscord-admin-perf/.env node -r dotenv/config -r ./scripts/register-paths.cjs --test scripts/tests/announcement-delivery.postgres.cjs
+ANNOUNCEMENT_DELIVERY_TEST=1 DB_POOL_SIZE=1 DOTENV_CONFIG_PATH=/tmp/larpcord-admin-perf/.env node -r dotenv/config -r ./scripts/register-paths.cjs --test scripts/tests/announcement-delivery.postgres.cjs
 ```
 
 It uses disposable sender/recipient accounts, selected audiences, lease races and tracking-failure injection. Run the full E2EE suite after integration because system DMs use the normal message path. The native selected-recipient smoke passed against the localhost demo: decrypted announcement text and original filename, byte-identical file bytes from the authenticated service worker route, opaque encrypted stored message, one delivered recipient in live admin counts, and zero page errors. All fixture users, channels and announcements were removed afterward. The smoke keeps bigint attachment IDs as strings; numeric JSON IDs lose precision.

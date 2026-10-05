@@ -30,7 +30,7 @@ const expression = source
 test("initial browser gateway follows location.host including custom ports and secure origins", () => {
     for (const [protocol, host, expected] of [
         ["http:", "localhost:3290", "ws://localhost:3290"],
-        ["http:", "fosscord.localhost:3290", "ws://fosscord.localhost:3290"],
+        ["http:", "larpcord.localhost:3290", "ws://larpcord.localhost:3290"],
         ["https:", "meowcord.example", "wss://meowcord.example"],
         ["https:", "meowcord.example:8443", "wss://meowcord.example:8443"],
         ["http:", "[::1]:3290", "ws://[::1]:3290"],
@@ -45,10 +45,10 @@ test("native reconnect ignores the advertised resume host and follows the same b
         module,
         exports: module.exports,
         location: { protocol: "https:", host: "meowcord.example:8443" },
-        require: (name) => (name === "@utils/types" ? (plugin) => plugin : { FosscordAuthor: {} }),
+        require: (name) => (name === "@utils/types" ? (plugin) => plugin : { LarpCordAuthor: {} }),
     };
     vm.runInNewContext(
-        ts.transpileModule(fs.readFileSync("client/plugins/fosscordCore/index.ts", "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, esModuleInterop: true } })
+        ts.transpileModule(fs.readFileSync("client/plugins/larpcordCore/index.ts", "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, esModuleInterop: true } })
             .outputText,
         context,
     );

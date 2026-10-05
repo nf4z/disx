@@ -94,8 +94,8 @@ async function create(body) {
 }
 before(async () => {
     if (!enabled) return;
-    assert.equal(new URL(process.env.DATABASE).pathname, "/fosscord_codex_admin");
-    temp = fs.mkdtempSync(path.join(os.tmpdir(), "fosscord-announcement-pg-"));
+    assert.equal(new URL(process.env.DATABASE).pathname, "/larpcord_codex_admin");
+    temp = fs.mkdtempSync(path.join(os.tmpdir(), "larpcord-announcement-pg-"));
     process.env.E2EE_SYSTEM_KEY_DIR = path.join(temp, "keys");
     process.env.ANNOUNCEMENT_SPOOL_DIR = path.join(temp, "spool");
     process.env.DB_POOL_SIZE = "1";
@@ -181,9 +181,9 @@ test("selected announcement queues only synthetic recipients and missing keys re
     const publicKey = await crypto.webcrypto.subtle.importKey("raw", Buffer.from(jwk.x, "base64url"), { name: "X25519" }, true, []);
     const envelope = message.encrypted,
         target = envelope.keys.find((k) => k.user_id === recipient.id);
-    const aad = `fosscord-e2ee/v1/msg\n${message.channel_id}\n${sender.id}\n${envelope.sender_device}\nn:${message.nonce}`;
+    const aad = `larpcord-e2ee/v1/msg\n${message.channel_id}\n${sender.id}\n${envelope.sender_device}\nn:${message.nonce}`;
     const key = await suite.open(
-        { recipientKey: { privateKey, publicKey }, enc: Buffer.from(target.enc, "base64url"), info: Buffer.from("fosscord-e2ee/v1/wrap") },
+        { recipientKey: { privateKey, publicKey }, enc: Buffer.from(target.enc, "base64url"), info: Buffer.from("larpcord-e2ee/v1/wrap") },
         Buffer.from(target.wrapped, "base64url"),
         Buffer.from(`${aad}\n${target.device_id}`),
     );

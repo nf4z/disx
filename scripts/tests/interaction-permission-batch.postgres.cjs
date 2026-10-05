@@ -27,7 +27,7 @@ let db, e, guild, channel, thread, Permissions, getPermission, buildResolved;
 const users = [];
 before(async () => {
     if (!enabled) return;
-    assert.equal(new URL(process.env.DATABASE).pathname, "/fosscord_codex_admin");
+    assert.equal(new URL(process.env.DATABASE).pathname, "/larpcord_codex_admin");
     e = require("../../dist/database");
     db = await e.initDatabase();
     ({ getPermission, Permissions } = require("../../dist/util/util/Permissions"));

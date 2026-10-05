@@ -126,8 +126,8 @@ export const createAttachments = () => {
             const data = event.data as { type?: string; path?: string; blob?: Blob; content_type?: string } | null;
             const port = event.ports[0];
             if (!port) return;
-            if (data?.type === "fosscord-e2ee-file") port.postMessage(registry.get(String(data.path)) ?? null);
-            if (data?.type === "fosscord-e2ee-poster" && data.blob instanceof Blob)
+            if (data?.type === "larpcord-e2ee-file") port.postMessage(registry.get(String(data.path)) ?? null);
+            if (data?.type === "larpcord-e2ee-poster" && data.blob instanceof Blob)
                 renderPoster(data.blob, String(data.content_type)).then(
                     (image) => port.postMessage(image),
                     () => port.postMessage(null),
@@ -151,7 +151,7 @@ export const createAttachments = () => {
         });
         container.register(SW_PATH, { scope: "/" }).then(
             (registration) => {
-                if (!container.controller) registration.active?.postMessage({ type: "fosscord-e2ee-claim" });
+                if (!container.controller) registration.active?.postMessage({ type: "larpcord-e2ee-claim" });
             },
             (error) => console.error("[e2ee] couldn't register the attachment service worker", error),
         );

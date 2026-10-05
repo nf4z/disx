@@ -24,26 +24,26 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
-const require = createRequire(`${homedir()}/.cache/fosscord-tools/`);
+const require = createRequire(`${homedir()}/.cache/larpcord-tools/`);
 const { chromium } = require("playwright-core");
 assert.equal(process.env.OFFICIAL_INBOX_SMOKE, "1", "Set OFFICIAL_INBOX_SMOKE=1 to run disposable live fixtures");
 const port = process.env.PORT || "3290",
-    origin = `http://fosscord.localhost:${port}`,
+    origin = `http://larpcord.localhost:${port}`,
     api = `${origin}/api/v9`;
 const env = Object.fromEntries(
-    readFileSync(process.env.OFFICIAL_INBOX_DEMO_ENV || "/tmp/fosscord-admin-perf/.env", "utf8")
+    readFileSync(process.env.OFFICIAL_INBOX_DEMO_ENV || "/tmp/larpcord-admin-perf/.env", "utf8")
         .split("\n")
         .filter((line) => line.includes("="))
         .map((line) => [line.slice(0, line.indexOf("=")), line.slice(line.indexOf("=") + 1)]),
 );
-assert.equal(new URL(env.DATABASE).pathname, "/fosscord_codex_admin");
+assert.equal(new URL(env.DATABASE).pathname, "/larpcord_codex_admin");
 const sql = (query) => execFileSync("psql", [env.DATABASE, "-At", "-c", query], { encoding: "utf8" }).trim();
 const suffix = randomBytes(5).toString("hex"),
     password = randomBytes(18).toString("hex"),
-    email = `official-inbox-${suffix}@fosscord.test`;
+    email = `official-inbox-${suffix}@larpcord.test`;
 let token, id, context;
 let sentId, replyId;
-const profile = mkdtempSync(join(tmpdir(), "fosscord-official-inbox-render-"));
+const profile = mkdtempSync(join(tmpdir(), "larpcord-official-inbox-render-"));
 const errors = [];
 async function call(method, path, body) {
     const response = await fetch(`${api}${path}`, {
@@ -141,8 +141,8 @@ try {
     assert.equal(audit[0].options.message_id, sentId);
     assert.equal(JSON.stringify(audit).includes(content), false);
     assert.equal(JSON.stringify(audit).includes(reply), false);
-    await page.screenshot({ path: "/tmp/fosscord-official-inbox-native.png" });
-    await admin.screenshot({ path: "/tmp/fosscord-official-inbox-admin.png" });
+    await page.screenshot({ path: "/tmp/larpcord-official-inbox-native.png" });
+    await admin.screenshot({ path: "/tmp/larpcord-official-inbox-admin.png" });
     sql(`UPDATE users SET rights=128 WHERE id='${id}'`);
     assert.equal((await call("GET", `/admin/users/${id}`)).status, 200);
     assert.equal((await call("GET", `/admin/conversations/${id}`)).status, 403);

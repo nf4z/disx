@@ -75,6 +75,7 @@ import {
     TraceNode,
     TraceRoot,
     getApexExperiments,
+    getLegacyExperiments,
 } from "@spacebar/util";
 import {
     ChannelType,
@@ -354,6 +355,7 @@ export async function onIdentify(this: WebSocket, data: Payload) {
 
     const friendPresenceUserIds = [...new Set(relationships.filter((relationship) => relationship.type === RelationshipType.FRIEND).map((relationship) => relationship.to_id))];
     const memberGuildIds = members.map((m) => m.guild_id);
+    const legacyExperiments = getLegacyExperiments();
 
     const affinityUsers = new Map<string, User>();
     for (const relationship of relationships) if (relationship.type === RelationshipType.FRIEND && relationship.to) affinityUsers.set(relationship.to_id, relationship.to);
@@ -777,11 +779,11 @@ export async function onIdentify(this: WebSocket, data: Payload) {
                         consented: !!preferences?.account_preferences?.consents?.personalization,
                     },
                 },
-                experiments: [],
+                experiments: legacyExperiments.experiments,
                 guild_join_requests: guild_join_requests.map((request) => request.toJSON("self")),
                 connected_accounts: [],
-                guild_experiments: [],
-                apex_experiments: getApexExperiments(this.user_id),
+                guild_experiments: legacyExperiments.guild_experiments,
+                apex_experiments: getApexExperiments(this.user_id, { guildIds: memberGuildIds }),
                 geo_ordered_rtc_regions: [],
                 api_code_version: 1,
                 friend_suggestion_count: 0,

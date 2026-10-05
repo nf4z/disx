@@ -26,16 +26,16 @@ import dotenv from "dotenv";
 import { solveCap } from "./cap-token.mjs";
 
 if (process.env.RUN_SUSPENSION_SMOKE !== "1") throw new Error("Set RUN_SUSPENSION_SMOKE=1 for disposable-account integration");
-const origin = process.env.ORIGIN || "http://fosscord.localhost:3290";
-assert.ok(["localhost", "127.0.0.1", "fosscord.localhost"].includes(new URL(origin).hostname));
+const origin = process.env.ORIGIN || "http://larpcord.localhost:3290";
+assert.ok(["localhost", "127.0.0.1", "larpcord.localhost"].includes(new URL(origin).hostname));
 const env = dotenv.parse(readFileSync(process.env.DOTENV_CONFIG_PATH || ".env"));
 const database = process.env.DATABASE || env.DATABASE;
-assert.equal(new URL(database).pathname, "/fosscord_codex_admin");
+assert.equal(new URL(database).pathname, "/larpcord_codex_admin");
 assert.ok(["localhost", "127.0.0.1"].includes(new URL(database).hostname));
 const require = createRequire(import.meta.url);
 const { Client } = require("pg");
 const WebSocket = require("ws");
-const { chromium } = createRequire(path.join(homedir(), ".cache/fosscord-tools/package.json"))("playwright-core");
+const { chromium } = createRequire(path.join(homedir(), ".cache/larpcord-tools/package.json"))("playwright-core");
 const db = new Client({ connectionString: database });
 const fixtures = [];
 const gateways = [];
@@ -103,7 +103,7 @@ try {
     await db.connect();
     const signup = async (label) => {
         const suffix = randomBytes(6).toString("hex");
-        const fixture = { label, email: `suspension-smoke-${label}-${suffix}@fosscord.test`, password: `Aa2!${randomBytes(18).toString("hex")}` };
+        const fixture = { label, email: `suspension-smoke-${label}-${suffix}@larpcord.test`, password: `Aa2!${randomBytes(18).toString("hex")}` };
         fixtures.push(fixture);
         const captcha_key = await solveCap({ origin, browser });
         fixture.token = expect(
@@ -151,7 +151,7 @@ try {
         await page.goto(`${origin}/channels/@me/${channelId}`);
         await page.bringToFront();
         await page.locator('[contenteditable="true"][role="textbox"]').waitFor({ timeout: 45000 });
-        await page.waitForFunction(() => window.__fosscordE2ee?.status?.()?.ready === true, null, { timeout: 45000 });
+        await page.waitForFunction(() => window.__larpcordE2ee?.status?.()?.ready === true, null, { timeout: 45000 });
         return page;
     };
     const witnessPage = await native(witness),

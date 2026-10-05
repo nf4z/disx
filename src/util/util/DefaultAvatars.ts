@@ -18,6 +18,7 @@
 
 import path from "node:path";
 
-export const DEFAULT_AVATAR_COLORS = ["#0185ff", "#6e7681", "#2ea66b", "#e8a317", "#e5484d", "#d6409f"];
+// Discord's default avatar colours, in the client's order
+export const DEFAULT_AVATAR_COLORS = ["#5865f2", "#757e8a", "#3ba55c", "#faa61a", "#ed4245", "#eb459f"];
 
 export const DEFAULT_AVATARS_FOLDER = path.join(__dirname, "..", "..", "default-avatars");

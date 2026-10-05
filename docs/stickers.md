@@ -19,7 +19,7 @@ On the isolated demo, 361 standard assets (136 APNG and 225 Lottie) occupied 86,
 Reproduce the bounded native artwork check on the isolated admin demo:
 
 ```sh
-DOTENV_CONFIG_PATH=/tmp/fosscord-admin-perf/.env node scripts/dev/sticker-picker-smoke.mjs --trace
+DOTENV_CONFIG_PATH=/tmp/larpcord-admin-perf/.env node scripts/dev/sticker-picker-smoke.mjs --trace
 ```
 
 It registers two disposable accounts through Cap, accepts their friendship, logs in through the native client, creates one temporary guild/PNG sticker, checks Lottie/APNG/custom PNG rendering, and removes only its fixtures. The final run passed all three formats, recorded only HTTP 200 sticker responses, and had no failed tiles or browser errors. Screenshots: [Lottie](qa/stickers/local-lottie-picker.png), [APNG](qa/stickers/local-apng-picker.png), [custom PNG](qa/stickers/local-custom-picker.png).

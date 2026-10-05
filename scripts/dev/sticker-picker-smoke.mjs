@@ -25,12 +25,12 @@ import dotenv from "dotenv";
 import { solveCap } from "./cap-token.mjs";
 import { createRequire } from "node:module";
 import { homedir } from "node:os";
-const require = createRequire(`${homedir()}/.cache/fosscord-tools/`);
+const require = createRequire(`${homedir()}/.cache/larpcord-tools/`);
 const { chromium } = require("playwright-core");
-const origin = `http://fosscord.localhost:${process.env.PORT || 3290}`;
+const origin = `http://larpcord.localhost:${process.env.PORT || 3290}`;
 const env = dotenv.parse(readFileSync(process.env.DOTENV_CONFIG_PATH || ".env"));
 const database = process.env.DATABASE || env.DATABASE;
-assert.equal(new URL(database).pathname, "/fosscord_codex_admin", "Use the isolated admin demo database");
+assert.equal(new URL(database).pathname, "/larpcord_codex_admin", "Use the isolated admin demo database");
 assert.ok(["localhost", "127.0.0.1"].includes(new URL(database).hostname));
 const { Client } = createRequire(import.meta.url)("pg");
 const db = new Client({ connectionString: database });
@@ -46,7 +46,7 @@ try {
     await db.connect();
     const signup = async () => {
         const suffix = randomBytes(6).toString("hex");
-        const fixture = { email: `sticker-smoke-${suffix}@fosscord.test`, password: `Aa2!${randomBytes(18).toString("hex")}` };
+        const fixture = { email: `sticker-smoke-${suffix}@larpcord.test`, password: `Aa2!${randomBytes(18).toString("hex")}` };
         fixtures.push(fixture);
         const captcha_key = await solveCap({ origin, browser });
         const registered = await fetch(`${origin}/api/v9/auth/register`, {
@@ -133,7 +133,7 @@ try {
         await target.goto(`${origin}/channels/@me/${fixtureChannel}`);
         await target.bringToFront();
         await target.locator('[contenteditable="true"][role="textbox"]').waitFor({ timeout: 45000 });
-        await target.waitForFunction(() => window.__fosscordE2ee?.status?.()?.ready === true, null, { timeout: 45000 });
+        await target.waitForFunction(() => window.__larpcordE2ee?.status?.()?.ready === true, null, { timeout: 45000 });
     };
     const peerContext = await browser.newContext();
     peer = await peerContext.newPage();
@@ -157,7 +157,7 @@ try {
     }
     await page.getByRole("button", { name: "Open sticker picker", exact: true }).click();
     await page.waitForTimeout(2500);
-    await page.screenshot({ path: "/tmp/fosscord-sticker-picker.png" });
+    await page.screenshot({ path: "/tmp/larpcord-sticker-picker.png" });
     assert.equal(await page.getByText(/Uh Oh!/i).count(), 0);
     const send = async (format, packName) => {
         if (packName) await page.getByRole("button", { name: packName, exact: true }).click();
@@ -180,7 +180,7 @@ try {
                 if (canvas.width < 1 || canvas.height < 1) throw new Error("Lottie canvas missing");
             });
         await page.waitForTimeout(500);
-        await page.screenshot({ path: `/tmp/fosscord-sticker-format-${format}.png` });
+        await page.screenshot({ path: `/tmp/larpcord-sticker-format-${format}.png` });
         if (!process.argv.includes("--send")) {
             console.log(JSON.stringify({ nativeStickerRender: format, localAsset: true }));
             return;
@@ -214,7 +214,7 @@ try {
             await received.locator('img[src*="/stickers/"]').evaluate((img) => {
                 if (!img.complete || img.naturalWidth < 1) throw new Error("Received sticker did not decode");
             });
-        await peer.screenshot({ path: `/tmp/fosscord-sticker-received-${format}.png` });
+        await peer.screenshot({ path: `/tmp/larpcord-sticker-received-${format}.png` });
         console.log(JSON.stringify({ nativeStickerSend: format, status: response.status(), persistedSticker: true }));
     };
     for (const [format, pack] of [
@@ -244,8 +244,8 @@ try {
             errorMessage: error.message,
             errors,
             encryptionReady: await page?.evaluate(() => ({
-                ready: window.__fosscordE2ee?.status?.()?.ready,
-                encryptedChannels: window.__fosscordE2ee?.status?.()?.encryptedChannels?.length,
+                ready: window.__larpcordE2ee?.status?.()?.ready,
+                encryptedChannels: window.__larpcordE2ee?.status?.()?.encryptedChannels?.length,
             })),
         }),
     );

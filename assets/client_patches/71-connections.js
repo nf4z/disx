@@ -2,7 +2,7 @@
     const knownId = "573648";
     const isPlatforms = (value) => typeof value?.map === "function" && typeof value?.isSupported === "function" && typeof value?.getByUrl === "function";
     let require;
-    (window.webpackChunkdiscord_app ??= []).push([[Symbol("fosscord-connections")], {}, (r) => (require = r)]);
+    (window.webpackChunkdiscord_app ??= []).push([[Symbol("larpcord-connections")], {}, (r) => (require = r)]);
 
     const findPlatforms = () => {
         if (!require?.m) return undefined;

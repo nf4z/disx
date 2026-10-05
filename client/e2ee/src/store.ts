@@ -51,7 +51,7 @@ let database: Promise<IDBDatabase> | null = null;
 
 const open = () =>
     (database ??= new Promise((resolve, reject) => {
-        const request = indexedDB.open("fosscord-e2ee", 1);
+        const request = indexedDB.open("larpcord-e2ee", 1);
         request.onupgradeneeded = () => request.result.createObjectStore("kv");
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error);

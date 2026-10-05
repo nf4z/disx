@@ -9,7 +9,7 @@ const emitted = [];
 
 before(async () => {
     if (!enabled) return;
-    assert.match(new URL(process.env.DATABASE).pathname, /^\/fosscord_codex_admin$/);
+    assert.match(new URL(process.env.DATABASE).pathname, /^\/larpcord_codex_admin$/);
     entities = require("../../dist/database");
     db = await entities.initDatabase();
     const { ConfigValue } = require("../../dist/util/config");

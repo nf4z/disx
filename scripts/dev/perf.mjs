@@ -3,7 +3,7 @@ import { homedir, tmpdir } from "node:os";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 
-const require = createRequire(`${homedir()}/.cache/fosscord-tools/`);
+const require = createRequire(`${homedir()}/.cache/larpcord-tools/`);
 const { chromium } = require("playwright-core");
 
 const args = process.argv.slice(2);
@@ -14,7 +14,7 @@ const flag = (name, fallback) => {
 const port = flag("port", process.env.PORT || "3001");
 const runs = Number(flag("runs", "3"));
 const throttle = flag("throttle");
-const origin = process.env.ORIGIN || `http://fosscord.localhost:${port}`;
+const origin = process.env.ORIGIN || `http://larpcord.localhost:${port}`;
 const apiOrigin = process.env.ORIGIN || `http://localhost:${port}`;
 const profiles = {
     cable: { offline: false, latency: 40, downloadThroughput: (50 * 1024 * 1024) / 8, uploadThroughput: (10 * 1024 * 1024) / 8 },
@@ -120,7 +120,7 @@ for (let i = 0, failures = 0; i < runs; i++) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ login: accounts.TEST_EMAIL, password: accounts.TEST_PASSWORD }),
     }).then((r) => r.json());
-    const profile = mkdtempSync(join(tmpdir(), "fosscord-perf-"));
+    const profile = mkdtempSync(join(tmpdir(), "larpcord-perf-"));
     const context = await chromium.launchPersistentContext(profile, {
         channel: "chrome",
         headless: true,

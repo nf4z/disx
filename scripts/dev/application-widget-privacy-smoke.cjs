@@ -47,13 +47,13 @@ const surfaces = {
     },
 };
 (async () => {
-    assert.equal(new URL(process.env.DATABASE).pathname, "/fosscord_codex_admin");
+    assert.equal(new URL(process.env.DATABASE).pathname, "/larpcord_codex_admin");
     const e = require(base + "/database");
     const db = await e.initDatabase();
     let app, otherApp, original, user, admin;
     try {
         admin = (await call(null, "POST", "/auth/login", { login: acct.TEST_EMAIL, password: acct.TEST_PASSWORD })).data.token;
-        const friend = (await call(null, "POST", "/auth/login", { login: "friend@fosscord.test", password: acct.FRIEND_PASSWORD })).data.token;
+        const friend = (await call(null, "POST", "/auth/login", { login: "friend@larpcord.test", password: acct.FRIEND_PASSWORD })).data.token;
         assert.equal(typeof admin, "string");
         assert.equal(typeof friend, "string");
         user = await e.User.findOneOrFail({ where: { email: acct.TEST_EMAIL }, select: { id: true, profile_widgets: true } });
@@ -140,7 +140,7 @@ const surfaces = {
             assert.equal(nullBody.status, 400);
         }
         console.log(JSON.stringify(summary));
-        fs.writeFileSync(`/tmp/fosscord-widget-privacy-${summary.fixed ? "fixed" : "baseline"}.json`, JSON.stringify(summary, null, 2));
+        fs.writeFileSync(`/tmp/larpcord-widget-privacy-${summary.fixed ? "fixed" : "baseline"}.json`, JSON.stringify(summary, null, 2));
     } finally {
         if (user) await e.User.update({ id: user.id }, { profile_widgets: original });
         for (const item of [app, otherApp])

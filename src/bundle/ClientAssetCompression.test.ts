@@ -28,7 +28,7 @@ import { ClientAssetCompression } from "./ClientAssetCompression";
 const gzip = promisify(zlib.gzip);
 const limits = { bytes: 16384, entries: 4, sourceBytes: 8192, inflight: 2 };
 const fixture = async (t: TestContext) => {
-    const dir = await fs.mkdtemp(path.join(tmpdir(), "fosscord-client-compression-"));
+    const dir = await fs.mkdtemp(path.join(tmpdir(), "larpcord-client-compression-"));
     t.after(() => fs.rm(dir, { recursive: true, force: true }));
     const write = async (name: string, body = "test asset".repeat(400)) => {
         const file = path.join(dir, name);

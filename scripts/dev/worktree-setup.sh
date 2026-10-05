@@ -47,4 +47,4 @@ createdb "$db"
 npm run build:src >/dev/null
 PORT=$port SERVER_LOG="$PWD/server.log" scripts/dev/restart.sh
 PORT=$port node scripts/dev/seed.mjs
-echo "ready: http://fosscord.localhost:$port, db $db, log $PWD/server.log"
+echo "ready: http://larpcord.localhost:$port, db $db, log $PWD/server.log"

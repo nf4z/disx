@@ -38,7 +38,7 @@ router.get(
         if (register.requireCaptcha)
             return res.json({
                 service: "cap",
-                sitekey: registrationCapEndpoint() === "/api/v9/auth/cap/" ? "fosscord" : security.captcha.sitekey,
+                sitekey: registrationCapEndpoint() === "/api/v9/auth/cap/" ? "larpcord" : security.captcha.sitekey,
                 endpoint: registrationCapEndpoint(),
                 register: true,
                 login: login.requireCaptcha && captchaEnabled(),

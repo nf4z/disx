@@ -26,12 +26,12 @@ const options = { skip: !enabled };
 let db, entities, Config, cap, captcha, core, prng, cfg, originalCaptcha, originalRegister;
 const fixtureIds = new Set();
 const registrationTokens = new Set();
-const scope = "fosscord-registration";
+const scope = "larpcord-registration";
 const tokenKey = (token) => `cap-token:${createHash("sha256").update(token).digest("hex")}`;
 
 before(async () => {
     if (!enabled) return;
-    assert.equal(new URL(process.env.DATABASE).pathname, "/fosscord_codex_admin");
+    assert.equal(new URL(process.env.DATABASE).pathname, "/larpcord_codex_admin");
     entities = require("../../dist/database");
     db = await entities.initDatabase();
     ({ Config } = require("../../dist/util"));

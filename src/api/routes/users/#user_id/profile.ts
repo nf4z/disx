@@ -21,7 +21,7 @@ import { In } from "typeorm";
 import { route } from "@spacebar/api/middlewares";
 import { authenticatorTypes, profileMetadata, resolveProfileCollectibles } from "@spacebar/api/util";
 import { Badge, Member, Relationship, User } from "@spacebar/database";
-import { broadcastUserUpdate, Config, DiscordApiErrors, emitEvent, FieldErrors, handleFile, UserUpdateEvent } from "@spacebar/util";
+import { arrangeProfileBadges, broadcastUserUpdate, Config, DiscordApiErrors, emitEvent, FieldErrors, handleFile, UserUpdateEvent } from "@spacebar/util";
 import { PartialConnectedAccountResponse, PrivateUserProjection, PublicUserProjection, RelationshipType, UserProfileModifySchema } from "@spacebar/schemas";
 
 import { prideBadges } from "@spacebar/api/util/utility/prideBadges";
@@ -50,6 +50,7 @@ router.get("/", route({ responses: { 200: { body: "UserProfileResponse" } } }), 
             "connected_accounts.visibility",
         ])
         .addSelect("user.pride_badges")
+        .addSelect("user.badge_settings")
         .leftJoinAndSelect("user.avatar_decoration", "avatar_decoration")
         .where("user.id = :user_id", { user_id })
         .getOneOrFail();
@@ -118,7 +119,10 @@ router.get("/", route({ responses: { 200: { body: "UserProfileResponse" } } }), 
         premium_guild_since: null,
         profile_themes_experiment_bucket: 4,
         user_profile: profileMetadata(user),
-        badges: badges.filter((badge) => !isSubscriptionBadge(badge)),
+        badges: arrangeProfileBadges(
+            badges.filter((badge) => !isSubscriptionBadge(badge)),
+            user.badge_settings,
+        ),
         guild_badges: [],
         widgets: user.profile_widgets ?? [],
         legacy_username: null,

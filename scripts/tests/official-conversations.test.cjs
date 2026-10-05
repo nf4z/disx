@@ -53,12 +53,12 @@ const bytes = load("client/e2ee/src/bytes.ts", {});
 const client = load("client/e2ee/src/crypto.ts", { "./bytes": bytes });
 const files = load("client/e2ee/src/files.ts", { "./bytes": bytes });
 const deviceId = (key) => crypto.createHash("sha256").update(Buffer.from(key, "base64url")).digest().subarray(0, 16).toString("base64url");
-const deviceMessage = (u, d, k) => `fosscord-e2ee/v1/device\n${u}\n${d}\n${k}`;
-const prekeyMessage = (d, i, k) => `fosscord-e2ee/v1/prekey\n${d}\n${i}\n${k}`;
-const backupMessage = (u, k) => `fosscord-e2ee/v1/backup-key\n${u}\n${k}`;
+const deviceMessage = (u, d, k) => `larpcord-e2ee/v1/device\n${u}\n${d}\n${k}`;
+const prekeyMessage = (d, i, k) => `larpcord-e2ee/v1/prekey\n${d}\n${i}\n${k}`;
+const backupMessage = (u, k) => `larpcord-e2ee/v1/backup-key\n${u}\n${k}`;
 const sign = (key, value) => crypto.sign(null, Buffer.from(value), key).toString("base64url");
 async function harness() {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "fosscord-system-crypto-"));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "larpcord-system-crypto-"));
     const original = process.env.E2EE_SYSTEM_KEY_DIR;
     process.env.E2EE_SYSTEM_KEY_DIR = dir;
     const identities = new Map(),
@@ -183,7 +183,7 @@ async function conversations() {
             },
             e2eeDeviceId: deviceId,
             e2eeDeviceMessage: deviceMessage,
-            e2eeRotationMessage: (u, p, n) => `fosscord-e2ee/v1/identity-rotate\n${u}\n${p}\n${n}`,
+            e2eeRotationMessage: (u, p, n) => `larpcord-e2ee/v1/identity-rotate\n${u}\n${p}\n${n}`,
             e2eeLimits: () => ({ maxEnvelopeBytes: 65536 }),
             verifyEd25519,
         },
@@ -202,15 +202,15 @@ async function conversations() {
         const id = "1234567895",
             nonce = "1234567896",
             bind = `n:${nonce}`;
-        const aad = `fosscord-e2ee/v1/msg\n${channelId}\n${h.recipient}\n${senderDevice.id}\n${bind}`;
+        const aad = `larpcord-e2ee/v1/msg\n${channelId}\n${h.recipient}\n${senderDevice.id}\n${bind}`;
         const key = bytes.randomBytes(32),
             iv = bytes.randomBytes(12);
-        const sealed = await client.hpkeSeal(managed.prekeyPublic, key, "fosscord-e2ee/v1/wrap", `${aad}\n${managed.deviceId}`);
+        const sealed = await client.hpkeSeal(managed.prekeyPublic, key, "larpcord-e2ee/v1/wrap", `${aad}\n${managed.deviceId}`);
         const keys = [{ user_id: h.sender.id, device_id: managed.deviceId, prekey_id: 1, ...sealed }];
         const ct = bytes.toB64u(await client.aesEncrypt(key, iv, bytes.utf8(JSON.stringify({ content: "User reply", attachments: [] })), aad));
         const env = { v: 1, alg: ALGORITHM, sender_device: senderDevice.id, iv: bytes.toB64u(iv), ct, keys };
         const canonical = [
-            "fosscord-e2ee/v1/sig",
+            "larpcord-e2ee/v1/sig",
             channelId,
             h.recipient,
             bind,
