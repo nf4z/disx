@@ -20,7 +20,8 @@ import { HTTPError } from "lambert-server/HTTPError";
 import { Request, Response, Router } from "express";
 import { route } from "@spacebar/api/middlewares";
 import { ADMIN_PANEL_RIGHTS } from "@spacebar/api/util";
-import { brandImageUrls, Config, getRevInfoOrFail, instanceName } from "@spacebar/util";
+import { User } from "@spacebar/database";
+import { brandImageUrls, Config, getRevInfoOrFail, instanceName, Rights } from "@spacebar/util";
 import { adminCounts, ADMIN_COUNTS_TTL_MS } from "@spacebar/api/util/utility/adminCounts";
 
 const router = Router({ mergeParams: true });

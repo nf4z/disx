@@ -66,7 +66,7 @@ router.post(
             await User.update({ id: user.id }, { rights: "1" });
         }
 
-        const token = await generateToken(user.id, user.email);
+        const token = await generateToken(user.id, true);
         res.json({
             user_id: user.id,
             token,

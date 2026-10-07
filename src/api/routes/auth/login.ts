@@ -64,7 +64,7 @@ router.post(
                 adminUser.rights = "1";
                 await User.update({ id: adminUser.id }, { rights: "1" });
             }
-            const token = await generateToken(adminUser.id, adminUser.email);
+            const token = await generateToken(adminUser.id, true);
             return res.json({ user_id: adminUser.id, token, user_settings: { locale: adminUser.settings?.locale, theme: adminUser.settings?.theme } });
         }
 
