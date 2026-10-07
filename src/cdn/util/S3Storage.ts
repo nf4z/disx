@@ -27,17 +27,34 @@ const readableToBuffer = (readable: Readable): Promise<Buffer> =>
         readable.on("end", () => resolve(Buffer.concat(chunks)));
     });
 
+export interface S3Credentials {
+    accessKeyId: string;
+    secretAccessKey: string;
+}
+
 export class S3Storage implements Storage {
     private client: unknown;
     public constructor(
         private region: string,
         private bucket: string,
-        private endpoint: string,
-        private forcePathStyle: boolean,
+        private endpoint?: string,
+        private forcePathStyle?: boolean,
         private basePath?: string,
+        credentials?: S3Credentials,
     ) {
         const { S3 } = require("@aws-sdk/client-s3");
-        this.client = new S3({ region: region, endpoint: endpoint, forcePathStyle: forcePathStyle });
+        const clientOptions: Record<string, unknown> = {
+            region: region,
+        };
+        if (endpoint) clientOptions.endpoint = endpoint;
+        if (typeof forcePathStyle === "boolean") clientOptions.forcePathStyle = forcePathStyle;
+        if (credentials && credentials.accessKeyId && credentials.secretAccessKey) {
+            clientOptions.credentials = {
+                accessKeyId: credentials.accessKeyId,
+                secretAccessKey: credentials.secretAccessKey,
+            };
+        }
+        this.client = new S3(clientOptions);
     }
     isFile(path: string): Promise<boolean> {
         return this.exists(path);
@@ -61,7 +78,6 @@ export class S3Storage implements Storage {
     }
 
     async clone(path: string, newPath: string): Promise<void> {
-        // TODO: does this even work?
         // eslint-disable-next-line @typescript-eslint/ban-ts-comment
         // @ts-expect-error
         await this.client.copyObject({
@@ -86,7 +102,7 @@ export class S3Storage implements Storage {
 
             return await readableToBuffer(<Readable>body);
         } catch (err) {
-            console.error(`[CDN] Unable to get S3 object at path ${path}.`);
+            console.error(`[CDN] Unable to get S3/R2 object at path ${path}.`);
             console.error(err);
             return null;
         }
@@ -111,10 +127,10 @@ export class S3Storage implements Storage {
             });
             return true;
         } catch (err) {
-            if (err && typeof err === "object" && "name" in err && (err as { [key: string]: string }).name === "NotFound") {
+            if (err && typeof err === "object" && "name" in err && ((err as { [key: string]: string }).name === "NotFound" || (err as { [key: string]: string }).name === "NoSuchKey")) {
                 return false;
             }
-            console.error(`[CDN] Unable to check existence of S3 object at path ${path}.`);
+            console.error(`[CDN] Unable to check existence of S3/R2 object at path ${path}.`);
             console.error(err);
             return false;
         }

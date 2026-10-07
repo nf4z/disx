@@ -30,7 +30,9 @@
         "generate:openapi": "node -r dotenv/config -r ./scripts/register-paths.cjs --enable-source-maps scripts/openapi.js",
         "add:license": "node -r dotenv/config -r ./scripts/register-paths.cjs --enable-source-maps scripts/license.js",
         "node:tests": "npm run build:src && node -r dotenv/config -r ./scripts/register-paths.cjs --enable-source-maps --test --experimental-test-coverage dist/**/*.test.js",
-        "apply:migrations": "node --enable-source-maps dist/apply-migrations.js"
+        "apply:migrations": "node --enable-source-maps dist/apply-migrations.js",
+        "deploy": "wrangler deploy",
+        "preview": "wrangler dev"
     },
     "main": "dist/bundle/index.js",
     "types": "src/bundle/index.ts",
@@ -87,6 +89,7 @@
         "typescript-json-schema": "^0.68.0"
     },
     "dependencies": {
+        "@aws-sdk/client-s3": "^3.1147.0",
         "@cap.js/wasm": "0.0.8",
         "@cap.js/widget": "0.1.58",
         "@hpke/core": "^1.9.0",

@@ -1075,6 +1075,23 @@
                     "flags"
                 ]
             },
+            "UserBadgeSettingsSchema": {
+                "type": "object",
+                "properties": {
+                    "display_order": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        }
+                    },
+                    "hidden_badges": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        }
+                    }
+                }
+            },
             "GuildAvailableSchema": {
                 "type": "object",
                 "properties": {
@@ -13838,6 +13855,35 @@
                         "items": {
                             "type": "string"
                         }
+                    },
+                    "badge_settings": {
+                        "anyOf": [
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "hidden_badges": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "integer"
+                                        }
+                                    },
+                                    "display_order": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "integer"
+                                        }
+                                    }
+                                },
+                                "additionalProperties": false,
+                                "required": [
+                                    "display_order",
+                                    "hidden_badges"
+                                ]
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
                     },
                     "profile_widgets": {
                         "anyOf": [
@@ -27623,6 +27669,60 @@
                 ]
             }
         },
+        "/api/users/@me/badges/settings/": {
+            "patch": {
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UserBadgeSettingsSchema"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "No description available"
+                    },
+                    "400": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/APIErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "tags": [
+                    "api"
+                ]
+            }
+        },
+        "/api/users/@me/badges/": {
+            "get": {
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No description available"
+                    }
+                },
+                "tags": [
+                    "api"
+                ]
+            }
+        },
         "/api/users/@me/avatars/": {
             "get": {
                 "security": [
@@ -28020,6 +28120,74 @@
                 ]
             }
         },
+        "/api/users/{user_id}/badges/": {
+            "get": {
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No description available"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "user_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "user_id"
+                    }
+                ],
+                "tags": [
+                    "api"
+                ]
+            }
+        },
+        "/api/users/{user_id}/badges/{badge_id}": {
+            "get": {
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No description available"
+                    },
+                    "404": {
+                        "description": "No description available"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "user_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "user_id"
+                    },
+                    {
+                        "name": "badge_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "badge_id"
+                    }
+                ],
+                "tags": [
+                    "api"
+                ]
+            }
+        },
         "/api/users/{user_id}/application-identities/": {
             "get": {
                 "security": [
@@ -28287,6 +28455,23 @@
                         "description": "stream_key"
                     }
                 ],
+                "tags": [
+                    "api"
+                ]
+            }
+        },
+        "/api/storefront/recommended-items/": {
+            "get": {
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No description available"
+                    }
+                },
                 "tags": [
                     "api"
                 ]
