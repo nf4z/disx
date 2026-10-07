@@ -92,7 +92,13 @@ export class GatewayServer extends Server {
         this.app.set("json replacer", JSONReplacer);
         this.app.disable("x-powered-by");
 
-        const trustedProxies = Config.get().security.trustedProxies;
+        const rawTrusted = (Config.get().security.trustedProxies as unknown) || process.env.TRUST_PROXY;
+        const trustedProxies =
+            rawTrusted === "true" || rawTrusted === true
+                ? true
+                : typeof rawTrusted === "string" && rawTrusted.includes(",")
+                  ? rawTrusted.split(",").map((s) => s.trim())
+                  : rawTrusted;
         if (trustedProxies) this.app.set("trust proxy", trustedProxies);
 
         this.app.use(CORS);
