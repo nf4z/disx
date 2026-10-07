@@ -21,15 +21,11 @@ const path = require("node:path");
 
 const env = (name) => process.env[name]?.trim() || undefined;
 const file = env("CONFIG_PATH");
-const domain = env("DOMAIN")
-    ?.replace(/^https?:\/\//, "")
+const domain = (env("DOMAIN") || "localhost")
+    .replace(/^https?:\/\//, "")
     .replace(/\/+$/, "");
 
 if (!file) throw new Error("[configure] CONFIG_PATH is not set");
-if (!domain) {
-    console.error("[configure] DOMAIN is not set, put the public host name of the instance in .env");
-    process.exit(1);
-}
 
 let config = {};
 if (fs.existsSync(file)) {

@@ -55,6 +55,13 @@ const rawDatabaseType = isHeadlessProcess ? "postgres" : dbConnectionString.spli
 export const DatabaseType = rawDatabaseType === "postgresql" ? "postgres" : rawDatabaseType;
 const applyMigrations = process.env.APPLY_DB_MIGRATIONS !== "false";
 const MIGRATIONLOCK = 1;
+
+const isSsl =
+    process.env.DB_SSL === "true" ||
+    dbConnectionString.includes("sslmode=require") ||
+    dbConnectionString.includes("ssl=true") ||
+    (process.env.NODE_ENV === "production" && !dbConnectionString.includes("localhost") && !dbConnectionString.includes("127.0.0.1") && process.env.DB_SSL !== "false");
+
 export const DataSourceOptions = isHeadlessProcess
     ? (undefined as unknown as DataSource)
     : new DataSource({
@@ -74,6 +81,7 @@ export const DataSourceOptions = isHeadlessProcess
               null: "sql-null",
               undefined: "ignore",
           },
+          ssl: isSsl ? { rejectUnauthorized: false } : undefined,
           connectTimeoutMS: Number(process.env.DB_CONNECT_TIMEOUT_MS) || 15000,
           poolSize: Number(process.env.DB_POOL_SIZE) || 20,
       } satisfies PostgresDataSourceOptions);

@@ -36,7 +36,7 @@ export class DisxContainer extends DurableObject {
     );
   }
 
-  async ensureStarted() {
+  async ensureStarted(request) {
     if (this.starting) return this.starting;
 
     this.starting = (async () => {
@@ -62,6 +62,8 @@ export class DisxContainer extends DurableObject {
         // DATABASE is the actual connection string consumed by the Node.js
         // process inside the Container. DATABASE_URL is accepted as an alias.
         const database = this.env.DATABASE ?? this.env.DATABASE_URL ?? this.env.HYPERDRIVE?.connectionString;
+        const requestDomain = request ? new URL(request.url).host : undefined;
+        const domain = this.env.DOMAIN || requestDomain || "localhost";
 
         const envVars = {
           NODE_ENV: "production",
@@ -69,13 +71,14 @@ export class DisxContainer extends DurableObject {
           CONFIG_PATH: "/data/state/config.json",
           STORAGE_LOCATION: "/data/storage",
           DISX_DISABLE_WEBRTC: "1",
+          DOMAIN: String(domain),
           ...(database ? { DATABASE: String(database) } : {}),
           ...Object.fromEntries(
             [
-              "DOMAIN",
               "APPLY_DB_MIGRATIONS",
               "DB_SYNC",
               "DB_POOL_SIZE",
+              "DB_SSL",
               "INSTANCE_NAME",
               "TRUSTED_PROXIES",
               "STORAGE_PROVIDER",
@@ -128,13 +131,9 @@ export class DisxContainer extends DurableObject {
           ),
         };
 
-        if (!envVars.DOMAIN) {
-          throw new Error("Cloudflare secret/variable DOMAIN is required");
-        }
-
         if (!envVars.DATABASE) {
           throw new Error(
-            "No PostgreSQL database is configured. Provide the DATABASE or DATABASE_URL Cloudflare secret.",
+            "No PostgreSQL database is configured. Please provide the DATABASE secret in Cloudflare Dashboard (or wrangler secret put DATABASE), or bind a Hyperdrive database.",
           );
         }
 
@@ -157,10 +156,11 @@ export class DisxContainer extends DurableObject {
       let lastError;
 
       let polls = 0;
+      let wasRunning = false;
       while (Date.now() < deadline) {
         polls++;
-        if (!container.running) {
-          throw new Error("container stopped while waiting for readiness");
+        if (container.running) {
+          wasRunning = true;
         }
 
         try {
@@ -180,6 +180,11 @@ export class DisxContainer extends DurableObject {
           lastError = new Error(`container health check returned HTTP ${response.status}`);
         } catch (error) {
           lastError = error;
+        }
+
+        if (polls > 15 && wasRunning && !container.running) {
+          const inspectData = await container.inspect().catch(() => null);
+          throw new Error(`container stopped unexpectedly while waiting for readiness (state: ${JSON.stringify(inspectData)})`);
         }
 
         if (polls % 10 === 0) {
@@ -213,13 +218,13 @@ export class DisxContainer extends DurableObject {
 
   async fetch(request) {
     try {
-      await this.ensureStarted();
+      await this.ensureStarted(request);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const cause = error instanceof Error && error.cause instanceof Error ? error.cause.message : "";
       console.error("[container] startup failed:", { message, cause });
       return new Response(
-        `Disx container is still starting or failed to become ready. ${message}`,
+        `Disx container is still starting or failed to become ready: ${message}`,
         { status: 503, headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" } },
       );
     }
