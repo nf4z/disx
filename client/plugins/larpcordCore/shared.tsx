@@ -20,7 +20,7 @@ import type { PatchReplacement } from "@utils/types";
 import { filters, mapMangledModuleLazy } from "@webpack";
 import { useEffect } from "@webpack/common";
 
-export const LarpCordAuthor = { name: "LarpCord", id: 0n };
+export const LarpCordAuthor = { name: "@lathandh", id: 0n };
 
 export const HOME_ROUTE = "/channels/@me";
 

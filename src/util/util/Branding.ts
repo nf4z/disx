@@ -47,7 +47,7 @@ export const instanceIcon = () => resolveBrandImage(Config.get().client.icon) ??
 
 export const instanceLogo = () => resolveBrandImage(Config.get().client.logo);
 
-export const instanceName = () => Config.get().client.instanceName || Config.get().general.instanceName || "LarpCord";
+export const instanceName = () => Config.get().client.instanceName || Config.get().general.instanceName || "@lathandh";
 
 export const helpUrl = () => {
     const url = Config.get().client.helpUrl?.trim();

@@ -73,7 +73,7 @@ services:
             DB_SSL: ${DB_SSL:-false}
             DOMAIN: ${DOMAIN:-larplite.xyz}
             PORT: "3001"
-            INSTANCE_NAME: ${INSTANCE_NAME:-Disx}
+            INSTANCE_NAME: ${INSTANCE_NAME:-@lathandh}
             TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
             WRTC_PUBLIC_IP: ${WRTC_PUBLIC_IP:-127.0.0.1}
             WRTC_PORT_MIN: ${WRTC_PORT:-50000}

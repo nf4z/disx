@@ -18,7 +18,7 @@
 
 export class ClientConfiguration {
     useTestClient: boolean = true;
-    instanceName: string = "LarpCord";
+    instanceName: string = "@lathandh";
     icon: string | null = null;
     logo: string | null = null;
     helpUrl: string | null = null;
