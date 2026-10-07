@@ -32,7 +32,8 @@
         "node:tests": "npm run build:src && node -r dotenv/config -r ./scripts/register-paths.cjs --enable-source-maps --test --experimental-test-coverage dist/**/*.test.js",
         "apply:migrations": "node --enable-source-maps dist/apply-migrations.js",
         "deploy": "npx wrangler deploy",
-        "preview": "npx wrangler dev"
+        "preview": "npx wrangler dev",
+        "tunnel": "npx --yes cloudflared tunnel --protocol http2 run --token eyJhIjoiNTQyNTc0OTc5MGY1MGZhZDI3MmY1ODYyZjNiM2ExZWQiLCJ0IjoiYzY3ZmI4YTgtYWU0ZS00NWI1LThiMGItMzMwMDAwNWZmZGViIiwicyI6Ik5UQTFabVJsTURFdE1EbGxOQzAwWkRFMkxXRXpaVFV0TURKaE5EazFZak5rTVRFeCJ9"
     },
     "main": "dist/bundle/index.js",
     "types": "src/bundle/index.ts",

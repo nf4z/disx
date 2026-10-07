@@ -241,8 +241,41 @@ export class DisxContainer extends DurableObject {
 }
 
 export default {
-  async fetch(request, env) {
-    const container = env.DISX_CONTAINER.getByName("main");
-    return container.fetch(request);
+  async fetch(request, env, ctx) {
+    try {
+      if (!env?.DISX_CONTAINER) {
+        return new Response(
+          JSON.stringify({
+            status: "error",
+            message: "Cloudflare Container binding (DISX_CONTAINER) is not available on this Cloudflare Worker instance. If using Cloudflare Named Tunnel (cloudflared), route larplite.xyz directly to localhost:3010 in Zero Trust > Networks > Tunnels > Public Hostname.",
+          }, null, 2),
+          {
+            status: 503,
+            headers: {
+              "content-type": "application/json; charset=utf-8",
+              "cache-control": "no-store",
+            },
+          },
+        );
+      }
+      const container = env.DISX_CONTAINER.getByName("main");
+      return await container.fetch(request);
+    } catch (err) {
+      console.error("[worker] unhandled fetch error:", err);
+      return new Response(
+        JSON.stringify({
+          status: "error",
+          message: err instanceof Error ? err.message : String(err),
+          stack: err instanceof Error ? err.stack : undefined,
+        }, null, 2),
+        {
+          status: 500,
+          headers: {
+            "content-type": "application/json; charset=utf-8",
+            "cache-control": "no-store",
+          },
+        },
+      );
+    }
   },
 };
