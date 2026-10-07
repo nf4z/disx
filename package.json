@@ -31,8 +31,8 @@
         "add:license": "node -r dotenv/config -r ./scripts/register-paths.cjs --enable-source-maps scripts/license.js",
         "node:tests": "npm run build:src && node -r dotenv/config -r ./scripts/register-paths.cjs --enable-source-maps --test --experimental-test-coverage dist/**/*.test.js",
         "apply:migrations": "node --enable-source-maps dist/apply-migrations.js",
-        "deploy": "wrangler deploy",
-        "preview": "wrangler dev"
+        "deploy": "npx wrangler deploy",
+        "preview": "npx wrangler dev"
     },
     "main": "dist/bundle/index.js",
     "types": "src/bundle/index.ts",
