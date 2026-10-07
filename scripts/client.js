@@ -22,8 +22,8 @@ const vm = require("vm");
 const fs = require("fs/promises");
 const { existsSync } = require("fs");
 
-const BASE_URL = (process.env.CLIENT_BASE_URL || "https://canary.discord.com").replace(/\/$/, "");
-const CLIENT_HOSTS = [...new Set([BASE_URL, ...(process.env.CLIENT_FALLBACK_URLS || "https://canary.discord.com,https://ptb.discord.com").split(",").map((url) => url.trim().replace(/\/$/, "")).filter(Boolean)])];
+const BASE_URL = (process.env.CLIENT_BASE_URL || "https://discord.com").replace(/\/$/, "");
+const CLIENT_HOSTS = [...new Set([BASE_URL, ...(process.env.CLIENT_FALLBACK_URLS || "https://discord.com,https://ptb.discord.com,https://canary.discord.com").split(",").map((url) => url.trim().replace(/\/$/, "")).filter(Boolean)])];
 const CACHE_PATH = path.resolve(process.env.CLIENT_CACHE_PATH || path.join(__dirname, "..", "assets", "cache"));
 const CONCURRENCY = Math.max(1, Math.min(32, Math.floor(Number(process.env.CLIENT_CONCURRENCY) || 8)));
 const USER_AGENT = process.env.CLIENT_USER_AGENT || "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36";

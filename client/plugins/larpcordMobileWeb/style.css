@@ -7,3 +7,12 @@
         padding-inline: 16px;
     }
 }
+
+@media (max-width: 768px) {
+    html, body {
+        height: 100%;
+        overflow: hidden;
+        -webkit-tap-highlight-color: transparent;
+        touch-action: manipulation;
+    }
+}
