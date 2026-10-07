@@ -19,8 +19,9 @@
 process.on("unhandledRejection", console.error);
 process.on("uncaughtException", console.error);
 
+import path from "node:path";
 import moduleAlias from "module-alias";
-moduleAlias(__dirname + "../../../package.json");
+moduleAlias(path.join(__dirname, "..", "..", "package.json"));
 
 import { config } from "dotenv";
 config({ quiet: true });

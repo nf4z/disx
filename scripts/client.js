@@ -235,6 +235,12 @@ const main = async () => {
         if (clientBaseUrl !== BASE_URL) console.warn("[client] using fallback Discord host: " + clientBaseUrl);
     }
 
+    if (!onlyMissing) await writeAtomic(indexFile, html);
+    if (indexOnly) {
+        console.log(`[client] index-only bootstrap completed: wrote ${indexFile}`);
+        return;
+    }
+
     const servedHtml = html.replace(/<!-- section:seometa -->[\s\S]*?<!-- endsection -->/, "");
     const queue = [...new Set([...servedHtml.matchAll(/\/assets\/([\w.-]+)/g)].map((m) => m[1]))];
     const seen = new Set(queue);

@@ -324,13 +324,20 @@ export class JwtKeypairManager {
             let privateKey: crypto.KeyObject;
             let publicKey: crypto.KeyObject;
 
-            if (existsSync("jwt.key") && existsSync("jwt.key.pub")) {
+            const { privPath, pubPath } = this.getKeyPaths();
+
+            if (existsSync(privPath) && existsSync(pubPath)) {
+                const [loadedPrivateKey, loadedPublicKey] = await Promise.all([fs.readFile(privPath), fs.readFile(pubPath)]);
+
+                privateKey = crypto.createPrivateKey(loadedPrivateKey);
+                publicKey = crypto.createPublicKey(loadedPublicKey);
+            } else if (existsSync("jwt.key") && existsSync("jwt.key.pub")) {
                 const [loadedPrivateKey, loadedPublicKey] = await Promise.all([fs.readFile("jwt.key"), fs.readFile("jwt.key.pub")]);
 
                 privateKey = crypto.createPrivateKey(loadedPrivateKey);
                 publicKey = crypto.createPublicKey(loadedPublicKey);
             } else {
-                console.log("[JWT] Generating new keypair:", path.resolve("jwt.key"), "- PWD:", process.cwd());
+                console.log("[JWT] Generating new keypair:", path.resolve(privPath), "- PWD:", process.cwd());
                 const res = crypto.generateKeyPairSync("ec", {
                     namedCurve: "secp521r1",
                 });
@@ -338,8 +345,8 @@ export class JwtKeypairManager {
                 publicKey = res.publicKey;
 
                 await Promise.all([
-                    fs.writeFile("jwt.key", privateKey.export({ format: "pem", type: "sec1" })),
-                    fs.writeFile("jwt.key.pub", publicKey.export({ format: "pem", type: "spki" })),
+                    fs.writeFile(privPath, privateKey.export({ format: "pem", type: "sec1" })),
+                    fs.writeFile(pubPath, publicKey.export({ format: "pem", type: "spki" })),
                 ]);
             }
 
@@ -363,13 +370,22 @@ export class JwtKeypairManager {
         }
     }
 
+    private static getKeyPaths() {
+        const dir = process.env.JWT_KEY_DIR || (process.env.CONFIG_PATH ? path.dirname(process.env.CONFIG_PATH) : ".");
+        return {
+            privPath: path.join(dir, "jwt.key"),
+            pubPath: path.join(dir, "jwt.key.pub"),
+        };
+    }
+
     private static async runDeletionCheck() {
         try {
-            if (!existsSync("jwt.key") || !existsSync("jwt.key.pub")) {
+            const { privPath, pubPath } = this.getKeyPaths();
+            if (!existsSync(privPath) || !existsSync(pubPath)) {
                 console.log("[JWT] Keypair files disappeared... Saving them again.");
                 await Promise.all([
-                    fs.writeFile("jwt.key", this.keypair.privateKey.export({ format: "pem", type: "sec1" })),
-                    fs.writeFile("jwt.key.pub", this.keypair.publicKey.export({ format: "pem", type: "spki" })),
+                    fs.writeFile(privPath, this.keypair.privateKey.export({ format: "pem", type: "sec1" })),
+                    fs.writeFile(pubPath, this.keypair.publicKey.export({ format: "pem", type: "spki" })),
                 ]);
             }
         } catch (e) {

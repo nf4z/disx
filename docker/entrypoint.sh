@@ -19,20 +19,18 @@ client)
     ;;
 server)
     if [ ! -f assets/cache/index.html ]; then
-        echo "[server] the client cache is missing from the image; refusing to start" >&2
-        exit 1
+        echo "[server] client cache index missing; bootstrapping index..." >&2
+        node scripts/client.js --index-only || true
     fi
 
     while :; do
         echo "[server] starting Disx..."
         if node scripts/docker-configure.js; then
-            cd /data/state
-            if node --enable-source-maps /app/dist/bundle/start.js; then
+            if node --enable-source-maps dist/bundle/start.js; then
                 status=0
             else
                 status=$?
             fi
-            cd /app
         else
             status=$?
         fi

@@ -61,7 +61,7 @@ export class DisxContainer extends DurableObject {
       if (!container.running) {
         // DATABASE is the actual connection string consumed by the Node.js
         // process inside the Container. DATABASE_URL is accepted as an alias.
-        const database = this.env.DATABASE ?? this.env.DATABASE_URL;
+        const database = this.env.DATABASE ?? this.env.DATABASE_URL ?? this.env.HYPERDRIVE?.connectionString;
 
         const envVars = {
           NODE_ENV: "production",

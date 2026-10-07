@@ -50,9 +50,8 @@ ENV NODE_ENV=production \
 COPY package.json ./
 COPY --from=build /app/node_modules node_modules
 COPY --from=build /app/dist dist
-# The client cache is generated in the build stage and must be copied into the runtime image.
-COPY --from=build /app/assets/cache assets/cache
 COPY --chown=node:node assets assets
+COPY --from=build --chown=node:node /app/assets/cache assets/cache
 COPY --from=build --chown=node:node /app/assets/vencord assets/vencord
 COPY scripts/client.js scripts/e2ee-anchors.js scripts/clan-badges.js scripts/compress-client.js scripts/docker-configure.js scripts/
 COPY docker/entrypoint.sh docker/
