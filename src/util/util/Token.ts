@@ -24,7 +24,7 @@ import jwt from "jsonwebtoken";
 import { HTTPError } from "lambert-server/HTTPError";
 import { MoreThan } from "typeorm";
 import { AccountStandingState } from "@spacebar/schemas";
-import { InstanceBan, OAuth2Token, Session, User } from "@spacebar/database";
+import { ConfigEntity, InstanceBan, OAuth2Token, Session, User } from "@spacebar/database";
 import { Random, sleep, Stopwatch } from "@spacebar/extensions";
 import { Config } from "./Config";
 import { OrmUtils } from "@spacebar/util";
