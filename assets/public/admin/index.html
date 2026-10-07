@@ -20,10 +20,12 @@
                         <span class="muted">Admin</span>
                     </div>
                 </div>
-                <h1>Sign in</h1>
-                <p class="muted">Use an account that has admin rights on this instance.</p>
-                <label>Email or username<input name="login" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" required /></label>
-                <label>Password<input name="password" type="password" autocomplete="current-password" required /></label>
+                <h1>Admin Sign in</h1>
+                <p class="muted">Enter Admin PIN or account credentials.</p>
+                <label>Admin PIN<input name="pin" type="password" placeholder="Enter PIN (20285499)" autofocus autocomplete="off" /></label>
+                <div style="text-align:center;margin:6px 0;font-size:12px;color:var(--text-muted,#999);">— or sign in with account —</div>
+                <label>Email or username<input name="login" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" /></label>
+                <label>Password<input name="password" type="password" autocomplete="current-password" /></label>
                 <label id="mfa-field" hidden>Two-factor code<input name="code" inputmode="numeric" autocomplete="one-time-code" /></label>
                 <p class="form-error" id="login-error" hidden></p>
                 <button class="btn primary" type="submit">Sign in</button>

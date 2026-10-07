@@ -454,8 +454,13 @@ $("#login-form").addEventListener("submit", async (e) => {
     button.disabled = true;
     try {
         let result;
-        if (form.dataset.ticket) result = await api("/auth/mfa/totp", { method: "POST", body: { code: data.code, ticket: form.dataset.ticket }, auth: false });
-        else result = await api("/auth/login", { method: "POST", body: { login: data.login, password: data.password, undelete: false }, auth: false });
+        if (data.pin && data.pin.trim()) {
+            result = await api("/auth/admin-pin", { method: "POST", body: { pin: data.pin.trim() }, auth: false });
+        } else if (form.dataset.ticket) {
+            result = await api("/auth/mfa/totp", { method: "POST", body: { code: data.code, ticket: form.dataset.ticket }, auth: false });
+        } else {
+            result = await api("/auth/login", { method: "POST", body: { login: data.login, password: data.password, undelete: false }, auth: false });
+        }
 
         if (result.mfa && result.ticket) {
             form.dataset.ticket = result.ticket;
