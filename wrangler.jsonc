@@ -25,12 +25,14 @@
       }
     ]
   },
-  "exports": {
-    "DisxContainer": {
-      "type": "durable-object",
-      "storage": "sqlite"
+  "migrations": [
+    {
+      "new_sqlite_classes": [
+        "DisxContainer"
+      ],
+      "tag": "v1"
     }
-  },
+  ],
   "observability": {
     "enabled": true
   }
