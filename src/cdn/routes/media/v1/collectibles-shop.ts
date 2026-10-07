@@ -19,7 +19,7 @@
 import { Router, Response, Request } from "express";
 import { HTTPError } from "lambert-server/HTTPError";
 import { fileTypeFromBuffer } from "file-type";
-import { storage, setCacheControl, setCacheControlNotFound, multer, validateServerAuth, fetchUpstreamAsset, sendAsset } from "../../../util";
+import { storage, setCacheControl, setCacheControlNotFound, multer, validateServerAuth, fetchUpstreamAsset, sendAsset, sniffMime } from "../../../util";
 import { Config } from "@spacebar/util";
 import crypto from "node:crypto";
 
@@ -41,7 +41,7 @@ router.get("/:sku_id/static", setCacheControl, async (req: Request, res: Respons
 
     const type = await fileTypeFromBuffer(file!);
 
-    res.set("Content-Type", type?.mime);
+    res.set("Content-Type", type?.mime ?? sniffMime(file!));
 
     return res.send(file);
 });
@@ -59,7 +59,7 @@ router.get("/:sku_id/animated", setCacheControl, async (req: Request, res: Respo
 
     const type = await fileTypeFromBuffer(file!);
 
-    res.set("Content-Type", type?.mime);
+    res.set("Content-Type", type?.mime ?? sniffMime(file!));
 
     return res.send(file);
 });

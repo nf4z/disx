@@ -21,7 +21,7 @@ import { Router, Response, Request } from "express";
 import { fileTypeFromBuffer } from "file-type";
 import { HTTPError } from "lambert-server/HTTPError";
 import { Config } from "@spacebar/util";
-import { storage, multer, setCacheControl, setCacheControlNotFound } from "../util";
+import { storage, multer, setCacheControl, setCacheControlNotFound, sniffMime } from "../util";
 
 const ANIMATED_MIME_TYPES = ["image/apng", "image/gif", "image/gifv"];
 const ALLOWED_MIME_TYPES = [...ANIMATED_MIME_TYPES, "image/png", "image/jpeg", "image/webp", "image/avif"];
@@ -55,7 +55,7 @@ router.get("/:guild_id/banner/:hash", setCacheControl, async (req: Request, res:
     if (!file) return setCacheControlNotFound(req, res);
     const type = await fileTypeFromBuffer(file);
 
-    res.set("Content-Type", type?.mime);
+    res.set("Content-Type", type?.mime ?? sniffMime(file));
     return res.send(file);
 });
 

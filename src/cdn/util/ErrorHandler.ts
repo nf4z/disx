@@ -24,6 +24,7 @@ const EntityNotFoundErrorRegex = /"(\w+)"/;
 
 export function ErrorHandler(error: Error & { type?: string }, req: Request, res: Response, next: NextFunction) {
     if (!error) return next();
+    if (res.headersSent) return next(error);
 
     // Convert custom generic exception classes to spacebar errors
     if (error instanceof StringLengthOutOfBoundsException)
@@ -74,9 +75,11 @@ export function ErrorHandler(error: Error & { type?: string }, req: Request, res
 
         if (httpcode > 511) httpcode = 400;
 
+        res.setHeader("Cache-Control", httpcode === 404 ? "public, max-age=60, s-maxage=60" : "no-store");
         res.status(httpcode).json({ code, message, errors, _ajvErrors, request: `${req.method} ${req.url}` });
     } catch (error) {
         console.error(`[Internal Server Error] 500`, error);
+        res.setHeader("Cache-Control", "no-store");
         return res.status(500).json({ code: 0, message: "500: Internal Server Error" });
     }
 }

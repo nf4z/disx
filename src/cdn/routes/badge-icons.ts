@@ -23,7 +23,7 @@ import { Router, Response, Request } from "express";
 import { fileTypeFromBuffer } from "file-type";
 import { ASSETS_FOLDER, Config } from "@spacebar/util";
 import { HTTPError } from "lambert-server/HTTPError";
-import { storage, multer, setCacheControl, setCacheControlNotFound, fetchUpstreamAsset } from "../util";
+import { storage, multer, setCacheControl, setCacheControlNotFound, fetchUpstreamAsset, sniffMime } from "../util";
 
 const BUNDLED_BADGES = path.join(ASSETS_FOLDER, "badge-icons");
 const ALLOWED_MIME_TYPES = ["image/png", "image/jpeg", "image/webp", "image/avif", "image/gif"];
@@ -60,7 +60,7 @@ router.get("/:badge_id", setCacheControl, async (req: Request, res: Response) =>
     if (!file) return setCacheControlNotFound(req, res);
     const type = await fileTypeFromBuffer(file);
 
-    res.set("Content-Type", type?.mime);
+    res.set("Content-Type", type?.mime ?? sniffMime(file));
 
     return res.send(file);
 });
