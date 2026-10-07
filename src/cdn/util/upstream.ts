@@ -33,13 +33,13 @@ const EXTENSION_TYPES: Record<string, string> = {
     ogg: "audio/ogg",
 };
 
-export async function sendAsset(res: Response, data: Buffer, name: string) {
+export function sniffMime(data: Buffer, name = "") {
     const extension = name.split(".").pop()?.toLowerCase() ?? "";
-    const type =
-        (await fileTypeFromBuffer(data))?.mime ??
-        EXTENSION_TYPES[extension] ??
-        (data.subarray(0, 256).toString("utf8").includes("<svg") ? "image/svg+xml" : "application/octet-stream");
-    res.set("Content-Type", type);
+    return EXTENSION_TYPES[extension] ?? (data.subarray(0, 256).toString("utf8").includes("<svg") ? "image/svg+xml" : "application/octet-stream");
+}
+
+export async function sendAsset(res: Response, data: Buffer, name: string) {
+    res.set("Content-Type", (await fileTypeFromBuffer(data))?.mime ?? sniffMime(data, name));
     return res.send(data);
 }
 

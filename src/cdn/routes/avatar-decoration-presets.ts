@@ -19,7 +19,7 @@
 import { Router, Response, Request } from "express";
 import { fileTypeFromBuffer } from "file-type";
 import { AvatarDecoration } from "@spacebar/database";
-import { storage, setCacheControl, setCacheControlNotFound, fetchUpstreamAsset } from "../util";
+import { storage, setCacheControl, setCacheControlNotFound, fetchUpstreamAsset, sniffMime } from "../util";
 
 const router = Router({ mergeParams: true });
 
@@ -43,7 +43,7 @@ router.get("/:avatar_decoration_data_asset", setCacheControl, async (req: Reques
     }
     const type = await fileTypeFromBuffer(file);
 
-    res.set("Content-Type", type?.mime);
+    res.set("Content-Type", type?.mime ?? sniffMime(file));
 
     return res.send(file);
 });
@@ -63,7 +63,7 @@ async function tryReturnFromCollectiblesShop(req: Request, res: Response, avatar
 
     const type = await fileTypeFromBuffer(file!);
 
-    res.set("Content-Type", type?.mime);
+    res.set("Content-Type", type?.mime ?? sniffMime(file!));
 
     res.send(file);
     return true;

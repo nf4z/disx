@@ -23,7 +23,7 @@ import { Router, Response, Request } from "express";
 import { fileTypeFromBuffer } from "file-type";
 import { Config, DEFAULT_AVATARS_FOLDER, defaultAvatarSvg } from "@spacebar/util";
 import { HTTPError } from "lambert-server/HTTPError";
-import { storage, multer, setCacheControl } from "../util";
+import { storage, multer, setCacheControl, sniffMime } from "../util";
 
 // TODO: check premium and animated pfp are allowed in the config
 // TODO: generate different sizes of icon
@@ -72,7 +72,7 @@ router.get("/:user_id", setCacheControl, async (req: Request, res: Response) => 
     if (!file) throw new HTTPError("not found", 404);
     const type = await fileTypeFromBuffer(file);
 
-    res.set("Content-Type", type?.mime);
+    res.set("Content-Type", type?.mime ?? sniffMime(file));
 
     return res.send(file);
 });
@@ -92,7 +92,7 @@ export const getAvatar = async (req: Request, res: Response) => {
     if (!file) throw new HTTPError("not found", 404);
     const type = await fileTypeFromBuffer(file);
 
-    res.set("Content-Type", type?.mime);
+    res.set("Content-Type", type?.mime ?? sniffMime(file));
 
     return res.send(file);
 };

@@ -28,7 +28,7 @@ export function setCacheControl(req: Request, res: Response, next: NextFunction)
 
 export function setCacheControlNotFound(req: Request, res: Response) {
     const cacheDuration = 60; // 1 minute
-    res.setHeader("Cache-Control", `public, max-age=${cacheDuration}, s-maxage=${cacheDuration}, immutable`);
+    res.setHeader("Cache-Control", `public, max-age=${cacheDuration}, s-maxage=${cacheDuration}`);
     res.status(404).send(req.path + " not found");
 }
 

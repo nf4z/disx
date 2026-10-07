@@ -186,10 +186,7 @@ const parse = (raw: string, effectsRaw?: string): Catalog => {
             hydrated.add(product);
             product.items = (product.items ?? []).map((item) => items.get(item.sku_id) ?? item);
         }
-        return (
-            (product.bundled_products ?? []).every(usable) &&
-            (product.variants ?? []).every(usable)
-        );
+        return (product.bundled_products ?? []).every(usable) && (product.variants ?? []).every(usable);
     };
     for (const [sku_id, product] of products) if (!usable(product)) products.delete(sku_id);
     for (const category of categories) {
@@ -296,6 +293,10 @@ const load = async (backgroundRefresh = true): Promise<Catalog> => {
         } catch (error) {
             console.error("[Collectibles] could not parse local snapshots", error);
         }
+    } else {
+        console.error(
+            `[Collectibles] ${SOURCES.catalog.file} is missing or empty, so the Shop has nothing to list. Add the file or set COLLECTIBLES_CATALOG_URL and COLLECTIBLES_EXTERNAL_REFRESH=true`,
+        );
     }
     return withCustom({ categories: [], products: new Map(), items: new Map() });
 };

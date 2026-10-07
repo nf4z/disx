@@ -75,7 +75,6 @@ export class CDNServer extends Server {
 
         this.app.use(CORS);
         this.app.use(Authentication);
-        this.app.use(ErrorHandler);
         this.app.use(BodyParser({ inflate: true, limit: "10mb" }));
 
         await registerRoutes(this, path.join(__dirname, "routes/"));
@@ -85,6 +84,8 @@ export class CDNServer extends Server {
 
         this.app.use("/guilds/:guild_id/users/:user_id/banners", guildProfilesRoute);
         if (process.env.LOG_ROUTES !== "false") console.log("[Server] Route /guilds/:guild_id/users/:user_id/banners registered");
+
+        this.app.use(ErrorHandler);
 
         await super.start();
         await SystemdLifecycle.setStatus(`Listening on ${this.options.host}:${this.options.port}...`);
