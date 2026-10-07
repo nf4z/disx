@@ -36,6 +36,13 @@ const defaults: Record<string, { variant: number; config?: object }> = {
     "2026-09-soundboard-favorites": { variant: 2 },
     "2026-03-friend-request-message": { variant: 1 },
     "2026-09-connected-thread-sidebar": { variant: 1 },
+    "2026-08-badge-management": { variant: 1 },
+    "2026-10-badge-directory-updates": { variant: 2 },
+    "2026-05-badge-discovery-milestone-2": { variant: 1 },
+    "2026-06-gifting-badge-desktop": { variant: 1 },
+    "2026-06-use-new-badge-image-source": { variant: 1 },
+    "2026-09-gifting-badge-coachmark-audience": { variant: 1 },
+    "2026-09-gifting-badge-complex-art": { variant: 1 },
 };
 
 export type ApexAssignment = [number, number, number, number, number, string | undefined];
@@ -44,7 +51,9 @@ type Catalog = { apex: { name: string; kind: Kind; variant: number }[]; legacy: 
 
 // apex unit types, as the client numbers them
 const UNIT = { user: 1, installation: 2, guild: 3 } as const;
-const CATALOG_FILE = path.join(ASSETS_FOLDER, "cache", "experiments.json");
+const CATALOG_FILE = fs.existsSync(path.join(ASSETS_FOLDER, "experiments.json"))
+    ? path.join(ASSETS_FOLDER, "experiments.json")
+    : path.join(ASSETS_FOLDER, "cache", "experiments.json");
 let catalog: { mtime: number; value: Catalog } | null = null;
 
 // every experiment the downloaded client defines, re-read when scripts/experiments.js regenerates it

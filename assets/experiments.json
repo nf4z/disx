@@ -1,0 +1,1158 @@
+{
+    "apex": [
+        {
+            "name": "2025-04-native-markdown",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2025-05-search-results-feedback",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2025-08-browser-hevc",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2025-09-image-attachment-mezzanine-v2",
+            "kind": "user",
+            "variant": 2
+        },
+        {
+            "name": "2025-09-sensitive-content-self-harm",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2025-09-server-nsfw-level",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2025-09-video-qoe-metrics-tracking",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2025-10-collectibles-custom-cursors",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2025-10-go-live-auto-quality",
+            "kind": "user",
+            "variant": 2
+        },
+        {
+            "name": "2025-11-mana-context-menu",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2025-11-overlay-chat",
+            "kind": "user",
+            "variant": 3
+        },
+        {
+            "name": "2025-11-rtc-panel-entry-point-new-copy",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2025-11-shockbyte-degraded",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2025-11-video-end-card-v2",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2025-12-game-invite-account-linking-entry-point",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2025-12-hdr-accessibility-setting",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2025-12-katsudon",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2025-12-nitro-s-rewards",
+            "kind": "user",
+            "variant": 4
+        },
+        {
+            "name": "2025-12-orb-redemption-thru-orders",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2025-12-windows-audio-effects",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2025-12-wmf-gpu-encode",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-01-bug-reporter",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-01-cms-layouts",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-01-favorites-server",
+            "kind": "user",
+            "variant": 2
+        },
+        {
+            "name": "2026-01-friends-in-server",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-01-ios-push-notif-json-fix",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-01-less-personalized-ads",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-01-voice-dares-v0",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-01-wmf-gpu-encode-intel",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-02-boosting-refresh-modals",
+            "kind": "user",
+            "variant": 2
+        },
+        {
+            "name": "2026-02-capture-target-window",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-02-desktop-new-user-onboarding",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-02-expiring-powerup-coachmark",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-02-friends-list",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-02-game-server-tab-always-on",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-02-gift-cards",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-02-gifting-modal-redesign",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-02-go-live-hdr",
+            "kind": "user",
+            "variant": 2
+        },
+        {
+            "name": "2026-02-gsh-game-detection-upsell",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-02-join-game-community-cta",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-02-lazy-load-all-images",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-02-mana-playground-access",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-02-mobile-volume-output-slider-removal",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-02-non-dm-gifting-modal-redesign",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-02-premium-offer-reminder-xp",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-02-private-channel-hiding",
+            "kind": "user",
+            "variant": 2
+        },
+        {
+            "name": "2026-02-voice-channel-link-click",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-02-wgc-dirty-regions-all",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-03-app-guild-validation",
+            "kind": "guild",
+            "variant": 1
+        },
+        {
+            "name": "2026-03-application-widget-v2-add-tweak",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-03-arborium-highlight",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-03-audio-effects-probe",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-03-block-purchases",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-03-croissant",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-03-icymi-desktop",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-03-icymi-staff-debugging-utility",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-03-image-load-metrics",
+            "kind": "user",
+            "variant": 2
+        },
+        {
+            "name": "2026-03-ios-audio-interrupt-handling",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-03-media-play-metrics",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-03-message-bookmarks",
+            "kind": "user",
+            "variant": 2
+        },
+        {
+            "name": "2026-03-mobile-quest-home-red-dot-notification",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-03-muted-video-quest-new-defaults",
+            "kind": "user",
+            "variant": 2
+        },
+        {
+            "name": "2026-03-new-server-boost-system-messages",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-03-overlay-default-keybind",
+            "kind": "user",
+            "variant": 3
+        },
+        {
+            "name": "2026-03-soundmoji-rendering",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-03-soundmoji-sending",
+            "kind": "user",
+            "variant": 2
+        },
+        {
+            "name": "2026-03-steelseries-3p-recurring",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-03-video-capture-device-no-reuse",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-03-wysiwyg-user-profile-editing",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-04-boosting-pre-checkout-modal-refresh-v2",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-04-browser-transceiver-padding-removal",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-04-composed-quest-player",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-04-desktop-notification-center",
+            "kind": "user",
+            "variant": 3
+        },
+        {
+            "name": "2026-04-desktop-tti-dnstcp-warmup",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-04-desktop-tti-early-update-check",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-04-desktop-tti-v8-cache",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-04-ensure-received-messages-added-in-order",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-04-gift-promotion-reminder",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-04-gifting-badge",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-04-icymi-staff-only",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-04-inappropriate-conversations-default-on",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-04-inappropriate-conversations-prescan",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-04-overlay-streamer-mode",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-04-quests-premium-orb-multiplier-marketing",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-04-safety-flows",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-04-server-boost-copy-1440p",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-04-video-hook-dx12",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-04-voice-gateway-protocol-version",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-04-wetf-parser",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-05-app-store-overlay-feature-gate",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-05-badge-discovery-milestone-2",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-05-boosting-pre-checkout-modal-refresh-monthly-rate",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-05-bounty-stale-refresh-quest-home",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-05-device-form-factor-indicators",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-05-dvp-for-attachments",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-05-frontier-tuning",
+            "kind": "guild",
+            "variant": 2
+        },
+        {
+            "name": "2026-05-global-soundboard-wheel-popout",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-05-mana-type-consolidation",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-05-quest-home-tile-redesign",
+            "kind": "user",
+            "variant": 2
+        },
+        {
+            "name": "2026-05-screenshare-picker-wgc",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-05-slayer-storefront-hide-leaderboard",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-05-social-layer-storefront-game-shops-dropdown",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-05-spatial-audio-for-voice",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-05-use-ad-analytics-interface",
+            "kind": "user",
+            "variant": 5
+        },
+        {
+            "name": "2026-06-av1-encode-linux",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-06-battlenet-social-sdk-migration",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-06-chat-bar-customization",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-06-clickstream-analytics",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-06-desktop-tti-http-cdt",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-06-desktop-tti-splash-asset",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-06-game-server-hosting-in-shop",
+            "kind": "user",
+            "variant": 2
+        },
+        {
+            "name": "2026-06-gifting-badge-desktop",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-06-guild-profile-server-tag",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-06-hero-shelf-ad-tile",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-06-improved-shop-loading",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-06-mobile-server-tag",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-06-orbs-holdout",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-06-otp-orders-phase-1",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-06-quest-home-layout-visual-tweaks",
+            "kind": "user",
+            "variant": 4
+        },
+        {
+            "name": "2026-06-server-ladder",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-06-upscale-small-captured-frames",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-06-use-new-badge-image-source",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-06-user-profile-sidebar-redesign",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-06-wmf-cpu-encode-intel",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-07-ad-recheck-interval-experiment",
+            "kind": "user",
+            "variant": 5
+        },
+        {
+            "name": "2026-07-attachment-image-ladder",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-07-aws-gateway",
+            "kind": "user",
+            "variant": 2
+        },
+        {
+            "name": "2026-07-clips-on-profile-setter",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-07-clips-on-profile-viewer",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-07-custom-app-store-overlay",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-07-desktop-channel-tabs",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-07-desktop-tti-update-backoff-algo",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-07-ios-attribution",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-07-orbchievements",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-07-personal-widget",
+            "kind": "user",
+            "variant": 2
+        },
+        {
+            "name": "2026-07-powerups-coachmark-scroll-close",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-07-premium-referral-incentives",
+            "kind": "user",
+            "variant": 4
+        },
+        {
+            "name": "2026-07-reject-with-error-kill-switch",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-07-renewable-end-date-sort",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-07-smag-dm-sidebar-nitro-recommendation",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-07-typing-users-css-dots",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-07-vibegrations-guild",
+            "kind": "guild",
+            "variant": 1
+        },
+        {
+            "name": "2026-07-wishlist-direct-to-gifting",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-08-badge-management",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-08-bounties-mobile-quest-bar",
+            "kind": "user",
+            "variant": 7
+        },
+        {
+            "name": "2026-08-favorites-server",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-08-game-mode",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-08-game-profiles-vc",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-08-gift-recipient-display-name-search",
+            "kind": "user",
+            "variant": 3
+        },
+        {
+            "name": "2026-08-gsh-subs-activity-bar",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-08-heic-upload-conversion",
+            "kind": "user",
+            "variant": 2
+        },
+        {
+            "name": "2026-08-hide-gift-shop-upsell",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-08-mark-channel-unread",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-08-no-fill-logging",
+            "kind": "user",
+            "variant": 2
+        },
+        {
+            "name": "2026-08-profile-embed-rendering",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-08-profile-embed-share-button",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-08-split-payments",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-08-timestamp-autocomplete-mobile",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-08-tiny-bronco",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-08-user-profile-server-tag-style",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-08-virtual-backgrounds-ios",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-08-voice-server-update-immediate",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-08-vq-remaining-time-truncation",
+            "kind": "user",
+            "variant": 2
+        },
+        {
+            "name": "2026-08-web-filter-tag-group-migration",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-09-application-test-mode-quick-access",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-09-automod-application-rules",
+            "kind": "guild",
+            "variant": 1
+        },
+        {
+            "name": "2026-09-build-a-bear",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-09-connected-thread-sidebar",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-09-design-systems-notification-components",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-09-desktop-tti-shader-cache",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-09-edit-profile-collectibles-ordering",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-09-friends-sidebar",
+            "kind": "user",
+            "variant": 2
+        },
+        {
+            "name": "2026-09-game-profiles-v3-commerce-tab",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-09-game-profiles-v3-communities-tab",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-09-game-search-row",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-09-gifting-badge-coachmark-audience",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-09-gifting-badge-complex-art",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-09-halloween-holiday",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-09-halloween-wishlisting-animation",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-09-invite-expiring-soon",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-09-invite-silp-education",
+            "kind": "installation",
+            "variant": 2
+        },
+        {
+            "name": "2026-09-jxr-upload-conversion",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-09-mobile-quest-home-sort-priority",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-09-multi-sku-embed-rendering",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-09-multisku-embed-builder",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-09-nameplate-video-preload-none",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-09-new-horizontal-scroll-shared",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-09-new-hscroll",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-09-new-orb-reward-visuals",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-09-nitro-file-upload-rollout",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-09-non-nitro-file-upload-marketing",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-09-orbs-hero-carousel",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-09-profile-link-fetch",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-09-profile-widget-empty-state-suggestions",
+            "kind": "user",
+            "variant": 2
+        },
+        {
+            "name": "2026-09-quest-home-bounties-feature-gate",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-09-quest-mobile-bar-secondary-cta",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-09-server-onboarding-setup-progress",
+            "kind": "user",
+            "variant": 2
+        },
+        {
+            "name": "2026-09-server-tooltip-notification-context",
+            "kind": "user",
+            "variant": 2
+        },
+        {
+            "name": "2026-09-silp-app-opened-direct-to-discoverable",
+            "kind": "installation",
+            "variant": 2
+        },
+        {
+            "name": "2026-09-silp-cta-copy-tests",
+            "kind": "user",
+            "variant": 3
+        },
+        {
+            "name": "2026-09-silp-desktop-app-upsell",
+            "kind": "user",
+            "variant": 3
+        },
+        {
+            "name": "2026-09-silp-direct-to-discoverable",
+            "kind": "installation",
+            "variant": 2
+        },
+        {
+            "name": "2026-09-single-cpu-copy",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-09-stream-zero-vad-leading",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-09-video-background-profile-fetch",
+            "kind": "user",
+            "variant": 1
+        },
+        {
+            "name": "2026-10-badge-directory-updates",
+            "kind": "user",
+            "variant": 2
+        }
+    ],
+    "legacy": [
+        {
+            "id": "2021-02_staff_qc_debugging",
+            "kind": "user",
+            "bucket": 1
+        },
+        {
+            "id": "2021-10_runtime_accessibility_system",
+            "kind": "user",
+            "bucket": 2
+        },
+        {
+            "id": "2021-12_inferno_spam_redaction",
+            "kind": "user",
+            "bucket": 1
+        },
+        {
+            "id": "2022-11_default_disable_mass_mention",
+            "kind": "guild",
+            "bucket": 1
+        },
+        {
+            "id": "2023-02_guest_voice_invites",
+            "kind": "guild",
+            "bucket": 1
+        },
+        {
+            "id": "2023-09_iar_dsa_webform",
+            "kind": "user",
+            "bucket": 2
+        },
+        {
+            "id": "2023-09_iar_user_reporting",
+            "kind": "user",
+            "bucket": 1
+        },
+        {
+            "id": "2024-06_rtc_pacer__simulcast",
+            "kind": "user",
+            "bucket": 6
+        },
+        {
+            "id": "2025-06_native_intents",
+            "kind": "user",
+            "bucket": 1
+        },
+        {
+            "id": "2025-08_default_invite_expiration_guild",
+            "kind": "guild",
+            "bucket": 3
+        },
+        {
+            "id": "2025-08_portkey_enabled",
+            "kind": "guild",
+            "bucket": 1
+        },
+        {
+            "id": "2025-10_community_account_link_onboarding",
+            "kind": "guild",
+            "bucket": 1
+        },
+        {
+            "id": "2025-11_tida_webform",
+            "kind": "user",
+            "bucket": 1
+        },
+        {
+            "id": "2026-02_game_claim_coachmark",
+            "kind": "guild",
+            "bucket": 1
+        },
+        {
+            "id": "2026-03_guild_official_messages",
+            "kind": "guild",
+            "bucket": 1
+        },
+        {
+            "id": "2026-04_application_identity_linked_roles",
+            "kind": "guild",
+            "bucket": 1
+        },
+        {
+            "id": "2026-04_guild_verification_role",
+            "kind": "guild",
+            "bucket": 1
+        },
+        {
+            "id": "2026-04_server_theme",
+            "kind": "guild",
+            "bucket": 2
+        },
+        {
+            "id": "2026-04_voice_user_duration",
+            "kind": "guild",
+            "bucket": 1
+        },
+        {
+            "id": "2026-05_default_invite_expiration_guild_web",
+            "kind": "guild",
+            "bucket": 3
+        },
+        {
+            "id": "2026-05_voice_channel_list_invite_embed",
+            "kind": "guild",
+            "bucket": 1
+        }
+    ],
+    "skipped": [
+        "2026-02-sticker-padding",
+        "2026-03-debug-experiment",
+        "2026-03-denormalized-perks-access-read",
+        "2026-04-desktop-tti-update-backoff",
+        "2026-04-one-day-fractional-nitro",
+        "2026-05-av1-bitrate-tuning",
+        "2026-05-disable-camera-simulcast",
+        "2026-06-bulk-nitro-gifting",
+        "2026-06-web-translate-dom-guard",
+        "2026-07-plan-select-ui-redesign",
+        "2026-07-premium-group-expansion-announcement",
+        "2026-08-video-guard",
+        "2026-09-referral-profile-contextual-menu-upsell",
+        "2026-09-safety-flows-legacy-required-actions",
+        "2026-09-web-sticker-picker-upsell-restyle"
+    ]
+}

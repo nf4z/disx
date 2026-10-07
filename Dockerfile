@@ -53,7 +53,7 @@ COPY --from=build /app/dist dist
 COPY --chown=node:node assets assets
 COPY --from=build --chown=node:node /app/assets/cache assets/cache
 COPY --from=build --chown=node:node /app/assets/vencord assets/vencord
-COPY scripts/client.js scripts/e2ee-anchors.js scripts/clan-badges.js scripts/compress-client.js scripts/docker-configure.js scripts/
+COPY scripts/client.js scripts/e2ee-anchors.js scripts/clan-badges.js scripts/compress-client.js scripts/docker-configure.js scripts/experiments.js scripts/
 COPY docker/entrypoint.sh docker/
 ARG REVISION=""
 ARG REVISION_TIME="0"

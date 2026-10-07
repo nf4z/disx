@@ -13,6 +13,7 @@
 !scripts/vencord.js
 !scripts/default-avatars.js
 !scripts/docker-configure.js
+!scripts/experiments.js
 !extra/pion-sfu
 !docker
 assets/cache
