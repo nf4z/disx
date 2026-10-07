@@ -33,7 +33,11 @@
         "apply:migrations": "node --enable-source-maps dist/apply-migrations.js",
         "deploy": "npx wrangler deploy",
         "preview": "npx wrangler dev",
-        "tunnel": "npx --yes cloudflared tunnel --protocol http2 run --token eyJhIjoiNTQyNTc0OTc5MGY1MGZhZDI3MmY1ODYyZjNiM2ExZWQiLCJ0IjoiYzY3ZmI4YTgtYWU0ZS00NWI1LThiMGItMzMwMDAwNWZmZGViIiwicyI6Ik5UQTFabVJsTURFdE1EbGxOQzAwWkRFMkxXRXpaVFV0TURKaE5EazFZak5rTVRFeCJ9"
+        "tunnel": "npx --yes cloudflared tunnel --protocol http2 run --token eyJhIjoiNTQyNTc0OTc5MGY1MGZhZDI3MmY1ODYyZjNiM2ExZWQiLCJ0IjoiYzY3ZmI4YTgtYWU0ZS00NWI1LThiMGItMzMwMDAwNWZmZGViIiwicyI6Ik5UQTFabVJsTURFdE1EbGxOQzAwWkRFMkxXRXpaVFV0TURKaE5EazFZak5rTVRFeCJ9",
+        "docker:build": "docker compose build",
+        "docker:up": "docker compose up -d",
+        "docker:down": "docker compose down",
+        "docker:logs": "docker compose logs -f"
     },
     "main": "dist/bundle/index.js",
     "types": "src/bundle/index.ts",
