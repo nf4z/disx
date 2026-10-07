@@ -68,8 +68,9 @@ async function main() {
     app.use(ActivityHost);
     TestClientAssets(app);
     await initDatabase();
-    await Config.init();
-    app.set("trust proxy", Config.get().security.trustedProxies || true);
+    const rawTrusted = Config.get().security.trustedProxies;
+    const trustedProxies = rawTrusted === "true" || rawTrusted === true ? true : (rawTrusted || "uniquelocal, loopback, linklocal");
+    app.set("trust proxy", trustedProxies);
 
     const logRequests = process.env["LOG_REQUESTS"] != undefined;
     if (logRequests) {
