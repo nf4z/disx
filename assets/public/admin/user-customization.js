@@ -78,29 +78,9 @@ export async function mountUserCustomization(container, user, { api, toast }) {
         return input;
     };
     try {
-        const [pride, widgetData, settings] = await Promise.all([request("pride-badges"), request("widgets"), user.bot ? Promise.resolve(null) : request("settings")]);
+        const [widgetData, settings] = await Promise.all([request("widgets"), user.bot ? Promise.resolve(null) : request("settings")]);
         if (!card.isConnected) return;
         card.querySelector("[role=status]").remove();
-        const prideForm = form("Pride badges", "Save pride badges", (form) =>
-            request("pride-badges", { method: "PATCH", body: { flags: [...form.querySelectorAll("input:checked")].map((input) => input.value) } }),
-        );
-        const prideGrid = element("div", "", "checks");
-        for (const flag of pride.catalog) {
-            const label = element("label", "", "toggle");
-            const input = element("input");
-            input.type = "checkbox";
-            input.value = flag.slug;
-            input.checked = pride.flags.includes(flag.slug);
-            const image = element("img");
-            image.src = flag.icon_url || `/badge-icons/${flag.icon}.png`;
-            image.alt = "";
-            image.width = 32;
-            image.height = 24;
-            image.style.objectFit = "contain";
-            label.append(input, image, element("span", flag.description));
-            prideGrid.append(label);
-        }
-        prideForm.insertBefore(prideGrid, prideForm.querySelector("button"));
         const widgetForm = form("Profile widgets", "Save widget layout", (form) => {
             const widgets = JSON.parse(form.elements.widgets.value);
             if (!Array.isArray(widgets)) throw new Error("Enter a JSON array of profile widgets.");

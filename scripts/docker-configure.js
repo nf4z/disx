@@ -64,6 +64,9 @@ if (instanceName && instanceName !== appliedName && !firstRemembered) {
     section("client").instanceName = instanceName;
 }
 
+section("register").requireCaptcha = false;
+section("security", "captcha").enabled = false;
+
 const cap = { instance: env("CAP_INSTANCE_URL"), sitekey: env("CAP_SITE_KEY"), secret: env("CAP_SECRET_KEY") };
 if (cap.instance && cap.sitekey && cap.secret) Object.assign(section("security", "captcha"), { enabled: true, service: "cap", ...cap });
 else if (cap.instance || cap.sitekey || cap.secret)
