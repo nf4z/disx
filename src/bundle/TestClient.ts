@@ -294,24 +294,32 @@ const buildHtml = () => {
 const EXTRA_ROOTS = ["", "ra"];
 
 const clientRoots = () => {
-    const html = fs.readFileSync(path.join(CACHE_PATH, "index.html"), "utf8");
-    const entry = html.match(/src="\/assets\/(web\.[0-9a-f]+\.js)"/)?.[1];
-    if (!entry) return null;
-    const source = fs.readFileSync(path.join(CACHE_PATH, entry), "utf8");
-    const start = source.indexOf('Object.freeze({INDEX:"/",');
-    if (start === -1) return null;
-    let depth = 0;
-    let end = start;
-    for (let i = source.indexOf("{", start); i < source.length; i++) {
-        if (source[i] === "{") depth++;
-        else if (source[i] === "}" && !--depth) {
-            end = i;
-            break;
+    try {
+        const indexPath = path.join(CACHE_PATH, "index.html");
+        if (!fs.existsSync(indexPath)) return null;
+        const html = fs.readFileSync(indexPath, "utf8");
+        const entry = html.match(/src="\/assets\/(web\.[0-9a-f]+\.js)"/)?.[1];
+        if (!entry) return null;
+        const entryPath = path.join(CACHE_PATH, entry);
+        if (!fs.existsSync(entryPath)) return null;
+        const source = fs.readFileSync(entryPath, "utf8");
+        const start = source.indexOf('Object.freeze({INDEX:"/",');
+        if (start === -1) return null;
+        let depth = 0;
+        let end = start;
+        for (let i = source.indexOf("{", start); i < source.length; i++) {
+            if (source[i] === "{") depth++;
+            else if (source[i] === "}" && !--depth) {
+                end = i;
+                break;
+            }
         }
+        const roots = new Set(EXTRA_ROOTS);
+        for (const [, root] of source.slice(start, end).matchAll(/[`"]\/([\w@.-]*)/g)) roots.add(root.toLowerCase());
+        return roots.size > EXTRA_ROOTS.length ? roots : null;
+    } catch {
+        return null;
     }
-    const roots = new Set(EXTRA_ROOTS);
-    for (const [, root] of source.slice(start, end).matchAll(/[`"]\/([\w@.-]*)/g)) roots.add(root.toLowerCase());
-    return roots.size > EXTRA_ROOTS.length ? roots : null;
 };
 
 const renderNotFound = () => brandPage(fs.readFileSync(path.join(ASSET_FOLDER_PATH, "public", "not-found.html"), "utf8"));
