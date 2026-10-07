@@ -3,8 +3,15 @@
   "name": "disx",
   "main": "./cloudflare/index.js",
   "compatibility_date": "2026-10-02",
+  "routes": [
+    {
+      "pattern": "larplite.xyz",
+      "custom_domain": true
+    }
+  ],
   "vars": {
-    "DOMAIN": "larplite.xyz"
+    "DOMAIN": "larplite.xyz",
+    "INSTANCE_NAME": "@lathandh"
   },
   "containers": [
     {
