@@ -85,10 +85,16 @@ export async function Connection(this: WS.Server, socket: WebSocket, request: In
     shutdownConnections.set(socket, onShutdown);
 
     const forwardedFor = Config.get().security.forwardedFor;
-    const ipAddress = forwardedFor ? (request.headers[forwardedFor.toLowerCase()] as string) : request.socket.remoteAddress;
+    const rawIp =
+        (forwardedFor ? (request.headers[forwardedFor.toLowerCase()] as string) : null) ||
+        (request.headers["cf-connecting-ip"] as string) ||
+        (request.headers["x-forwarded-for"] as string) ||
+        request.socket.remoteAddress ||
+        "127.0.0.1";
+    const ipAddress = (typeof rawIp === "string" ? rawIp.split(",")[0].trim() : null) || "127.0.0.1";
 
     socket.ipAddress = ipAddress;
-    socket.userAgent = request.headers["user-agent"] as string;
+    socket.userAgent = (request.headers["user-agent"] as string) || "Discord-Client";
 
     if (!ipAddress && Config.get().security.cdnSignatureIncludeIp) {
         console.error("Gateway connection rejected: No IP address found.");
