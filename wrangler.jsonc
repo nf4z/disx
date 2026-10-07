@@ -25,6 +25,12 @@
       }
     ]
   },
+  "exports": {
+    "DisxContainer": {
+      "type": "durable-object",
+      "storage": "sqlite"
+    }
+  },
   "observability": {
     "enabled": true
   }
