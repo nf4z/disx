@@ -73,8 +73,10 @@ services:
             DB_SSL: ${DB_SSL:-false}
             DOMAIN: ${DOMAIN:-larplite.xyz}
             PORT: "3001"
+            CONFIG_PATH: "/data/state/config.json"
+            JWT_KEY_DIR: "/data/state"
             INSTANCE_NAME: ${INSTANCE_NAME:-@lathandh}
-            TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
+            TRUSTED_PROXIES: ${TRUSTED_PROXIES:-true}
             WRTC_PUBLIC_IP: ${WRTC_PUBLIC_IP:-127.0.0.1}
             WRTC_PORT_MIN: ${WRTC_PORT:-50000}
             WRTC_PORT_MAX: ${WRTC_PORT:-50000}

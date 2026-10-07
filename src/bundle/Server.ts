@@ -69,6 +69,7 @@ async function main() {
     TestClientAssets(app);
     await initDatabase();
     await Config.init();
+    app.set("trust proxy", Config.get().security.trustedProxies || true);
 
     const logRequests = process.env["LOG_REQUESTS"] != undefined;
     if (logRequests) {

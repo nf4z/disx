@@ -20,6 +20,8 @@ client)
     exit 0
     ;;
 server)
+    export CONFIG_PATH="${CONFIG_PATH:-/data/state/config.json}"
+    export JWT_KEY_DIR="${JWT_KEY_DIR:-/data/state}"
     if [ ! -f assets/cache/index.html ]; then
         echo "[server] client cache index missing; bootstrapping index..." >&2
         node scripts/client.js --index-only || true

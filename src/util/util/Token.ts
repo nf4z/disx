@@ -321,8 +321,8 @@ export class JwtKeypairManager {
 
         this.isLocked = true;
         try {
-            let privateKey: crypto.KeyObject;
-            let publicKey: crypto.KeyObject;
+            let privateKey: crypto.KeyObject | undefined;
+            let publicKey: crypto.KeyObject | undefined;
 
             const { privPath, pubPath } = this.getKeyPaths();
 
@@ -337,6 +337,28 @@ export class JwtKeypairManager {
                 privateKey = crypto.createPrivateKey(loadedPrivateKey);
                 publicKey = crypto.createPublicKey(loadedPublicKey);
             } else {
+                // Check if database ConfigEntity has the saved keypair
+                try {
+                    const [privRow, pubRow] = await Promise.all([
+                        ConfigEntity.findOne({ where: { key: "security_jwt_private_key" } }),
+                        ConfigEntity.findOne({ where: { key: "security_jwt_public_key" } }),
+                    ]);
+                    if (privRow?.value && pubRow?.value) {
+                        const privPem = String(privRow.value);
+                        const pubPem = String(pubRow.value);
+                        privateKey = crypto.createPrivateKey(privPem);
+                        publicKey = crypto.createPublicKey(pubPem);
+                        try {
+                            await fs.mkdir(path.dirname(privPath), { recursive: true });
+                            await Promise.all([fs.writeFile(privPath, privPem), fs.writeFile(pubPath, pubPem)]);
+                        } catch {}
+                    }
+                } catch (e) {
+                    console.warn("[JWT] Database key lookup skipped:", e);
+                }
+            }
+
+            if (!privateKey || !publicKey) {
                 console.log("[JWT] Generating new keypair:", path.resolve(privPath), "- PWD:", process.cwd());
                 const res = crypto.generateKeyPairSync("ec", {
                     namedCurve: "secp521r1",
@@ -344,10 +366,27 @@ export class JwtKeypairManager {
                 privateKey = res.privateKey;
                 publicKey = res.publicKey;
 
-                await Promise.all([
-                    fs.writeFile(privPath, privateKey.export({ format: "pem", type: "sec1" })),
-                    fs.writeFile(pubPath, publicKey.export({ format: "pem", type: "spki" })),
-                ]);
+                const privPem = privateKey.export({ format: "pem", type: "sec1" }).toString();
+                const pubPem = publicKey.export({ format: "pem", type: "spki" }).toString();
+
+                try {
+                    await fs.mkdir(path.dirname(privPath), { recursive: true });
+                    await Promise.all([
+                        fs.writeFile(privPath, privPem),
+                        fs.writeFile(pubPath, pubPem),
+                    ]);
+                } catch (e) {
+                    console.warn("[JWT] Could not write keypair to disk:", e);
+                }
+
+                try {
+                    await Promise.all([
+                        ConfigEntity.save(Object.assign(new ConfigEntity(), { key: "security_jwt_private_key", value: privPem })),
+                        ConfigEntity.save(Object.assign(new ConfigEntity(), { key: "security_jwt_public_key", value: pubPem })),
+                    ]);
+                } catch (e) {
+                    console.warn("[JWT] Could not persist keypair to database:", e);
+                }
             }
 
             const fingerprint = crypto
