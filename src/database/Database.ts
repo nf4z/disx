@@ -60,7 +60,12 @@ const isSsl =
     process.env.DB_SSL === "true" ||
     dbConnectionString.includes("sslmode=require") ||
     dbConnectionString.includes("ssl=true") ||
-    (process.env.NODE_ENV === "production" && !dbConnectionString.includes("localhost") && !dbConnectionString.includes("127.0.0.1") && process.env.DB_SSL !== "false");
+    (process.env.NODE_ENV === "production" &&
+        !dbConnectionString.includes("localhost") &&
+        !dbConnectionString.includes("127.0.0.1") &&
+        !dbConnectionString.includes("@postgres:") &&
+        !dbConnectionString.includes("@postgres/") &&
+        process.env.DB_SSL !== "false");
 
 export const DataSourceOptions = isHeadlessProcess
     ? (undefined as unknown as DataSource)

@@ -58,9 +58,11 @@ COPY docker/entrypoint.sh docker/
 ARG REVISION=""
 ARG REVISION_TIME="0"
 RUN if [ -n "$REVISION" ]; then printf '{"rev":"%s","lastModified":%s}\n' "$REVISION" "$REVISION_TIME" > .rev; fi \
+    && sed -i 's/\r$//' docker/entrypoint.sh \
+    && chmod +x docker/entrypoint.sh \
     && mkdir -p /data/state /data/storage /data/client/cache /data/client/cache_compressed /run/sfu \
     && chown -R node:node /data /run/sfu
 USER node
 EXPOSE 3001
-ENTRYPOINT ["/app/docker/entrypoint.sh"]
+ENTRYPOINT ["/bin/sh", "/app/docker/entrypoint.sh"]
 CMD ["server"]

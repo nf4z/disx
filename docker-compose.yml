@@ -69,7 +69,8 @@ services:
             client:
                 condition: service_completed_successfully
         environment:
-            DATABASE: ${DATABASE:-postgres://${POSTGRES_USER:-larpcord}:${POSTGRES_PASSWORD:-larpcord123}@postgres:5432/${POSTGRES_DB:-larpcord}}
+            DATABASE: ${DOCKER_DATABASE:-postgres://${POSTGRES_USER:-larpcord}:${POSTGRES_PASSWORD:-larpcord123}@postgres:5432/${POSTGRES_DB:-larpcord}}
+            DB_SSL: ${DB_SSL:-false}
             DOMAIN: ${DOMAIN:-larplite.xyz}
             PORT: "3001"
             INSTANCE_NAME: ${INSTANCE_NAME:-Disx}
