@@ -121,10 +121,6 @@ const BRANDED_ASSETS: Record<string, { wordmark?: boolean; svg: (iconUri: string
     "131c318dd45b7aa4.svg": { wordmark: true, svg: (iconUri) => wordmarkSvg(undefined, iconUri) },
     "bbbc3d376d38e7bc.svg": { wordmark: true, svg: (iconUri) => wordmarkSvg([112, 36], iconUri) },
     "dd05fd1ea37e7747.png": { svg: qrLogoSvg },
-    "d11a9f2f62494f22.png": { svg: (iconUri) => placeholderAvatarSvg(132, "rgb(116 126 136 / 30%)", "rgb(255 255 255 / 30%)", iconUri) },
-    "9d8606c1376ca484.png": { svg: (iconUri) => placeholderAvatarSvg(128, "rgb(170 170 178 / 80%)", "#fff", iconUri) },
-    "2ca6b6f4a73913ed.png": { svg: (iconUri) => placeholderAvatarSvg(128, "rgb(111 111 116 / 80%)", "rgb(191 191 193 / 90%)", iconUri) },
-    "53728a8572402a56.png": { svg: (iconUri) => placeholderAvatarSvg(396, "#0c0d0e", "#444545", iconUri) },
 };
 
 export function TestClientAssets(app: Application) {
@@ -379,7 +375,7 @@ export default function TestClient(app: Application) {
     app.get("/gift/:code", (req, res) => res.redirect(`/gifts/${encodeURIComponent(req.params.code)}`));
 
     app.get("/{*splat}", (req, res, next) => {
-        if (/^\/(api|cdn|attachments|avatars|icons|banners|emojis|stickers|imageproxy)\b/.test(req.path)) return next();
+        if (/^\/(api|cdn|attachments|avatars|icons|banners|emojis|stickers|imageproxy|embed|splashes|discovery-splashes|discover-splashes|role-icons|channel-icons|guild-events|soundboard-sounds|guild-space|badge-icons|clan-badges|avatar-decoration-presets|app-icons|app-assets|content-assets|media|guild-profiles)\b|^\/guilds\/\d+\/users\/\d+\/avatars\b/.test(req.path)) return next();
         const sourceChanged = DEVELOPMENT && stamp !== (stamp = sourceStamp());
         if (sourceChanged) roots = clientRoots();
         if (sourceChanged || brand !== (brand = brandStamp())) page = renderPage();

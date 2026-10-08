@@ -2396,6 +2396,31 @@
                     "string"
                 ]
             },
+            "profile": {
+                "anyOf": [
+                    {
+                        "$ref": "#/definitions/GuildProfileSettings"
+                    },
+                    {
+                        "type": "null"
+                    }
+                ]
+            },
+            "moderator_reporting_enabled": {
+                "type": "boolean"
+            },
+            "official_message_color": {
+                "type": [
+                    "null",
+                    "integer"
+                ]
+            },
+            "verification_role_id": {
+                "type": [
+                    "null",
+                    "string"
+                ]
+            },
             "name": {
                 "maxLength": 100,
                 "type": "string"
@@ -3285,6 +3310,31 @@
                     "null",
                     "string"
                 ]
+            },
+            "profile": {
+                "anyOf": [
+                    {
+                        "$ref": "#/definitions/GuildProfileSettings"
+                    },
+                    {
+                        "type": "null"
+                    }
+                ]
+            },
+            "moderator_reporting_enabled": {
+                "type": "boolean"
+            },
+            "official_message_color": {
+                "type": [
+                    "null",
+                    "integer"
+                ]
+            },
+            "verification_role_id": {
+                "type": [
+                    "null",
+                    "string"
+                ]
             }
         },
         "additionalProperties": false,
@@ -4153,6 +4203,16 @@
                     "string"
                 ]
             },
+            "profile": {
+                "anyOf": [
+                    {
+                        "$ref": "#/definitions/GuildProfileSettings"
+                    },
+                    {
+                        "type": "null"
+                    }
+                ]
+            },
             "bans": {
                 "type": "array",
                 "items": {
@@ -4269,16 +4329,6 @@
                 "type": [
                     "null",
                     "string"
-                ]
-            },
-            "profile": {
-                "anyOf": [
-                    {
-                        "$ref": "#/definitions/GuildProfileSettings"
-                    },
-                    {
-                        "type": "null"
-                    }
                 ]
             },
             "home_settings": {
@@ -4768,6 +4818,31 @@
                     "null",
                     "string"
                 ]
+            },
+            "profile": {
+                "anyOf": [
+                    {
+                        "$ref": "#/definitions/GuildProfileSettings"
+                    },
+                    {
+                        "type": "null"
+                    }
+                ]
+            },
+            "moderator_reporting_enabled": {
+                "type": "boolean"
+            },
+            "official_message_color": {
+                "type": [
+                    "null",
+                    "integer"
+                ]
+            },
+            "verification_role_id": {
+                "type": [
+                    "null",
+                    "string"
+                ]
             }
         },
         "additionalProperties": false,
@@ -4793,7 +4868,7 @@
         "properties": {
             "instanceName": {
                 "type": "string",
-                "default": "LarpCord"
+                "default": "@lathandh"
             },
             "serverName": {
                 "type": [
@@ -6887,7 +6962,7 @@
                 "type": "string"
             },
             "discriminator": {
-                "minLength": 4,
+                "minLength": 1,
                 "maxLength": 4,
                 "type": "string"
             },

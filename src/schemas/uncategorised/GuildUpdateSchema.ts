@@ -16,7 +16,7 @@
 	along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-import { GuildCreateSchema } from "@spacebar/schemas";
+import { GuildCreateSchema, GuildProfileSettings } from "@spacebar/schemas";
 
 export interface GuildUpdateSchema extends Omit<GuildCreateSchema, "channels" | "system_channel_id" | "rules_channel_id"> {
     /**
@@ -40,4 +40,8 @@ export interface GuildUpdateSchema extends Omit<GuildCreateSchema, "channels" | 
     premium_progress_bar_enabled?: boolean;
     discovery_splash?: string | null;
     safety_alerts_channel_id?: string | null;
+    profile?: GuildProfileSettings | null;
+    moderator_reporting_enabled?: boolean;
+    official_message_color?: number | null;
+    verification_role_id?: string | null;
 }

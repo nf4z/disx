@@ -51,12 +51,24 @@ async function getFile(path: string) {
     }
 }
 
+const OFFICIAL_DEFAULT_AVATAR_HASHES = [
+    "18e336a74a159cfd.png",
+    "788f05731f8aa02e.png",
+    "9855d7e3b9780976.png",
+    "2ccd8ae8b2379360.png",
+    "411d8a698dd15ddf.png",
+    "320d5a40d309f942.png",
+];
+
 router.get("/avatars/:id", setCacheControl, async (req: Request, res: Response) => {
     const id = String(req.params.id).split(".")[0];
     if (!/^\d+$/.test(id) || Number(id) >= DEFAULT_AVATAR_COLORS.length) throw new HTTPError("not found", 404);
+    const index = Number(id);
     const file = join(DEFAULT_AVATARS_FOLDER, `${id}.png`);
     if (await fs.stat(file).catch(() => null)) return res.type("png").sendFile(file, { cacheControl: false, dotfiles: "allow" });
-    return res.type("image/svg+xml").send(defaultAvatarSvg(Number(id)));
+    const cacheFile = join(process.cwd(), "assets", "cache", OFFICIAL_DEFAULT_AVATAR_HASHES[index] || "");
+    if (await fs.stat(cacheFile).catch(() => null)) return res.type("png").sendFile(cacheFile, { cacheControl: false, dotfiles: "allow" });
+    return res.type("image/svg+xml").send(defaultAvatarSvg(index));
 });
 
 router.get("/group-avatars/:id", setCacheControl, async (req: Request, res: Response) => {

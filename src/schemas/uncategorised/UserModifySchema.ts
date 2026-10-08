@@ -53,7 +53,7 @@ export interface UserModifySchema {
      */
     email?: string;
     /**
-     * @minLength 4
+     * @minLength 1
      * @maxLength 4
      */
     discriminator?: string;

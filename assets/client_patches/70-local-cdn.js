@@ -9,7 +9,7 @@
         });
     }
     const cdn = () => location.origin;
-    const instancePaths = /^\/(?:api|cdn|assets|attachments|avatars|icons|banners|emojis|stickers|clan-badges|badge-icons|avatar-decoration-presets|app-icons|app-assets|guild-events|role-icons|splashes|discovery-splashes|user-profile-effects|content-assets|krisp_browser_models|media|soundboard-sounds|application-directory|detectables|bad-domains|changelogs)(?:\/|$)/;
+    const instancePaths = /^\/(?:api|cdn|assets|attachments|avatars|icons|banners|emojis|stickers|clan-badges|badge-icons|avatar-decoration-presets|app-icons|app-assets|guild-events|role-icons|splashes|discovery-splashes|user-profile-effects|content-assets|krisp_browser_models|media|soundboard-sounds|application-directory|detectables|bad-domains|changelogs|embed|guilds)(?:\/|$)/;
     const localHost = (host) => /^(?:localhost|[\w.-]+\.localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0|\[::1\])$/i.test(host);
     const instanceUrl = (value) => {
         if (typeof value !== "string" || !/^(?:https?:)?\/\//i.test(value)) return value;
@@ -24,6 +24,7 @@
         [/^https:\/\/cdn\.discordapp\.com\/assets\/content\//, () => `${cdn()}/content-assets/`],
         [/^https:\/\/cdn\.discordapp\.com\/assets\/krisp_browser_models\//, () => `${cdn()}/krisp_browser_models/`],
         [/^https:\/\/cdn\.discordapp\.com\/(media\/v1\/collectibles-shop|badge-icons|avatar-decoration-presets|app-icons|bad-domains)\//, (match, prefix) => `${cdn()}/${prefix}/`],
+        [/^https:\/\/cdn\.discordapp\.com\/(embed\/avatars|avatars|icons|banners|splashes|discovery-splashes|role-icons|channel-icons|emojis|stickers|attachments|guild-events|soundboard-sounds|clan-badges|guilds)\//, (match, prefix) => `${cdn()}/${prefix}/`],
     ];
     const downgraded = /^(?:http:)?\/\/((?:[\w-]+\.)*(?:discord\.com|discordapp\.com|discordapp\.net|discord\.gg|discord\.media|dis\.gd|discordstatus\.com))(?=[/:?#]|$)/i;
     const rewrite = (value) => {

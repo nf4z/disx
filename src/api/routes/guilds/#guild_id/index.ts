@@ -182,6 +182,10 @@ router.patch(
         if (referencedChannels.length && (await Channel.count({ where: { guild_id, id: In(referencedChannels) } })) !== referencedChannels.length)
             throw DiscordApiErrors.UNKNOWN_CHANNEL;
 
+        delete (body as Record<string, unknown>).moderator_reporting_enabled;
+        delete (body as Record<string, unknown>).official_message_color;
+        delete (body as Record<string, unknown>).verification_role_id;
+
         guild.assign(body);
 
         if (body.public_updates_channel_id == "1") {
