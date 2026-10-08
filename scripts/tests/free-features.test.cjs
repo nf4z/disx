@@ -75,7 +75,10 @@ test("profile response keeps free feature entitlements and custom badges without
             },
             Relationship: {},
         },
-        "@spacebar/util": {},
+        "@spacebar/util": {
+            autoNitroBadge: () => null,
+            arrangeProfileBadges: (b) => b,
+        },
         "@spacebar/schemas": {},
         "@spacebar/api/util/utility/prideBadges": { prideBadges: () => [{ id: "8000000000000000001", icon: "pride_rainbow" }] },
         "@spacebar/api/util/utility/profile": utilities(),
@@ -85,11 +88,11 @@ test("profile response keeps free feature entitlements and custom badges without
     await handlers.get({ user_id: "self", params: { user_id: "@me" }, query: {} }, { json: (x) => (result = x) });
     assert.equal(result.premium_type, 2);
     assert.equal(result.user.premium_type, 2);
-    assert.equal(result.premium_since, null);
-    assert.equal(result.premium_guild_since, null);
+    assert.deepEqual(result.premium_since, user.created_at);
+    assert.deepEqual(result.premium_guild_since, user.created_at);
     assert.deepEqual(
         Array.from(result.badges, (x) => x.id),
-        ["operator", "8000000000000000001"],
+        ["operator", "premium", "8000000000000000001"],
     );
     assert.deepEqual(Array.from(result.user_profile.theme_colors), [123, 456]);
 });

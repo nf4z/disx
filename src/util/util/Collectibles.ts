@@ -185,6 +185,9 @@ const parse = (raw: string, effectsRaw?: string): Catalog => {
         if (!hydrated.has(product)) {
             hydrated.add(product);
             product.items = (product.items ?? []).map((item) => items.get(item.sku_id) ?? item);
+            if (product.bundled_products) {
+                product.bundled_products = product.bundled_products.map((b) => products.get(b.sku_id) ?? b);
+            }
         }
         return (
             (product.bundled_products ?? []).every(usable) &&
@@ -364,9 +367,41 @@ const orderedSearchEntries = (index: ReturnType<typeof getSearchIndex>, alphabet
     return ordered;
 };
 
-export function toStorefrontProduct(product: CollectibleProduct) {
+function formatStorefrontItem(item: CollectibleItem | undefined, sku_id: string) {
+    if (!item) return null;
+    return {
+        id: item.id ?? item.sku_id ?? sku_id,
+        type: item.type,
+        asset: item.asset,
+        assets: item.assets,
+        label: item.label,
+        palette: item.palette,
+        title: item.title,
+        description: item.description,
+        accessibilityLabel: item.accessibilityLabel,
+        animationType: item.animationType,
+        staticFrameSrc: item.staticFrameSrc ?? item.static_frame_src,
+        thumbnailPreviewSrc: item.thumbnailPreviewSrc ?? item.thumbnail_preview_src,
+        reducedMotionSrc: item.reducedMotionSrc ?? item.reduced_motion_src,
+        effects: item.effects,
+        layers: item.layers,
+        inner_width: item.inner_width ?? item.innerWidth,
+        overflow_top: item.overflow_top ?? item.overflowTop,
+        overflow_bottom: item.overflow_bottom ?? item.overflowBottom,
+        overflow_horizontal: item.overflow_horizontal ?? item.overflowHorizontal,
+    };
+}
+
+export function toStorefrontProduct(product: CollectibleProduct, catalogProducts?: Map<string, CollectibleProduct>, catalogItems?: Map<string, CollectibleItem>) {
     const isBundle = product.type === CollectibleItemType.BUNDLE;
     const bundledProducts = product.bundled_products ?? [];
+
+    const getItemForSku = (skuId: string, p?: CollectibleProduct): CollectibleItem | undefined => {
+        if (p?.items?.[0]) return p.items[0];
+        const fromProd = catalogProducts?.get(skuId);
+        if (fromProd?.items?.[0]) return fromProd.items[0];
+        return catalogItems?.get(skuId);
+    };
 
     return {
         id: product.sku_id,
@@ -391,40 +426,43 @@ export function toStorefrontProduct(product: CollectibleProduct) {
         skus: [
             {
                 id: product.sku_id,
-                type: isBundle ? 4 : 5,
+                type: isBundle ? 4 : 2, // 4: BUNDLE, 2: DURABLE
                 application_id: "1096190356233670716",
-                product_line: 7,
+                product_line: 7, // COLLECTIBLES
                 name: product.name,
                 summary: product.summary ?? "",
                 prices: product.prices ?? {},
                 premium: false,
                 bundled_sku_ids: bundledProducts.map((b) => b.sku_id),
-                bundled_skus: bundledProducts.map((b) => ({
-                    id: b.sku_id,
-                    type: 5,
-                    application_id: "1096190356233670716",
-                    product_line: 7,
-                    name: b.name,
-                    summary: b.summary ?? "",
-                    prices: b.prices ?? {},
-                    premium: false,
-                    bundled_sku_ids: [],
-                    bundled_skus: [],
-                    selected_options: [],
-                    tenant_metadata: {
-                        collectibles: {
-                            category_sku_id: b.category_sku_id ?? product.category_sku_id,
-                            type: b.type,
-                            item: b.items?.[0] ?? null,
+                bundled_skus: bundledProducts.map((b) => {
+                    const item = getItemForSku(b.sku_id, b);
+                    return {
+                        id: b.sku_id,
+                        type: 2, // DURABLE
+                        application_id: "1096190356233670716",
+                        product_line: 7, // COLLECTIBLES
+                        name: b.name,
+                        summary: b.summary ?? "",
+                        prices: b.prices ?? {},
+                        premium: false,
+                        bundled_sku_ids: [],
+                        bundled_skus: [],
+                        selected_options: [],
+                        tenant_metadata: {
+                            collectibles: {
+                                category_sku_id: b.category_sku_id ?? product.category_sku_id,
+                                type: b.type,
+                                item: formatStorefrontItem(item, b.sku_id),
+                            },
                         },
-                    },
-                })),
+                    };
+                }),
                 selected_options: [],
                 tenant_metadata: {
                     collectibles: {
                         category_sku_id: product.category_sku_id,
                         type: product.type,
-                        item: product.items?.[0] ?? null,
+                        item: isBundle ? null : formatStorefrontItem(getItemForSku(product.sku_id, product), product.sku_id),
                     },
                 },
             },
@@ -476,8 +514,9 @@ export const Collectibles = {
     },
 
     async storefrontProduct(sku_id: string) {
-        const product = await Collectibles.product(sku_id);
-        return product ? toStorefrontProduct(product) : undefined;
+        const loaded = await Collectibles.get();
+        const product = loaded.products.get(sku_id);
+        return product ? toStorefrontProduct(product, loaded.products, loaded.items) : undefined;
     },
 
     async storefrontProducts(sku_ids: string[]) {
@@ -485,7 +524,7 @@ export const Collectibles = {
         const results = [];
         for (const sku_id of sku_ids) {
             const product = loaded.products.get(sku_id);
-            if (product) results.push(toStorefrontProduct(product));
+            if (product) results.push(toStorefrontProduct(product, loaded.products, loaded.items));
         }
         return results;
     },

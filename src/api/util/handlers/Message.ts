@@ -418,6 +418,7 @@ export async function handleMessage(opts: MessageOptions, known: { channel?: Cha
 
     const message = Message.create({
         ...opts,
+        flags: Number(BigInt(opts.flags ?? 0) & ~(1n << 19n)),
         message_reference: opts.message_reference ?? undefined,
         poll: opts.poll,
         sticker_items: stickers,

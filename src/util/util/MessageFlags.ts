@@ -23,5 +23,6 @@ export class MessageFlags extends BitField {
         HAS_SNAPSHOT: 1n << 14n,
         IS_COMPONENTS_V2: 1n << 15n,
         SENT_BY_SOCIAL_LAYER_INTEGRATION: 1n << 16n,
+        IS_GUILD_OFFICIAL: 1n << 19n,
     };
 }

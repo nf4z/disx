@@ -30,7 +30,7 @@ export async function userBadgeDirectory(userId: string, viewerId: string) {
     const badges: ProfileBadge[] = user.badge_ids?.length ? await Badge.find({ where: { id: In(user.badge_ids) } }) : [];
     const nitro = autoNitroBadge(user);
     if (nitro && !badges.some(isSubscriptionBadge)) {
-        badges.push(nitro);
+        badges.unshift(nitro);
     }
     return badgeDirectory(badges, user.badge_settings, userId === viewerId);
 }

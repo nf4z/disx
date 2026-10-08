@@ -430,6 +430,7 @@ export class Message extends BaseClass {
             referenced_message: shallow ? undefined : this.referenced_message === null ? null : this.referenced_message?.toJSON(this.type !== MessageType.THREAD_STARTER_MESSAGE),
             encrypted: this.encrypted ?? undefined,
             soundboard_sounds: this.soundboard_sounds?.length ? this.soundboard_sounds : undefined,
+            flags: Number(BigInt(this.flags ?? 0) & ~(1n << 19n)),
         } satisfies PublicMessage;
     }
 
@@ -441,7 +442,7 @@ export class Message extends BaseClass {
             type: this.type,
             content: this.content!,
             author: { ...this.author!, avatar: this.author?.avatar ?? null },
-            flags: this.flags,
+            flags: Number(BigInt(this.flags ?? 0) & ~(1n << 19n)),
             application_id: this.application_id,
             //channel: this.channel, // TODO: ephemeral DM channels
             // recipient_id: this.recipient_id, // TODO: ephemeral DM channels

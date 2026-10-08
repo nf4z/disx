@@ -49,8 +49,8 @@ const DISCORD_BADGES: Record<string, { key: string; badge_id: number }> = {
     "6bdc42827a38498929a4920da12695d9": { key: "game_variety", badge_id: 21 },
 };
 
-// the client never lets these be hidden (premium tenure only under one variation, and subscription badges are not shown here)
-export const FIXED_BADGE_IDS = new Set([22]);
+// the client badge management allows customizing badges
+export const FIXED_BADGE_IDS = new Set<number>();
 
 export function autoNitroBadge(user: { premium?: boolean; premium_since?: Date | null; created_at?: Date | null }): ProfileBadge | null {
     if (user.premium === false) return null;
@@ -62,9 +62,9 @@ export function autoNitroBadge(user: { premium?: boolean; premium_since?: Date |
         year: "numeric",
     });
     return {
-        id: "premium",
+        id: "premium_tenure_72_month_v2",
         description: `Subscriber since ${dateStr}`,
-        icon: "2ba85e8026a8614b640c2837bcdfe21b",
+        icon: "premium_tenure_72_month_v2",
         link: "https://discord.com/settings/premium",
     };
 }

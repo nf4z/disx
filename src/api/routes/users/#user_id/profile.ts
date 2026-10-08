@@ -100,7 +100,7 @@ router.get("/", route({ responses: { 200: { body: "UserProfileResponse" } } }), 
     if (user.badge_ids?.length) badges.push(...(await Badge.find({ where: { id: In(user.badge_ids) } })));
 
     const nitro = autoNitroBadge(user);
-    if (nitro && !badges.some(isSubscriptionBadge)) badges.push(nitro);
+    if (nitro && !badges.some(isSubscriptionBadge)) badges.unshift(nitro);
 
     badges.push(...prideBadges(user.pride_badges));
 
