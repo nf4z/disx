@@ -1,6 +1,6 @@
 /*
 	Spacebar: A FOSS re-implementation and extension of the Discord.com backend.
-	Copyright (C) 2023 Spacebar and Spacebar Contributors
+	Copyright (C) 2026 Spacebar and Spacebar Contributors
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU Affero General Public License as published
@@ -17,21 +17,13 @@
 */
 
 import { route } from "@spacebar/api/middlewares";
-import { Collectibles } from "@spacebar/util";
 import { Request, Response, Router } from "express";
 
 const router = Router({ mergeParams: true });
 
-router.get("/", route({}), async (req: Request, res: Response) => {
-    let skuIds: string[] = [];
-    if (Array.isArray(req.query.sku_ids)) {
-        skuIds = req.query.sku_ids.flatMap((x) => String(x).split(",")).filter(Boolean);
-    } else if (typeof req.query.sku_ids === "string") {
-        skuIds = req.query.sku_ids.split(",").filter(Boolean);
-    }
-
-    const products = await Collectibles.storefrontProducts(skuIds);
-    res.json({ products });
+router.get("/", route({}), (req: Request, res: Response) => {
+    // Discord client falls back to native catalog view when tab layout returns 404
+    res.status(404).json({ message: "Unknown Shop Tab Layout", code: 10006 });
 });
 
 export default router;

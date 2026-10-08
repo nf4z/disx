@@ -18,11 +18,19 @@
 
 import { In } from "typeorm";
 import { Badge, User } from "@spacebar/database";
-import { badgeDirectory } from "@spacebar/util";
+import { autoNitroBadge, badgeDirectory, ProfileBadge } from "@spacebar/util";
+import { isSubscriptionBadge } from "./profile";
 
 // the badge directory for a user; hidden badges are only listed for the user themselves
 export async function userBadgeDirectory(userId: string, viewerId: string) {
-    const user = await User.findOneOrFail({ where: { id: userId }, select: { id: true, badge_ids: true, badge_settings: true } });
-    const badges = user.badge_ids?.length ? await Badge.find({ where: { id: In(user.badge_ids) } }) : [];
+    const user = await User.findOneOrFail({
+        where: { id: userId },
+        select: { id: true, badge_ids: true, badge_settings: true, premium: true, premium_since: true, created_at: true },
+    });
+    const badges: ProfileBadge[] = user.badge_ids?.length ? await Badge.find({ where: { id: In(user.badge_ids) } }) : [];
+    const nitro = autoNitroBadge(user);
+    if (nitro && !badges.some(isSubscriptionBadge)) {
+        badges.push(nitro);
+    }
     return badgeDirectory(badges, user.badge_settings, userId === viewerId);
 }

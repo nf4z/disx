@@ -8,7 +8,7 @@ test("local-first defaults permit only Discord decoration art", () => {
         Object.entries(policy)
             .filter(([, value]) => value)
             .map(([key]) => key),
-        ["discordDecorations"],
+        ["discordDecorations", "discordClientAssets"],
     );
     for (const path of [
         "avatar-decoration-presets/a_0123456789.png",

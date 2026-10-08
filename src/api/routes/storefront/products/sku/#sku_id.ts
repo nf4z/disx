@@ -1,6 +1,6 @@
 /*
 	Spacebar: A FOSS re-implementation and extension of the Discord.com backend.
-	Copyright (C) 2023 Spacebar and Spacebar Contributors
+	Copyright (C) 2026 Spacebar and Spacebar Contributors
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU Affero General Public License as published
@@ -17,21 +17,15 @@
 */
 
 import { route } from "@spacebar/api/middlewares";
-import { Collectibles } from "@spacebar/util";
+import { Collectibles, DiscordApiErrors } from "@spacebar/util";
 import { Request, Response, Router } from "express";
 
 const router = Router({ mergeParams: true });
 
 router.get("/", route({}), async (req: Request, res: Response) => {
-    let skuIds: string[] = [];
-    if (Array.isArray(req.query.sku_ids)) {
-        skuIds = req.query.sku_ids.flatMap((x) => String(x).split(",")).filter(Boolean);
-    } else if (typeof req.query.sku_ids === "string") {
-        skuIds = req.query.sku_ids.split(",").filter(Boolean);
-    }
-
-    const products = await Collectibles.storefrontProducts(skuIds);
-    res.json({ products });
+    const product = await Collectibles.storefrontProduct(req.params.sku_id as string);
+    if (!product) throw DiscordApiErrors.UNKNOWN_SKU;
+    res.json(product);
 });
 
 export default router;

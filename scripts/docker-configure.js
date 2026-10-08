@@ -70,6 +70,13 @@ section("limits", "rate", "routes", "auth").register = { count: 100, window: 60 
 section("limits", "rate", "routes", "auth").login = { count: 100, window: 60 };
 section("limits", "rate", "ip").count = 20000;
 section("limits", "rate", "global").count = 10000;
+Object.assign(section("externalRequests"), {
+    discordDecorations: true,
+    discordAssetFallback: true,
+    discordClientAssets: true,
+    discordStickerPacks: true,
+    thirdParty: true,
+});
 
 const cap = { instance: env("CAP_INSTANCE_URL"), sitekey: env("CAP_SITE_KEY"), secret: env("CAP_SECRET_KEY") };
 if (cap.instance && cap.sitekey && cap.secret) Object.assign(section("security", "captcha"), { enabled: true, service: "cap", ...cap });

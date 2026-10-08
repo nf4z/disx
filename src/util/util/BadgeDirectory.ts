@@ -22,6 +22,15 @@ import { Config } from "./Config";
 // badge's string id to a numeric badge id (staff -> 22) and back. Instance badges carrying Discord's artwork are matched
 // by icon hash so they are reported under Discord's id and can be hidden and reordered; other badges are left as they are.
 const DISCORD_BADGES: Record<string, { key: string; badge_id: number }> = {
+    "2ba85e8026a8614b640c2837bcdfe21b": { key: "premium", badge_id: 1 },
+    premium_tenure_1_month_v2: { key: "premium_tenure_1_month_v2", badge_id: 1 },
+    premium_tenure_3_month_v2: { key: "premium_tenure_3_month_v2", badge_id: 1 },
+    premium_tenure_6_month_v2: { key: "premium_tenure_6_month_v2", badge_id: 1 },
+    premium_tenure_12_month_v2: { key: "premium_tenure_12_month_v2", badge_id: 1 },
+    premium_tenure_24_month_v2: { key: "premium_tenure_24_month_v2", badge_id: 1 },
+    premium_tenure_36_month_v2: { key: "premium_tenure_36_month_v2", badge_id: 1 },
+    premium_tenure_60_month_v2: { key: "premium_tenure_60_month_v2", badge_id: 1 },
+    premium_tenure_72_month_v2: { key: "premium_tenure_72_month_v2", badge_id: 1 },
     "5e74e9b61934fc1f67c65515d1f7e60d": { key: "staff", badge_id: 22 },
     "3f9748e53446a137a052f3454e2de41e": { key: "partner", badge_id: 2 },
     fee1624003e2fee35cb398e125dc479b: { key: "certified_moderator", badge_id: 3 },
@@ -43,8 +52,25 @@ const DISCORD_BADGES: Record<string, { key: string; badge_id: number }> = {
 // the client never lets these be hidden (premium tenure only under one variation, and subscription badges are not shown here)
 export const FIXED_BADGE_IDS = new Set([22]);
 
+export function autoNitroBadge(user: { premium?: boolean; premium_since?: Date | null; created_at?: Date | null }): ProfileBadge | null {
+    if (user.premium === false) return null;
+    const since = user.premium_since ?? user.created_at ?? new Date();
+    const date = new Date(since);
+    const dateStr = date.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+    });
+    return {
+        id: "premium",
+        description: `Subscriber since ${dateStr}`,
+        icon: "2ba85e8026a8614b640c2837bcdfe21b",
+        link: "https://discord.com/settings/premium",
+    };
+}
+
 export type BadgeSettings = { hidden_badges: number[]; display_order: number[] };
-type ProfileBadge = { id: string; description: string; icon: string; link?: string | null };
+export type ProfileBadge = { id: string; description: string; icon: string; link?: string | null };
 
 export function discordBadgeFor(icon: string) {
     return DISCORD_BADGES[icon];
@@ -86,7 +112,7 @@ export function badgeDirectory(badges: ProfileBadge[], settings: BadgeSettings |
         return [
             {
                 badge_id: known.badge_id,
-                name: badge.description,
+                name: known.badge_id === 1 ? "Discord Nitro" : badge.description,
                 description: badge.description,
                 owned: true,
                 hidden: isHidden,

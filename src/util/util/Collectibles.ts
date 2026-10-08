@@ -364,6 +364,74 @@ const orderedSearchEntries = (index: ReturnType<typeof getSearchIndex>, alphabet
     return ordered;
 };
 
+export function toStorefrontProduct(product: CollectibleProduct) {
+    const isBundle = product.type === CollectibleItemType.BUNDLE;
+    const bundledProducts = product.bundled_products ?? [];
+
+    return {
+        id: product.sku_id,
+        sku_ids: [product.sku_id, ...bundledProducts.map((b) => b.sku_id)],
+        name: product.name,
+        summary: product.summary ?? "",
+        options: [],
+        created_at: new Date(1704067200000).toISOString(),
+        updated_at: new Date(1704067200000).toISOString(),
+        primary_collection_id: product.category_sku_id ?? null,
+        primary_collection_styles: product.styles ?? null,
+        primary_collection_pdp_bg_url: null,
+        primary_collection_will_unpublish_at: null,
+        tenant_metadata: {
+            collectibles: {
+                primary_collection_id: product.category_sku_id ?? null,
+                primary_collection_styles: product.styles ?? null,
+                primary_collection_pdp_bg_url: null,
+                primary_collection_will_unpublish_at: null,
+            },
+        },
+        skus: [
+            {
+                id: product.sku_id,
+                type: isBundle ? 4 : 5,
+                application_id: "1096190356233670716",
+                product_line: 7,
+                name: product.name,
+                summary: product.summary ?? "",
+                prices: product.prices ?? {},
+                premium: false,
+                bundled_sku_ids: bundledProducts.map((b) => b.sku_id),
+                bundled_skus: bundledProducts.map((b) => ({
+                    id: b.sku_id,
+                    type: 5,
+                    application_id: "1096190356233670716",
+                    product_line: 7,
+                    name: b.name,
+                    summary: b.summary ?? "",
+                    prices: b.prices ?? {},
+                    premium: false,
+                    bundled_sku_ids: [],
+                    bundled_skus: [],
+                    selected_options: [],
+                    tenant_metadata: {
+                        collectibles: {
+                            category_sku_id: b.category_sku_id ?? product.category_sku_id,
+                            type: b.type,
+                            item: b.items?.[0] ?? null,
+                        },
+                    },
+                })),
+                selected_options: [],
+                tenant_metadata: {
+                    collectibles: {
+                        category_sku_id: product.category_sku_id,
+                        type: product.type,
+                        item: product.items?.[0] ?? null,
+                    },
+                },
+            },
+        ],
+    };
+}
+
 export const Collectibles = {
     get: () => (catalog ??= load()),
 
@@ -405,6 +473,21 @@ export const Collectibles = {
 
     async product(sku_id: string) {
         return (await Collectibles.get()).products.get(sku_id);
+    },
+
+    async storefrontProduct(sku_id: string) {
+        const product = await Collectibles.product(sku_id);
+        return product ? toStorefrontProduct(product) : undefined;
+    },
+
+    async storefrontProducts(sku_ids: string[]) {
+        const loaded = await Collectibles.get();
+        const results = [];
+        for (const sku_id of sku_ids) {
+            const product = loaded.products.get(sku_id);
+            if (product) results.push(toStorefrontProduct(product));
+        }
+        return results;
     },
 
     async item(sku_id: string, type: CollectibleItemType) {

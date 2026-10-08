@@ -21,7 +21,7 @@ import { In } from "typeorm";
 import { route } from "@spacebar/api/middlewares";
 import { authenticatorTypes, profileMetadata, resolveProfileCollectibles } from "@spacebar/api/util";
 import { Badge, Member, Relationship, User } from "@spacebar/database";
-import { arrangeProfileBadges, broadcastUserUpdate, Config, DiscordApiErrors, emitEvent, FieldErrors, handleFile, UserUpdateEvent } from "@spacebar/util";
+import { arrangeProfileBadges, autoNitroBadge, broadcastUserUpdate, Config, DiscordApiErrors, emitEvent, FieldErrors, handleFile, UserUpdateEvent } from "@spacebar/util";
 import { PartialConnectedAccountResponse, PrivateUserProjection, PublicUserProjection, RelationshipType, UserProfileModifySchema } from "@spacebar/schemas";
 
 import { prideBadges } from "@spacebar/api/util/utility/prideBadges";
@@ -98,6 +98,9 @@ router.get("/", route({ responses: { 200: { body: "UserProfileResponse" } } }), 
 
     const badges = [];
     if (user.badge_ids?.length) badges.push(...(await Badge.find({ where: { id: In(user.badge_ids) } })));
+
+    const nitro = autoNitroBadge(user);
+    if (nitro && !badges.some(isSubscriptionBadge)) badges.push(nitro);
 
     badges.push(...prideBadges(user.pride_badges));
 

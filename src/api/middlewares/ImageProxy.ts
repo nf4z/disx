@@ -70,19 +70,19 @@ export async function ImageProxy(req: Request, res: Response) {
         return;
     }
 
-    if (!request.headers.get("Content-Type") || !request.headers.get("Content-Length")) {
-        res.status(500).send("Origin did not provide a Content-Type or Content-Length header");
+    const contentTypeHeader = request.headers.get("Content-Type");
+    if (!contentTypeHeader) {
+        res.status(500).send("Origin did not provide a Content-Type header");
         return;
     }
 
-    // @ts-expect-error TS doesn't believe that the header cannot be null (it's checked for falsiness above)
-    if (parseInt(request.headers.get("Content-Length")) > 1024 * 1024 * 10) {
+    const contentLength = request.headers.get("Content-Length");
+    if (contentLength && parseInt(contentLength) > 1024 * 1024 * 25) {
         res.status(500).send("Origin provided a Content-Length header that is too large");
         return;
     }
 
-    // @ts-expect-error TS doesn't believe that the header cannot be null (it's checked for falsiness above)
-    let contentType: string = request.headers.get("Content-Type");
+    let contentType: string = contentTypeHeader;
 
     const arrayBuffer = await request.arrayBuffer();
     let resultBuffer = Buffer.from(arrayBuffer);
